@@ -1,0 +1,6 @@
+{
+    "**/*": [
+        "eslint --fix --no-warn-ignored"
+    ],
+    "**/*.{vue,css,scss}": "stylelint --fix"
+}

@@ -7,10 +7,21 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "lint": "eslint . && stylelint '**/*.{vue,css,scss}'",
+    "lint:fix": "eslint . --fix && stylelint --fix '**/*.{vue,css,scss}'",
+    "prepare": "husky"
   },
   "dependencies": {
+    "@nuxt/eslint": "^0.3.13",
     "nuxt": "^3.12.3",
     "vue": "latest"
+  },
+  "devDependencies": {
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.7",
+    "stylelint": "^15.0.0",
+    "stylelint-config-recommended-vue": "^1.5.0",
+    "stylelint-config-standard": "^33.0.0"
   }
 }
