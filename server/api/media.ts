@@ -30,6 +30,9 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     },
     take: returnedNumber,
     skip: (pageNumber - 1) * returnedNumber,
+    orderBy: {
+      updatedAt: 'desc',
+    },
   }).then(medias => medias.map(
     media => ({
       id: media.id,

@@ -4,15 +4,24 @@ import '@mux/mux-player'
 
 import type { APIMedia, APIMediaFile } from '../types/api-media'
 
+type File = z.infer<typeof APIMediaFile>
+
 const props = defineProps<{
   media: z.infer<typeof APIMedia>
 }>()
 
-const displayElement = computed(() => props.media.files.some(file => file.hasVideo && file.ext !== 'gif') ? 'video' : 'image')
-const videoFile = computed(() => props.media.files.find(file => file.hasVideo && file.ext !== 'gif'))
-const imageFile = computed(() => props.media.files.find(file => file.hasImage || file.ext === 'gif'))
+const fileSortWeight = (file: File) => {
+  if (file.hasVideo) return 0
+  return 1
+}
 
-const getSrc = (file: z.infer<typeof APIMediaFile>) => `${document.location.origin}/file/${props.media.id}/${file?.id}/${file?.url}`
+const files = computed(() => props.media.files.toSorted((a, b) => fileSortWeight(a) - fileSortWeight(b)))
+
+const displayElement = computed(() => files.value.some(file => file.hasVideo && file.ext !== 'gif') ? 'video' : 'image')
+const videoFile = computed(() => files.value.find(file => file.hasVideo && file.ext !== 'gif'))
+const imageFile = computed(() => files.value.find(file => file.hasImage || file.ext === 'gif'))
+
+const getSrc = (file: File) => `${document.location.origin}/file/${props.media.id}/${file?.id}/${file?.url}`
 </script>
 
 <template>
@@ -25,6 +34,7 @@ const getSrc = (file: z.infer<typeof APIMediaFile>) => `${document.location.orig
       :src="videoFile ? getSrc(videoFile) : ''"
       :poster="imageFile ? getSrc(imageFile) : ''"
       stream-type="on-demand"
+      :preload="imageFile ? 'none' : 'metadata'"
     />
     <img
       v-else-if="displayElement === 'image'"

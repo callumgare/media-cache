@@ -1,20 +1,25 @@
 <template>
   <div>
+    <PageHeader :breadcrumbs="[]" />
     <MediaList
       :medias="medias"
     />
-    <button @click="() => currentPageNumberRef += 1">
-      Next page
-    </button>
+    <Paginator
+      v-model:first="currentPageIndex"
+      :rows="1"
+      :total-records="totalMedias"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-const currentPageNumberRef = ref(1)
+const currentPageIndex = ref(0)
+const currentPage = computed(() => currentPageIndex.value + 1)
 const { data } = useQuery({
-  queryKey: ['media', currentPageNumberRef],
-  queryFn: () => $fetch('/api/media', { query: { page: currentPageNumberRef.value } }),
+  queryKey: ['media', currentPage],
+  queryFn: () => $fetch('/api/media', { query: { page: currentPage.value } }),
 })
 
 const medias = computed(() => data.value?.media || [])
+const totalMedias = computed(() => Math.ceil((data.value?.totalCount || 0) / 10))
 </script>

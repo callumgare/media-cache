@@ -28,6 +28,8 @@ defineProps<{
     display: flex;
     flex-wrap: wrap;
     gap: 0.5em;
+    justify-content: center;
+    align-items: center;
   }
 
   li {

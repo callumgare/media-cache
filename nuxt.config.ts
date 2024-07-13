@@ -1,12 +1,14 @@
+import Aura from '@primevue/themes/aura'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
   modules: [
     '@nuxt/eslint',
-    'nuxt-primevue',
-    '@prisma/nuxt',
+    '@primevue/nuxt-module',
     '@hebilicious/vue-query-nuxt',
+    '@prisma/nuxt',
   ],
   eslint: {
     config: {
@@ -15,7 +17,22 @@ export default defineNuxtConfig({
   },
   vue: {
     compilerOptions: {
-      isCustomElement: tag => ['mux-player'].includes(tag),
+      isCustomElement: (tag: string) => ['mux-player'].includes(tag),
     },
+  },
+  primevue: {
+    options: {
+      theme: {
+        preset: Aura,
+      },
+    },
+  },
+  prisma: {
+    installCLI: false,
+    installClient: false,
+    generateClient: false,
+    formatSchema: false,
+    installStudio: true,
+    autoSetupPrisma: true,
   },
 })

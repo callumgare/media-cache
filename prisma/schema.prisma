@@ -55,24 +55,28 @@ model SourceMediaDetails {
 }
 
 model File {
-  id             Int      @id @default(autoincrement())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  media          Media    @relation(fields: [mediaId], references: [id])
-  mediaId        Int
-  finderSourceId String
-  finderMediaId  String
-  type           String
-  url            String
-  ext            String?
-  mimeType       String?
-  hasVideo       Boolean?
-  hasAudio       Boolean?
-  hasImage       Boolean?
-  duration       Float?
-  fileSize       Int?
-  width          Int?
-  height         Int?
+  id                Int       @id @default(autoincrement())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  media             Media     @relation(fields: [mediaId], references: [id])
+  mediaId           Int
+  finderSourceId    String
+  finderMediaId     String
+  type              String
+  url               String
+  ext               String?
+  mimeType          String?
+  hasVideo          Boolean?
+  hasAudio          Boolean?
+  hasImage          Boolean?
+  duration          Float?
+  fileSize          Int?
+  width             Int?
+  height            Int?
+  urlExpires        DateTime?
+  urlRefreshDetails String?
+
+  @@unique([finderSourceId, finderMediaId, type])
 }
 
 model Source {
@@ -117,7 +121,7 @@ model MediaFinderSettings {
   key       String   @id
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  value     Json
+  value     String
 }
 
 model MediaFinderQuery {
@@ -125,7 +129,7 @@ model MediaFinderQuery {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   title              String
-  requestOptions     Json
+  requestOptions     String
   schedule           Int
   MediaFinderHistory MediaFinderHistory[]
 }
@@ -170,7 +174,7 @@ model MediaFinderResponseItemContent {
   source        String
   itemId        String
   itemType      String
-  content       Json                         @unique
+  content       String                         @unique
   contentHash   String                       @unique
   responseItems MediaFinderResponseItemMap[]
 }
