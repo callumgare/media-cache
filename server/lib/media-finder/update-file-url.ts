@@ -1,7 +1,7 @@
 import { type File } from '@prisma/client'
-import { createMediaFinderQuery } from 'media-finder'
 import { type GenericRequestInput } from 'media-finder/dist/schemas/request'
 import { finderFileToCacheFile } from './shared'
+import { getMediaQuery } from '.'
 import prisma from '@/lib/prisma'
 import { deserialize } from '~/lib/general'
 
@@ -9,7 +9,7 @@ export async function updateFileUrl(fileToRefresh: File) {
   if (!fileToRefresh.urlRefreshDetails) {
     throw Error(`File has not urlRefreshDetails`)
   }
-  const mediaQuery = createMediaFinderQuery({
+  const mediaQuery = getMediaQuery({
     request: deserialize(fileToRefresh.urlRefreshDetails) as GenericRequestInput,
     queryOptions: {
       fetchCountLimit: 3,

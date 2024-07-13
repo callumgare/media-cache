@@ -2,15 +2,16 @@ import type { MediaFinderHistory, MediaFinderQuery, SourceMediaDetails } from '@
 import serialize from 'serialize-javascript'
 
 import deepmerge from 'deepmerge'
-import { type GenericFile, type GenericMedia, createMediaFinderQuery, type GenericRequest } from 'media-finder'
+import { type GenericFile, type GenericMedia, type GenericRequest } from 'media-finder'
 import objectHash from 'object-hash'
 
 import { finderFileToCacheFile } from './shared'
+import { getMediaQuery } from '.'
 import prisma from '@/lib/prisma'
 import { deserialize } from '~/lib/general'
 
 export async function runMediaFinderQuery(mediaFinderQuery: MediaFinderQuery) {
-  const mediaQuery = createMediaFinderQuery({
+  const mediaQuery = await getMediaQuery({
     request: mediaFinderQuery.requestOptions as GenericRequest,
     queryOptions: {
       fetchCountLimit: 3,

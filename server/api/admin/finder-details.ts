@@ -1,8 +1,8 @@
-import { MediaFinder } from 'media-finder'
 import { zodToJsonSchema } from 'zod-to-json-schema'
+import { getMediaFinder } from '~/server/lib/media-finder'
 
 export default defineEventHandler(async () => {
-  const mediaFinder = new MediaFinder()
+  const mediaFinder = await getMediaFinder()
   return {
     sources: Object.fromEntries(
       Object.values(mediaFinder.sources)

@@ -19,4 +19,4 @@ ENV NUXT_PORT=3000
 
 EXPOSE 3000
 
-ENTRYPOINT ["node", ".output/server/index.mjs"]
+ENTRYPOINT ["sh", "-c", "npx prisma migrate deploy && node .output/server/index.mjs"]

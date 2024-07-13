@@ -21,7 +21,7 @@
     "@nuxt/eslint": "^0.3.13",
     "@prisma/nuxt": "^0.0.30",
     "@tanstack/vue-query": "^5.51.0",
-    "media-finder": "^2.0.1",
+    "media-finder": "^2.1.0",
     "nuxt": "^3.12.3",
     "object-hash": "^3.0.0",
     "primevue": "^4.0.0",
