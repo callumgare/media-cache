@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    ports:
+      - 3000:3000
+    environment:
+      DATABASE_URL: "postgresql://postgres:example@postgres:5432/postgres?schema=public"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres
+    restart: always
+    shm_size: 1g
+    environment:
+      POSTGRES_PASSWORD: example
+    ports:
+      - 5432:5432
