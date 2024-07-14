@@ -17,6 +17,8 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
 
   const totalCount = await db.select({ count: count() }).from(schema.Media).then(res => res[0].count)
 
+  const date = new Date()
+  const seed = (date.getFullYear() * 10000) + (date.getMonth() * 100) + date.getDate()
   const dbMedias = await db.query.Media.findMany({
     with: {
       files: true,
@@ -28,7 +30,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     },
     limit: returnedNumber,
     offset: (pageNumber - 1) * returnedNumber,
-    orderBy: (Media, { desc }) => [desc(Media.updatedAt)],
+    orderBy: (Media, { sql }) => [sql`hashint4(id + ${seed})`],
   })
   const apiMedias = dbMedias.map(
     media => ({
