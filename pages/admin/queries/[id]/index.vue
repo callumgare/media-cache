@@ -6,12 +6,10 @@
 </template>
 
 <script setup lang="ts">
-import type { MediaFinderQuery } from '@prisma/client'
-
 const route = useRoute()
 const id = typeof route.params.id === 'string' ? route.params.id : route.params.id[0]
 
-let mediaQuery: MediaFinderQuery | undefined
+let mediaQuery: DBMediaFinderQuery | undefined
 
 if (id === 'add') {
   mediaQuery = undefined

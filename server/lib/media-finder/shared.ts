@@ -1,8 +1,7 @@
-import type { Prisma } from '@prisma/client'
 import { type GenericFile } from 'media-finder'
 import { serialize } from '~/lib/general'
 
-type Result = Omit<Prisma.FileCreateInput, 'finderSourceId' | 'finderMediaId' | 'media'>
+type Result = Omit<DBFile, 'finderSourceId' | 'finderMediaId' | 'media' | 'updatedAt' | 'id' | 'createdAt' | 'mediaId'>
 
 export function finderFileToCacheFile(finderFile: GenericFile): Result {
   let urlExpires = null
@@ -17,16 +16,16 @@ export function finderFileToCacheFile(finderFile: GenericFile): Result {
   return {
     type: finderFile.type,
     url: finderFile.url,
-    ext: finderFile.ext,
-    mimeType: finderFile.mimeType,
-    hasVideo: finderFile.video,
-    hasAudio: finderFile.audio,
-    hasImage: finderFile.image,
-    duration: typeof finderFile.duration === 'number' ? finderFile.duration : undefined, // At the time for writing duration isn't yet a property of media-finder's GenericFile
-    fileSize: finderFile.fileSize,
-    width: finderFile.width,
-    height: finderFile.height,
+    ext: finderFile.ext ?? null,
+    mimeType: finderFile.mimeType ?? null,
+    hasVideo: finderFile.video ?? null,
+    hasAudio: finderFile.audio ?? null,
+    hasImage: finderFile.image ?? null,
+    duration: finderFile.duration ?? null,
+    fileSize: finderFile.fileSize ?? null,
+    width: finderFile.width ?? null,
+    height: finderFile.height ?? null,
     urlExpires,
-    urlRefreshDetails: finderFile.urlRefreshDetails && serialize(finderFile.urlRefreshDetails),
+    urlRefreshDetails: finderFile.urlRefreshDetails ? serialize(finderFile.urlRefreshDetails) : null,
   }
 }

@@ -1,16 +1,15 @@
-import type { MediaFinderHistory, MediaFinderQuery, SourceMediaDetails } from '@prisma/client'
 import serialize from 'serialize-javascript'
 
 import deepmerge from 'deepmerge'
 import { type GenericFile, type GenericMedia, type GenericRequest } from 'media-finder'
 import objectHash from 'object-hash'
 
+import { and, eq } from 'drizzle-orm'
 import { finderFileToCacheFile } from './shared'
 import { getMediaQuery } from '.'
-import prisma from '@/lib/prisma'
 import { deserialize } from '~/lib/general'
 
-export async function runMediaFinderQuery(mediaFinderQuery: MediaFinderQuery) {
+export async function runMediaFinderQuery(mediaFinderQuery: DBMediaFinderQuery) {
   const mediaQuery = await getMediaQuery({
     request: mediaFinderQuery.requestOptions as GenericRequest,
     queryOptions: {
@@ -34,22 +33,22 @@ export async function runMediaFinderQuery(mediaFinderQuery: MediaFinderQuery) {
       console.log('Loading media:', finderMedia.id)
 
       finderMedia.title = (finderMedia.title || '') + Math.random()
-      const queryHistoryEntry = await prisma.mediaFinderHistory.create({
-        data: {
-          startDate: new Date(),
-          endDate: new Date(),
-          found: 0,
-          new: 0,
-          updated: 0,
-          removed: 0,
-          notSuitable: 0,
-          unchanged: 0,
-          warningCount: 0,
-          nonFatalErrorCount: 0,
-          fatalErrorCount: 0,
-          queryId: mediaFinderQuery.id,
-        },
+      const [queryHistoryEntry] = await db.insert(schema.MediaFinderHistory).values({
+        updatedAt: new Date(),
+        startDate: new Date(),
+        endDate: new Date(),
+        found: 0,
+        new: 0,
+        updated: 0,
+        removed: 0,
+        notSuitable: 0,
+        unchanged: 0,
+        warningCount: 0,
+        nonFatalErrorCount: 0,
+        fatalErrorCount: 0,
+        queryId: mediaFinderQuery.id,
       })
+        .returning()
 
       const { media, createdMedia } = await ensureMedia(finderMedia)
 
@@ -73,8 +72,8 @@ export async function runMediaFinderQuery(mediaFinderQuery: MediaFinderQuery) {
   }
   console.log('Done running query')
 
-  return await prisma.media.findMany({
-    include: {
+  return await db.query.Media.findMany({
+    with: {
       files: true,
       sourceDetails: true,
       GroupEntry: true,
@@ -86,19 +85,15 @@ export async function getMergedFinderResponseMedia(
   finderSourceId: string,
   finderMediaId: string,
 ): Promise<GenericMedia> {
-  const mediaResponses = await prisma.mediaFinderResponseItemContent.findMany({
-    where: {
-      itemType: 'media',
-      source: finderSourceId,
-      itemId: finderMediaId,
-    },
-    orderBy: [
-      {
-        createdAt: 'desc',
-      },
-    ],
+  const mediaResponses = await db.query.MediaFinderResponseItemContent.findMany({
+    where: (MediaFinderResponseItemContent, { eq, and }) => and(
+      eq(MediaFinderResponseItemContent.itemType, 'media'),
+      eq(MediaFinderResponseItemContent.source, finderSourceId),
+      eq(MediaFinderResponseItemContent.itemId, finderMediaId),
+    ),
+    orderBy: (MediaFinderResponseItemContent, { desc }) => [desc(MediaFinderResponseItemContent.createdAt)],
   }).then(
-    responseItemContents => responseItemContents.map(responseItemContent => deserialize(responseItemContent.content)),
+    responseItemContents => responseItemContents.map(responseItemContent => deserialize(responseItemContent.content) as GenericMedia),
   )
 
   function combineFilesOfSameType(files: GenericFile[]) {
@@ -133,15 +128,9 @@ export async function refreshSourceMediaDetails(
   mergedMediaResponse: GenericMedia,
   finderSourceId: string,
   finderMediaId: string,
-): Promise<SourceMediaDetails> {
-  const sourceMediaDetails = await prisma.sourceMediaDetails.update({
-    where: {
-      finderSourceId_finderMediaId: {
-        finderSourceId,
-        finderMediaId,
-      },
-    },
-    data: {
+): Promise<DBSourceMediaDetails> {
+  const [sourceMediaDetails] = await db.update(schema.SourceMediaDetails)
+    .set({
       sourceUploadedAt: mergedMediaResponse.dateUploaded,
       title: mergedMediaResponse.title,
       description: mergedMediaResponse.description,
@@ -152,112 +141,111 @@ export async function refreshSourceMediaDetails(
       likes: mergedMediaResponse.numberOfLikes,
       likesPercentage: mergedMediaResponse.percentOfLikes,
       dislikes: mergedMediaResponse.numberOfDislikes,
-    },
-  })
+    })
+    .where(
+      and(
+        eq(schema.SourceMediaDetails.finderSourceId, finderSourceId),
+        eq(schema.SourceMediaDetails.finderMediaId, finderMediaId),
+      ),
+    )
+    .returning()
 
   return sourceMediaDetails
 }
 
 export async function refreshFiles(
   mergedMediaResponse: GenericMedia,
-  media: SourceMediaDetails,
+  media: DBSourceMediaDetails,
 ) {
   const { mediaFinderSource: finderSourceId, id: finderMediaId } = mergedMediaResponse
   for (const finderFile of mergedMediaResponse.files) {
     const cacheFile = finderFileToCacheFile(finderFile)
 
-    await prisma.file.upsert({
-      where: {
-        finderSourceId_finderMediaId_type: {
-          finderSourceId,
-          finderMediaId,
-          type: finderFile.type,
-        },
-      },
-      create: {
+    await db.insert(schema.File)
+      .values({
         finderSourceId,
         finderMediaId,
-        media: {
-          connect: {
-            id: media.id,
-          },
+        mediaId: media.id,
+        ...cacheFile,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [schema.File.finderSourceId, schema.File.finderMediaId, schema.File.type],
+        set: {
+          ...cacheFile,
+          updatedAt: new Date(),
         },
-        ...cacheFile,
-      },
-      update: {
-        ...cacheFile,
-      },
-    })
+      })
   }
 }
 
-export async function refreshMedia(media: SourceMediaDetails) {
-  const sourceMediaDetails = await prisma.sourceMediaDetails.findMany({
-    where: {
-      media: {
-        id: media.id,
-      },
-    },
+export async function refreshMedia(media: DBSourceMediaDetails) {
+  const sourceMediaDetails = await db.query.SourceMediaDetails.findMany({
+    where: (SourceMediaDetails, { eq }) => eq(SourceMediaDetails.id, media.id),
   })
-  await prisma.media.update({
-    where: {
-      id: media.id,
-    },
-    data: {
+  await db.update(schema.Media)
+    .set({
       draft: false,
       title: sourceMediaDetails.filter(details => details.title)[0]?.title,
       description: sourceMediaDetails.filter(details => details.description)[0]?.description,
-    },
-  })
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.Media.id, media.id))
 }
 
-async function ensureMedia(finderMedia: GenericMedia): Promise<{ media: SourceMediaDetails, createdMedia: boolean }> {
+async function ensureMedia(finderMedia: GenericMedia): Promise<{ media: DBSourceMediaDetails, createdMedia: boolean }> {
   const { mediaFinderSource, id } = finderMedia
-  const existingSourceMediaDetails = await prisma.sourceMediaDetails.findUnique({
-    where: {
-      finderSourceId_finderMediaId: {
-        finderSourceId: mediaFinderSource,
-        finderMediaId: id,
-      },
-    },
+  const existingSourceMediaDetails = await db.query.SourceMediaDetails.findFirst({
+    where: (SourceMediaDetails, { and, eq }) => and(
+      eq(SourceMediaDetails.finderSourceId, mediaFinderSource),
+      eq(SourceMediaDetails.finderMediaId, id),
+    ),
   })
 
-  let media = existingSourceMediaDetails
+  let sourceMediaDetails = existingSourceMediaDetails
 
-  if (!media) {
-    media = await prisma.sourceMediaDetails.upsert({
-      where: {
-        finderSourceId_finderMediaId: {
-          finderSourceId: mediaFinderSource,
-          finderMediaId: id,
-        },
-      },
-      update: {}, // Update is empty so no update occurs
-      create: {
-        finderMediaId: id,
-        source: {
-          connectOrCreate: {
-            where: {
-              finderSourceId: mediaFinderSource,
-            },
-            create: {
-              finderSourceId: mediaFinderSource,
-            },
-          },
-        },
-        media: {
-          create: {
-            title: '',
-            description: '',
-            draft: true,
-          },
-        },
-      },
+  if (!sourceMediaDetails) {
+    const [cacheMedia] = await db.insert(schema.Media)
+      .values({
+        title: '',
+        description: '',
+        draft: true,
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning()
+    let source = await db.query.Source.findFirst({
+      where: (Source, { eq }) => eq(Source.finderSourceId, mediaFinderSource),
     })
+    if (!source) {
+      source = await db.insert(schema.Source)
+        .values({
+          finderSourceId: mediaFinderSource,
+          updatedAt: new Date(),
+        })
+        .returning()
+        .then(res => res[0])
+      if (!source) {
+        throw Error('Failed to create source')
+      }
+    }
+    sourceMediaDetails = await db.insert(schema.SourceMediaDetails)
+      .values({
+        finderMediaId: id,
+        finderSourceId: source.finderSourceId,
+        mediaId: cacheMedia.id,
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning()
+      .then(res => res[0])
+  }
+  if (!sourceMediaDetails) {
+    throw Error(`Could not get sourceMediaDetails`)
   }
 
   return {
-    media,
+    media: sourceMediaDetails,
     createdMedia: Boolean(existingSourceMediaDetails),
   }
 }
@@ -265,44 +253,34 @@ async function ensureMedia(finderMedia: GenericMedia): Promise<{ media: SourceMe
 type SaveMediaFinderResponseItemProps = {
   item: GenericMedia
   itemType: 'media'
-  queryHistoryEntry: MediaFinderHistory
+  queryHistoryEntry: DBMediaFinderHistory
 }
 
 async function saveMediaFinderResponseItem({ item, itemType, queryHistoryEntry }: SaveMediaFinderResponseItemProps) {
   const contentHash = objectHash(item)
   const { mediaFinderSource, id } = item
-  const existingResponseItemMap = await prisma.mediaFinderResponseItemMap.findFirst({
-    where: {
-      contentHash,
-    },
+  const existingResponseItemMap = await db.query.MediaFinderResponseItemMap.findFirst({
+    where: (MediaFinderResponseItemMap, { eq }) => eq(MediaFinderResponseItemMap.contentHash, contentHash),
   })
-  const responseItem = await prisma.mediaFinderResponseItemMap.create({
-    data: {
+  const [mediaFinderResponseItemContent] = await db.insert(schema.MediaFinderResponseItemContent)
+    .values({
       source: mediaFinderSource,
       itemId: id,
       itemType,
-      queryHistory: {
-        connect: {
-          id: queryHistoryEntry.id,
-        },
-      },
-      content: {
-        connectOrCreate: {
-          create: {
-            source: mediaFinderSource,
-            itemId: id,
-            itemType,
-            contentHash,
-            content: serialize(item),
-          },
-          where: {
-            contentHash,
-          },
-        },
-      },
-
-    },
-  })
+      contentHash,
+      content: serialize(item),
+      updatedAt: new Date(),
+    })
+    .returning()
+  const responseItem = await db.insert(schema.MediaFinderResponseItemMap)
+    .values({
+      source: mediaFinderSource,
+      itemId: id,
+      itemType,
+      queryHistoryId: queryHistoryEntry.id,
+      contentHash: mediaFinderResponseItemContent.contentHash,
+      updatedAt: new Date(),
+    })
 
   return {
     matchesExisting: !!existingResponseItemMap,

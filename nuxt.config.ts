@@ -8,7 +8,6 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@primevue/nuxt-module',
     '@hebilicious/vue-query-nuxt',
-    '@prisma/nuxt',
   ],
   eslint: {
     config: {
@@ -26,13 +25,5 @@ export default defineNuxtConfig({
         preset: Aura,
       },
     },
-  },
-  prisma: {
-    installCLI: false,
-    installClient: false,
-    generateClient: false,
-    formatSchema: false,
-    installStudio: true,
-    autoSetupPrisma: true,
   },
 })

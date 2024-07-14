@@ -1,7 +1,4 @@
-import { PrismaClient } from '@prisma/client'
 import { updateFileUrl } from '../../../../lib/media-finder/update-file-url'
-
-const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event): Promise<string> => {
   const { fileId: fileIdString = '', path } = event.context.params || {}
@@ -10,7 +7,10 @@ export default defineEventHandler(async (event): Promise<string> => {
   if (isNaN(fileId)) {
     return 'wrong'
   }
-  const file = await prisma.file.findUniqueOrThrow({ where: { id: fileId } })
+  const file = await db.query.File.findFirst({ where: (File, { eq }) => eq(File.id, fileId) })
+  if (!file) {
+    throw Error('Could not fetch file')
+  }
 
   let fileUrl
   if (file.urlExpires && (new Date() > file.urlExpires)) {

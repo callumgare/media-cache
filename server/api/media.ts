@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 
+import { count } from 'drizzle-orm'
 import type { APIMediaResponse, APIMedia } from '../../types/api-media'
-
-const prisma = new PrismaClient()
 
 const returnedNumber = 10
 
@@ -17,23 +15,22 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
 
   const pageNumber = query.page
 
-  const totalCount = await prisma.media.count({})
+  const totalCount = await db.select({ count: count() }).from(schema.Media).then(res => res[0].count)
 
-  const medias = await prisma.media.findMany({
-    include: {
+  const dbMedias = await db.query.Media.findMany({
+    with: {
       files: true,
       sourceDetails: {
-        include: {
+        with: {
           source: true,
         },
       },
     },
-    take: returnedNumber,
-    skip: (pageNumber - 1) * returnedNumber,
-    orderBy: {
-      updatedAt: 'desc',
-    },
-  }).then(medias => medias.map(
+    limit: returnedNumber,
+    offset: (pageNumber - 1) * returnedNumber,
+    orderBy: (Media, { desc }) => [desc(Media.updatedAt)],
+  })
+  const apiMedias = dbMedias.map(
     media => ({
       id: media.id,
       title: media.title,
@@ -69,12 +66,12 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
         },
       ),
     } satisfies z.infer<typeof APIMedia>),
-  ))
+  )
 
   return {
     totalCount,
     pageSize: returnedNumber,
-    media: medias,
+    media: apiMedias,
     date: new Date(),
   }
 })

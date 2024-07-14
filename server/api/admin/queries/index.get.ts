@@ -1,8 +1,7 @@
 import { deserialize } from '~/lib/general'
-import prisma from '~/lib/prisma'
 
 export default defineEventHandler(async () => {
-  const mediaFinderQueries = await prisma.mediaFinderQuery.findMany()
+  const mediaFinderQueries = await db.query.MediaFinderQuery.findMany()
   for (const mediaFinderQuery of mediaFinderQueries) {
     mediaFinderQuery.requestOptions = deserialize(mediaFinderQuery.requestOptions)
   }

@@ -50,8 +50,6 @@
 </template>
 
 <script setup lang="ts">
-import { type MediaFinderQuery } from '@prisma/client'
-
 const toast = useToast()
 
 const { data: queryList, error: finderDetailsError, refresh: refreshQueryList } = await useFetch('/api/admin/queries')
@@ -60,7 +58,7 @@ if (finderDetailsError.value) {
   throw finderDetailsError.value
 }
 
-async function runQuery(query: MediaFinderQuery) {
+async function runQuery(query: DBMediaFinderQuery) {
   try {
     await $fetch(`/api/admin/queries/${query.id}/run`)
     toast.add({ severity: 'success', summary: 'Started', life: 3000 })
@@ -70,7 +68,7 @@ async function runQuery(query: MediaFinderQuery) {
     toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 3000 })
   }
 }
-async function deleteQuery(query: MediaFinderQuery) {
+async function deleteQuery(query: DBMediaFinderQuery) {
   try {
     await $fetch(`/api/admin/queries/${query.id}`, { method: 'DELETE' })
     await refreshQueryList()

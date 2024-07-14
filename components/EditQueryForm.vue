@@ -98,10 +98,8 @@
 </template>
 
 <script setup lang="ts">
-import type { MediaFinderQuery } from '@prisma/client'
-
 const props = defineProps<{
-  mediaQuery?: Omit<MediaFinderQuery, 'requestOptions'> & { requestOptions: Record<string, unknown> }
+  mediaQuery?: Omit<DBMediaFinderQuery, 'requestOptions'> & { requestOptions: Record<string, unknown> }
 }>()
 
 const toast = useToast()

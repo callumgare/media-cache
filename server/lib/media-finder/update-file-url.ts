@@ -1,15 +1,14 @@
-import { type File } from '@prisma/client'
 import { type GenericRequestInput } from 'media-finder/dist/schemas/request'
+import { and, eq } from 'drizzle-orm'
 import { finderFileToCacheFile } from './shared'
 import { getMediaQuery } from '.'
-import prisma from '@/lib/prisma'
 import { deserialize } from '~/lib/general'
 
-export async function updateFileUrl(fileToRefresh: File) {
+export async function updateFileUrl(fileToRefresh: DBFile) {
   if (!fileToRefresh.urlRefreshDetails) {
     throw Error(`File has not urlRefreshDetails`)
   }
-  const mediaQuery = getMediaQuery({
+  const mediaQuery = await getMediaQuery({
     request: deserialize(fileToRefresh.urlRefreshDetails) as GenericRequestInput,
     queryOptions: {
       fetchCountLimit: 3,
@@ -25,7 +24,7 @@ export async function updateFileUrl(fileToRefresh: File) {
     throw Error('Could not refresh files')
   }
 
-  const prismaTransactionOperations = []
+  const transactionOperations = []
   let newUrlForGivenFile
   for (const media of response?.media || []) {
     for (const finderFile of media.files) {
@@ -37,26 +36,23 @@ export async function updateFileUrl(fileToRefresh: File) {
       ) {
         newUrlForGivenFile = finderFile.url
       }
-      prismaTransactionOperations.push(
-        prisma.file.update({
-          where: {
-            finderSourceId_finderMediaId_type: {
-              finderMediaId: media.id,
-              finderSourceId: media.mediaFinderSource,
-              type: finderFile.type,
-            },
-          },
-          data: {
+      transactionOperations.push(
+        db.update(schema.File)
+          .set({
             url: cacheFile.url,
             urlExpires: cacheFile.urlExpires,
             urlRefreshDetails: cacheFile.urlRefreshDetails,
-          },
-        }),
+          })
+          .where(and(
+            eq(schema.File.finderMediaId, media.id),
+            eq(schema.File.finderSourceId, media.mediaFinderSource),
+            eq(schema.File.type, finderFile.type),
+          )),
       )
     }
   }
 
-  await prisma.$transaction(prismaTransactionOperations)
+  await Promise.all(transactionOperations)
 
   if (!newUrlForGivenFile) {
     throw Error('Returned media did not contain expected file')
