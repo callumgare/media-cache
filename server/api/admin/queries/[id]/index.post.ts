@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { serialize } from '~/lib/general'
 
 export default defineEventHandler(async (event) => {
-  const { requestOptions, ...other } = await readBody(event)
+  const { requestOptions, createdAt, updatedAt, ...other } = await readBody(event)
 
   const mediaFinderQuery = await db.update(schema.MediaFinderQuery)
     .set({

@@ -17,7 +17,7 @@ const items = ref([
         label: 'Tags',
       },
     ],
-    route: '/groups',
+    route: '/',
   },
   {
     label: 'Settings',
