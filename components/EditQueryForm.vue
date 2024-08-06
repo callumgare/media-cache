@@ -90,6 +90,22 @@
         </li>
       </ul>
     </div>
+    <div
+      class="query-options"
+    >
+      <h2>Other Options</h2>
+      <div
+        class="option"
+      >
+        <label for="fetchCountLimit">Fetch count limit</label>
+        <InputNumber
+          id="fetchCountLimit"
+          v-model="formValue.fetchCountLimit"
+          placeholder=""
+          show-buttons
+        />
+      </div>
+    </div>
 
     <Button type="submit">
       Save
@@ -117,6 +133,7 @@ const formValue = ref(props.mediaQuery ?? {
     source: null,
     queryType: null,
   },
+  fetchCountLimit: null,
 })
 const requestHandlers = computed(() => {
   return finderDetails.value?.sources[formValue.value?.requestOptions.source ?? '']?.requestHandlers

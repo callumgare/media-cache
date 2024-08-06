@@ -1,7 +1,7 @@
 import serialize from 'serialize-javascript'
 
 import deepmerge from 'deepmerge'
-import { type GenericFile, type GenericMedia, type GenericRequest } from 'media-finder'
+import type { GenericFile, GenericMedia, GenericRequest, MediaFinderQuery } from 'media-finder'
 import objectHash from 'object-hash'
 
 import { and, eq } from 'drizzle-orm'
@@ -10,14 +10,17 @@ import { getMediaQuery } from '.'
 import { deserialize } from '~/lib/general'
 
 export async function runMediaFinderQuery(mediaFinderQuery: DBMediaFinderQuery) {
+  const queryOptions: ConstructorParameters<typeof MediaFinderQuery>[0]['queryOptions'] = {
+    secrets: {
+      apiKey: process.env.GIPHY_API_KEY,
+    },
+  }
+  if (mediaFinderQuery.fetchCountLimit !== null) {
+    queryOptions.fetchCountLimit = mediaFinderQuery.fetchCountLimit
+  }
   const mediaQuery = await getMediaQuery({
     request: mediaFinderQuery.requestOptions as GenericRequest,
-    queryOptions: {
-      fetchCountLimit: 3,
-      secrets: {
-        apiKey: process.env.GIPHY_API_KEY,
-      },
-    },
+    queryOptions,
   })
 
   for await (const response of mediaQuery) {

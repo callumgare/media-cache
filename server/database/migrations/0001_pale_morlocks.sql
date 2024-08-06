@@ -1,0 +1,1 @@
+ALTER TABLE "MediaFinderQuery" ADD COLUMN "fetchCountLimit" integer;

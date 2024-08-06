@@ -109,6 +109,7 @@ export const MediaFinderQuery = pgTable('MediaFinderQuery', {
   updatedAt: timestamp('updatedAt', { precision: 3 }).notNull(),
   title: text('title').notNull(),
   requestOptions: text('requestOptions').notNull(),
+  fetchCountLimit: integer('fetchCountLimit'),
   schedule: integer('schedule').notNull(),
 })
 
