@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { boolean, doublePrecision, integer, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, doublePrecision, index, integer, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const User = pgTable('User', {
   id: serial('id').notNull().primaryKey(),
@@ -36,6 +36,7 @@ export const SourceMediaDetails = pgTable('SourceMediaDetails', {
   finderMediaId: text('finderMediaId').notNull(),
   mediaId: integer('mediaId').notNull().references(() => Media.id),
 }, SourceMediaDetails => ({
+  mediaIdIdx: index('SourceMediaDetails_media_id_idx').on(SourceMediaDetails.mediaId),
   SourceMediaDetails_finderSourceId_mediaId_unique_idx: uniqueIndex('SourceMediaDetails_finderSourceId_mediaId_key')
     .on(SourceMediaDetails.finderSourceId, SourceMediaDetails.mediaId),
   SourceMediaDetails_finderSourceId_finderMediaId_unique_idx: uniqueIndex('SourceMediaDetails_finderSourceId_finderMediaId_key')
@@ -63,6 +64,7 @@ export const File = pgTable('File', {
   urlExpires: timestamp('urlExpires', { precision: 3 }),
   urlRefreshDetails: text('urlRefreshDetails'),
 }, File => ({
+  mediaIdIdx: index('File_media_id_idx').on(File.mediaId),
   File_finderSourceId_finderMediaId_type_unique_idx: uniqueIndex('File_finderSourceId_finderMediaId_type_key')
     .on(File.finderSourceId, File.finderMediaId, File.type),
 }))

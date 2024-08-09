@@ -15,6 +15,13 @@
       "when": 1722923755548,
       "tag": "0001_pale_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1723215006397,
+      "tag": "0002_brave_queen_noir",
+      "breakpoints": true
     }
   ]
 }

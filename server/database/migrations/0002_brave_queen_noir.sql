@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "File_media_id_idx" ON "File" USING btree ("mediaId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "SourceMediaDetails_media_id_idx" ON "SourceMediaDetails" USING btree ("mediaId");
