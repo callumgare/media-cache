@@ -12,7 +12,6 @@ services:
     image: postgres
     restart: always
     shm_size: 1g
-    command: ["postgres", "-c", "log_statement=all"]
     environment:
       POSTGRES_PASSWORD: example
     volumes:
