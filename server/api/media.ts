@@ -17,8 +17,9 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
 
   const totalCount = await db.select({ count: count() }).from(schema.Media).then(res => res[0].count)
 
-  const date = new Date()
-  const seed = (date.getFullYear() * 10000) + (date.getMonth() * 100) + date.getDate()
+  const seed = Math.floor(Math.sin(
+    (new Date().getFullYear() * 10000) + (new Date().getMonth() * 100) + new Date().getDate(),
+  ) * 10000000)
 
   const dbMedias = await db.query.Media.findMany({
     with: {
