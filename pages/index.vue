@@ -1,6 +1,5 @@
 <template>
   <div>
-    <PageHeader :breadcrumbs="[]" />
     <MediaList
       :medias="medias"
     />
@@ -13,6 +12,9 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  breadcrumbs: [],
+})
 const currentPageIndex = ref(0)
 const currentPage = computed(() => currentPageIndex.value + 1)
 const { data } = useQuery({

@@ -27,27 +27,29 @@ const items = ref([
 
 const route = useRoute()
 
-const breadcrumbItems = ref<MenuItem[]>([])
-
-if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'string')) {
-  breadcrumbItems.value = props.breadcrumbs.map(label => ({
-    label,
-  }))
-  const pathSegments = route.path.replace(/(?:^\/+)|(?:\/+$)/, '').split('/')
-  if (pathSegments.length === breadcrumbItems.value.length) {
-    for (let i = 0; i < pathSegments.length; i++) {
-      const path = '/' + pathSegments.slice(0, i + 1).join('/')
-      breadcrumbItems.value[i].route = path
+const breadcrumbItems = computed<MenuItem[]>(() => {
+  let items: MenuItem[] = []
+  if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'string')) {
+    items = props.breadcrumbs.map(label => ({
+      label,
+    }))
+    const pathSegments = route.path.replace(/(?:^\/+)|(?:\/+$)/, '').split('/')
+    if (pathSegments.length === items.length) {
+      for (let i = 0; i < pathSegments.length; i++) {
+        const path = '/' + pathSegments.slice(0, i + 1).join('/')
+        items[i].route = path
+      }
+    }
+    const lastBreadcrumb = items.at(-1)
+    if (lastBreadcrumb) {
+      lastBreadcrumb.visible = false
     }
   }
-  const lastBreadcrumb = breadcrumbItems.value.at(-1)
-  if (lastBreadcrumb) {
-    lastBreadcrumb.visible = false
+  else if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'object')) {
+    items = props.breadcrumbs
   }
-}
-else if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'object')) {
-  breadcrumbItems.value = props.breadcrumbs
-}
+  return items
+})
 </script>
 
 <template>
@@ -132,7 +134,7 @@ else if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'object'))
 
     .p-menubar {
       border: none;
-      margin: 0 -0.9em 0.5em;
+      margin: 0 0 0.5em;
       padding: 0;
 
       & :deep(.p-menubar-root-list) {
@@ -145,11 +147,15 @@ else if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'object'))
     }
 
     hr {
-      margin: 0 -1em 1em;
+      margin: 0 0 1em;
     }
 
     .p-breadcrumb {
       padding: 0;
+    }
+
+    .p-breadcrumb, h1 {
+      margin: 0 1rem;
     }
   }
 </style>

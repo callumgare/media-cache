@@ -1,6 +1,5 @@
 <template>
   <div>
-    <PageHeader :breadcrumbs="['Settings', 'Queries', (mediaQuery ? 'Edit' : 'Add') + ' Query']" />
     <EditQueryForm :media-query="mediaQuery" />
   </div>
 </template>
@@ -24,4 +23,7 @@ else {
     fatal: true,
   })
 }
+definePageMeta({
+  breadcrumbs: ({ route }) => ['Settings', 'Queries', ((route.params.id === 'add') ? 'Add' : 'Edit') + ' Query'],
+})
 </script>
