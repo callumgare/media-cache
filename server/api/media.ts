@@ -74,18 +74,21 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     .groupBy(sql`"hash"`)
     .limit(returnedNumber)
 
-  const dbMedias = await db.query.Media.findMany({
-    with: {
-      files: true,
-      sourceDetails: {
-        with: {
-          source: true,
+  let dbMedias: unknown[] = []
+  if (resultIds.length) {
+    dbMedias = await db.query.Media.findMany({
+      with: {
+        files: true,
+        sourceDetails: {
+          with: {
+            source: true,
+          },
         },
       },
-    },
-    where: sql`${schema.Media.id} in (${sql.join(resultIds.map(res => sql`${res.mediaId}`), sql`,`)})`,
-    orderBy: sql`hashint4(${schema.Media.id} + ${seed})`,
-  })
+      where: sql`${schema.Media.id} in (${sql.join(resultIds.map(res => sql`${res.mediaId}`), sql`,`)})`,
+      orderBy: sql`hashint4(${schema.Media.id} + ${seed})`,
+    })
+  }
 
   const apiMedias = dbMedias.map(
     media => ({
