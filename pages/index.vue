@@ -13,13 +13,23 @@
 
 <script setup lang="ts">
 definePageMeta({
+  layout: 'with-sidebar',
   breadcrumbs: [],
+})
+const mediaQuery = useMediaQuery()
+const mediaQueryCondition = ref(mediaQuery.condition)
+
+mediaQuery.$subscribe(() => {
+  mediaQueryCondition.value = mediaQuery.condition
 })
 const currentPageIndex = ref(0)
 const currentPage = computed(() => currentPageIndex.value + 1)
 const { data } = useQuery({
-  queryKey: ['media', currentPage],
-  queryFn: () => $fetch('/api/media', { query: { page: currentPage.value } }),
+  queryKey: ['media', currentPage, mediaQueryCondition],
+  queryFn: () => $fetch(
+    '/api/media',
+    { query: { page: currentPage.value }, method: 'POST', body: mediaQueryCondition.value },
+  ),
 })
 
 const medias = computed(() => data.value?.media || [])

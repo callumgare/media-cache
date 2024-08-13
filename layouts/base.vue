@@ -1,7 +1,7 @@
 <template>
   <div id="app-root">
     <Toast />
-    <PageHeader :breadcrumbs="breadcrumbs" />
+    <SiteHeader :breadcrumbs="breadcrumbs" />
     <div>
       <slot />
     </div>
