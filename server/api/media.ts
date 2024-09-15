@@ -17,7 +17,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
 
   const pageNumber = query.page
 
-  const totalCount = await db.select({ count: count() }).from(schema.Media).then(res => res[0].count)
+  const totalCount = await db.select({ count: count() }).from(dbSchema.cacheMedia).then(res => res[0].count)
 
   const seed = Math.floor(Math.sin(
     (new Date().getFullYear() * 10000) + (new Date().getMonth() * 100) + new Date().getDate(),
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     else {
       let sqlField
       if (condition.field === 'source') {
-        sqlField = schema.SourceMediaDetails.finderSourceId
+        sqlField = dbSchema.cacheMediaSource.finderSourceId
       }
       else {
         throw Error(`Unknown field: ${condition.field}`)
@@ -62,43 +62,43 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
   }
 
   const resultIds = await db.select({
-    mediaId: sql`max(${schema.Media.id})`.as('media_id'),
-    hash: sql`hashint4(${schema.Media.id} + ${seed})`.as('hash'),
+    mediaId: sql`max(${dbSchema.cacheMedia.id})`.as('media_id'),
+    hash: sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`.as('hash'),
   })
-    .from(schema.Media)
-    .leftJoin(schema.File, eq(schema.File.mediaId, schema.Media.id))
-    .leftJoin(schema.SourceMediaDetails, eq(schema.SourceMediaDetails.mediaId, schema.Media.id))
+    .from(dbSchema.cacheMedia)
+    .leftJoin(dbSchema.cacheMediaFile, eq(dbSchema.cacheMediaFile.mediaId, dbSchema.cacheMedia.id))
+    .leftJoin(dbSchema.cacheMediaSource, eq(dbSchema.cacheMediaSource.cacheMediaId, dbSchema.cacheMedia.id))
     .where(calculateWhereValue(body) ?? undefined)
     .offset((pageNumber - 1) * returnedNumber)
     .orderBy(sql`"hash"`)
     .groupBy(sql`"hash"`)
     .limit(returnedNumber)
 
-  let dbMedias: unknown[] = []
+  let dbMedias
   if (resultIds.length) {
-    dbMedias = await db.query.Media.findMany({
+    dbMedias = await db.query.cacheMedia.findMany({
       with: {
         files: true,
-        sourceDetails: {
+        sourceSpecificInfo: {
           with: {
             source: true,
           },
         },
       },
-      where: sql`${schema.Media.id} in (${sql.join(resultIds.map(res => sql`${res.mediaId}`), sql`,`)})`,
-      orderBy: sql`hashint4(${schema.Media.id} + ${seed})`,
+      where: sql`${dbSchema.cacheMedia.id} in (${sql.join(resultIds.map(res => sql`${res.mediaId}`), sql`,`)})`,
+      orderBy: sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`,
     })
   }
 
-  const apiMedias = dbMedias.map(
+  const apiMedias = dbMedias?.map(
     media => ({
       id: media.id,
       title: media.title,
       description: media.description,
-      sourceDetails: media.sourceDetails.map(
+      sourceDetails: media.sourceSpecificInfo.map(
         sourceDetails => ({
           id: sourceDetails.id,
-          sourceName: sourceDetails.source.finderSourceId,
+          sourceName: sourceDetails.finderSourceId,
           title: sourceDetails.title,
           url: sourceDetails.url,
           creator: sourceDetails.creator,
@@ -126,7 +126,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
         },
       ),
     } satisfies z.infer<typeof APIMedia>),
-  )
+  ) ?? []
 
   return {
     totalCount,

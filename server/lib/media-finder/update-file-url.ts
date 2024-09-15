@@ -3,8 +3,9 @@ import { and, eq } from 'drizzle-orm'
 import { finderFileToCacheFile } from './shared'
 import { getMediaQuery } from '.'
 import { deserialize } from '~/lib/general'
+import { dbSchema } from '#imports'
 
-export async function updateFileUrl(fileToRefresh: DBFile) {
+export async function updateFileUrl(fileToRefresh: dbSchema.CacheMediaFile) {
   if (!fileToRefresh.urlRefreshDetails) {
     throw Error(`File has not urlRefreshDetails`)
   }
@@ -37,16 +38,16 @@ export async function updateFileUrl(fileToRefresh: DBFile) {
         newUrlForGivenFile = finderFile.url
       }
       transactionOperations.push(
-        db.update(schema.File)
+        db.update(dbSchema.cacheMediaFile)
           .set({
             url: cacheFile.url,
             urlExpires: cacheFile.urlExpires,
             urlRefreshDetails: cacheFile.urlRefreshDetails,
           })
           .where(and(
-            eq(schema.File.finderMediaId, media.id),
-            eq(schema.File.finderSourceId, media.mediaFinderSource),
-            eq(schema.File.type, finderFile.type),
+            eq(dbSchema.cacheMediaFile.finderMediaId, media.id),
+            eq(dbSchema.cacheMediaFile.finderSourceId, media.mediaFinderSource),
+            eq(dbSchema.cacheMediaFile.type, finderFile.type),
           )),
       )
     }

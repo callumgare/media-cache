@@ -22,6 +22,13 @@
       "when": 1723215006397,
       "tag": "0002_brave_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1726394402185,
+      "tag": "0003_lethal_sally_floyd",
+      "breakpoints": true
     }
   ]
 }

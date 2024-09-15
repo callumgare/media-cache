@@ -6,8 +6,8 @@ export default defineEventHandler(async (event) => {
   if (isNaN(id)) {
     throw Error('Invalid id')
   }
-  const mediaFinderQuery = await db.delete(schema.MediaFinderQuery)
-    .where(eq(schema.MediaFinderQuery.id, id))
+  const mediaFinderQuery = await db.delete(dbSchema.finderQuery)
+    .where(eq(dbSchema.finderQuery.id, id))
   if (!mediaFinderQuery) {
     throw Error(`Could not find query with id "${idParam}" to delete`)
   }

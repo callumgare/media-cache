@@ -7,7 +7,9 @@ export default defineEventHandler(async (event): Promise<string> => {
   if (isNaN(fileId)) {
     return 'wrong'
   }
-  const file = await db.query.File.findFirst({ where: (File, { eq }) => eq(File.id, fileId) })
+  const file = await db.query.cacheMediaFile.findFirst({
+    where: (cacheMediaFile, { eq }) => eq(cacheMediaFile.id, fileId),
+  })
   if (!file) {
     throw Error('Could not fetch file')
   }
