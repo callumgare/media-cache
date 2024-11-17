@@ -41,6 +41,7 @@ export const APIMedia = z.object({
 export const APIMediaResponse = z.object({
   totalCount: z.number(),
   pageSize: z.number(),
+  page: z.number(),
   media: z.array(APIMedia),
   date: z.coerce.date(),
 })

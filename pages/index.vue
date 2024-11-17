@@ -48,7 +48,7 @@ const { data, fetchNextPage, isFetchingNextPage, hasNextPage } = useInfiniteQuer
   queryKey: ['media', mediaQueryCondition],
   queryFn: ({ pageParam }) => $fetch(
     '/api/media',
-    { query: { page: pageParam }, method: 'POST', body: mediaQueryCondition.value },
+    { query: { page: pageParam, seed: uiState.randomSeed }, method: 'POST', body: mediaQueryCondition.value },
   ),
   initialPageParam: 1,
   getNextPageParam: page => page.page + 1,

@@ -11,6 +11,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     event,
     z.object({
       page: z.coerce.number().int(),
+      seed: z.coerce.number().int(),
     }).parse,
   )
   const body: QueryGroupCondition = await readBody(event)
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
   const totalCount = await db.select({ count: count() }).from(dbSchema.cacheMedia).then(res => res[0].count)
 
   const seed = Math.floor(Math.sin(
-    (new Date().getFullYear() * 10000) + (new Date().getMonth() * 100) + new Date().getDate(),
+    (query.seed * 10000) + (new Date().getMonth() * 100) + new Date().getDate(),
   ) * 10000000)
 
   function calculateWhereValue(condition: QueryCondition): SQL | null {
@@ -136,6 +137,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     totalCount,
     pageSize: returnedNumber,
     media: apiMedias,
+    page: pageNumber,
     date: new Date(),
   }
 })

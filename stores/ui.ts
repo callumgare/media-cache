@@ -5,6 +5,7 @@ export const useUiState = defineStore('ui', {
     return {
       sidebarExpanded: true,
       mediaView: 'grid',
+      randomSeed: Math.floor(Math.random() * (100000 - 1)),
     }
   },
   actions: {
