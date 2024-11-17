@@ -46,10 +46,15 @@ const querySchemaConfig: QuerySchemaConfig = {
 
 <template>
   <div class="root">
-    <QueryBuilderGroupConditionInput
-      :group-condition="mediaQuery.condition"
-      :schema-config="querySchemaConfig"
-    />
+    <ClientOnly
+      fallback-tag="span"
+      fallback="Loading..."
+    >
+      <QueryBuilderGroupConditionInput
+        :group-condition="mediaQuery.condition"
+        :schema-config="querySchemaConfig"
+      />
+    </ClientOnly>
   </div>
 </template>
 

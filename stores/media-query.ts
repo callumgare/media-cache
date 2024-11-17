@@ -70,6 +70,9 @@ export const useMediaQuery = defineStore('media-query', {
       }
     },
   },
+  persist: {
+    storage: piniaPluginPersistedstate.sessionStorage(),
+  },
 })
 
 function getChildTreeConditions(parentNode: QueryConditionFlatNode, nodes: QueryConditionFlatNode[]): QueryCondition[] {

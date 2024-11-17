@@ -9,6 +9,7 @@ export default defineNuxtConfig({
     '@primevue/nuxt-module',
     '@hebilicious/vue-query-nuxt',
     '@pinia/nuxt',
+    'pinia-plugin-persistedstate/nuxt',
   ],
   eslint: {
     config: {

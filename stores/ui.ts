@@ -13,4 +13,5 @@ export const useUiState = defineStore('ui', {
       this.sidebarExpanded = !this.sidebarExpanded
     },
   },
+  persist: true,
 })
