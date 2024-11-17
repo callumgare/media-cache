@@ -32,36 +32,57 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       }
       let sqlOperator: SQL
       if (condition.operator === 'AND') {
-        sqlOperator = sql`AND`
+        sqlOperator = sql` AND `
       }
       else if (condition.operator === 'OR') {
-        sqlOperator = sql`OR`
+        sqlOperator = sql` OR `
       }
       else {
         throw Error(`Unknown operator: ${condition.operator}`)
       }
-      const sqlChildConditions = childConditions.map(calculateWhereValue).filter(sql => sql !== null)
-      return sql`( ${sql.join(sqlChildConditions, sqlOperator)} )`
+      const sqlChildConditions = childConditions.map(calculateWhereValue).filter(sql => sql !== null).map(sqlChunk => sql`(${sqlChunk})`)
+      return sql.join(
+        sqlChildConditions,
+        sqlOperator,
+      )
     }
     else {
       let sqlField
-      if (condition.field === 'source') {
+      const { field, value, operator } = condition
+      if (field === 'source') {
         sqlField = dbSchema.cacheMediaSource.finderSourceId
       }
-      else if (condition.field === 'group') {
+      else if (field === 'group') {
         sqlField = dbSchema.cacheMediaGroup.groupId
       }
+      else if (field === 'type') {
+        if (value === 'video') {
+          return sql`(${dbSchema.cacheMediaFile.hasVideo} = TRUE) AND (${dbSchema.cacheMediaFile.hasImage} = FALSE)`
+        }
+        else if (value === 'video-with-audio') {
+          return sql`(${dbSchema.cacheMediaFile.hasVideo} = TRUE) AND (${dbSchema.cacheMediaFile.hasImage} = FALSE) AND (${dbSchema.cacheMediaFile.hasAudio} = TRUE)`
+        }
+        else if (value === 'video-without-audio') {
+          return sql`(${dbSchema.cacheMediaFile.hasVideo} = TRUE) AND (${dbSchema.cacheMediaFile.hasImage} = FALSE) AND (${dbSchema.cacheMediaFile.hasAudio} = FALSE)`
+        }
+        else if (value === 'image') {
+          return sql`(${dbSchema.cacheMediaFile.hasImage} = TRUE) AND (${dbSchema.cacheMediaFile.hasVideo} = FALSE)`
+        }
+        else {
+          throw Error(`Unknown value for field "type": ${field}`)
+        }
+      }
       else {
-        throw Error(`Unknown field: ${condition.field}`)
+        throw Error(`Unknown field: ${field}`)
       }
       let sqlOperator: SQL
-      if (condition.operator === 'equals') {
+      if (operator === 'equals') {
         sqlOperator = sql`=`
       }
       else {
-        throw Error(`Unknown operator: ${condition.operator}`)
+        throw Error(`Unknown operator: ${operator}`)
       }
-      return sql`${sqlField} ${sqlOperator} ${condition.value}`
+      return sql`${sqlField} ${sqlOperator} ${value}`
     }
   }
 

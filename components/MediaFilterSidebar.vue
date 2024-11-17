@@ -22,6 +22,17 @@ const querySchemaConfig: QuerySchemaConfig = {
       type: 'text',
       availableOptions: finderDetails.value?.groups || [],
     },
+    {
+      id: 'type',
+      displayName: 'Type',
+      type: 'text',
+      availableOptions: [
+        { id: 'video', name: 'Video' },
+        { id: 'video-with-audio', name: 'Video With Audio' },
+        { id: 'video-without-audio', name: 'Video Without Audio' },
+        { id: 'image', name: 'Image' },
+      ],
+    },
   ],
   fieldTypes: [
     {
