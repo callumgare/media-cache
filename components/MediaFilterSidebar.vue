@@ -16,6 +16,12 @@ const querySchemaConfig: QuerySchemaConfig = {
       type: 'text',
       availableOptions: sources,
     },
+    {
+      id: 'group',
+      displayName: 'Group',
+      type: 'text',
+      availableOptions: finderDetails.value?.groups || [],
+    },
   ],
   fieldTypes: [
     {

@@ -47,6 +47,9 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       if (condition.field === 'source') {
         sqlField = dbSchema.cacheMediaSource.finderSourceId
       }
+      else if (condition.field === 'group') {
+        sqlField = dbSchema.cacheMediaGroup.groupId
+      }
       else {
         throw Error(`Unknown field: ${condition.field}`)
       }
@@ -68,6 +71,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     .from(dbSchema.cacheMedia)
     .leftJoin(dbSchema.cacheMediaFile, eq(dbSchema.cacheMediaFile.mediaId, dbSchema.cacheMedia.id))
     .leftJoin(dbSchema.cacheMediaSource, eq(dbSchema.cacheMediaSource.cacheMediaId, dbSchema.cacheMedia.id))
+    .leftJoin(dbSchema.cacheMediaGroup, eq(dbSchema.cacheMediaGroup.mediaId, dbSchema.cacheMedia.id))
     .where(calculateWhereValue(body) ?? undefined)
     .offset((pageNumber - 1) * returnedNumber)
     .orderBy(sql`"hash"`)

@@ -222,7 +222,7 @@ export const group = pgTable('group', {
   createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
   parentId: integer('parent_id').references((): AnyPgColumn => group.id),
-  name: text('name'),
+  name: text('name').notNull(),
 }, group => ({
   childGroupNamesUniqueIdx: uniqueIndex('child_group_names_unique_idx')
     .on(group.parentId, group.name),

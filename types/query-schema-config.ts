@@ -8,7 +8,7 @@ export const querySchemaConfigSchema = z.object({
       type: z.string(),
       availableOptions: z.array(
         z.object({
-          id: z.string(),
+          id: z.union([z.string(), z.number()]),
           name: z.string(),
         }),
       ).optional(),

@@ -3,6 +3,7 @@ import { getMediaFinder } from '~/server/lib/media-finder'
 
 export default defineEventHandler(async () => {
   const mediaFinder = await getMediaFinder()
+  const groups = await db.query.group.findMany({ columns: { name: true, id: true } })
   return {
     sources: Object.fromEntries(
       Object.values(mediaFinder.sources)
@@ -16,5 +17,6 @@ export default defineEventHandler(async () => {
           })),
         }]),
     ),
+    groups: groups.toSorted((a, b) => a.name.localeCompare(b.name)),
   }
 })

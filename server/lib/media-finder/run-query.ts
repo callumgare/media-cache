@@ -1,6 +1,7 @@
 import type { GenericRequest } from 'media-finder'
 import {
   createCacheMedia, createCacheMediaSource, createFinderQueryExecution, createFinderQueryExecutionMedia, createFinderQueryExecutionMediaContent, getAllCopiesOfFinderMedia, getCacheMedia, mergeFinderMedia, createOrUpdateCacheMediaFiles, updateCacheMediaSource, updateCacheMedia,
+  createOrUpdateCacheMediaGroups,
 } from './utils'
 import { getMediaQuery } from '.'
 import { deserialize } from '~/lib/general'
@@ -39,7 +40,7 @@ export async function runMediaFinderQuery({
 
   let newMediaCount = 0
   let updatedMediaCount = 0
-  let mediaUnchangedCount = 0
+  const mediaUnchangedCount = 0
 
   for await (const response of mediaQuery) {
     if (response.page && response.page.paginationType === 'offset') {
@@ -54,13 +55,15 @@ export async function runMediaFinderQuery({
       console.log('Loading media:', finderMedia.id)
 
       await db.transaction(async (dbTx) => {
-        const finderMediaDb = await createFinderQueryExecutionMediaContent({ dbTx, finderMedia })
+        await createFinderQueryExecutionMediaContent({ dbTx, finderMedia })
 
-        if (!finderMediaDb) {
-          // Media with exactly the same details has been saved previously so we can skip
-          mediaUnchangedCount++
-          return
-        }
+        // Disable this until we have a way of versioning media
+        // const finderMediaDb = await createFinderQueryExecutionMediaContent({ dbTx, finderMedia })
+        // if (!finderMediaDb) {
+        //   // Media with exactly the same details has been saved previously so we can skip
+        //   mediaUnchangedCount++
+        //   return
+        // }
 
         await createFinderQueryExecutionMedia({
           dbTx,
@@ -83,12 +86,17 @@ export async function runMediaFinderQuery({
 
         if (!cacheMedia) {
           cacheMedia = await createCacheMedia({ dbTx, finderMedia })
-          createCacheMediaSource({
+          await createCacheMediaSource({
             dbTx,
             cacheMedia,
             finderMedia: mergedFinderMedia,
           })
-          createOrUpdateCacheMediaFiles({
+          await createOrUpdateCacheMediaFiles({
+            dbTx,
+            finderMedia: mergedFinderMedia,
+            cacheMedia,
+          })
+          await createOrUpdateCacheMediaGroups({
             dbTx,
             finderMedia: mergedFinderMedia,
             cacheMedia,
@@ -96,12 +104,17 @@ export async function runMediaFinderQuery({
           newMediaCount++
         }
         else {
-          updateCacheMedia({ dbTx, cacheMedia })
-          updateCacheMediaSource({
+          await updateCacheMedia({ dbTx, cacheMedia })
+          await updateCacheMediaSource({
             dbTx,
             finderMedia: mergedFinderMedia,
           })
-          createOrUpdateCacheMediaFiles({
+          await createOrUpdateCacheMediaFiles({
+            dbTx,
+            finderMedia: mergedFinderMedia,
+            cacheMedia,
+          })
+          await createOrUpdateCacheMediaGroups({
             dbTx,
             finderMedia: mergedFinderMedia,
             cacheMedia,

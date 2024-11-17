@@ -310,3 +310,34 @@ export async function createOrUpdateCacheMediaFiles({
       })
   }
 }
+
+// TODO deal with tags that have since been removed
+export async function createOrUpdateCacheMediaGroups({
+  finderMedia,
+  cacheMedia,
+  dbTx,
+}: {
+  finderMedia: GenericMedia
+  cacheMedia: dbSchema.CacheMedia
+  dbTx: DbTransaction
+}) {
+  for (const tag of finderMedia.tags || []) {
+    let [group] = await dbTx.select().from(dbSchema.group).where(eq(dbSchema.group.name, tag))
+    if (!group) {
+      group = await dbTx.insert(dbSchema.group)
+        .values({
+          name: tag,
+          updatedAt: new Date(),
+        })
+        .returning()
+        .then(rows => rows[0])
+    }
+    await dbTx.insert(dbSchema.cacheMediaGroup)
+      .values({
+        groupId: group.id,
+        mediaId: cacheMedia.id,
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing()
+  }
+}
