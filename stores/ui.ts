@@ -4,6 +4,7 @@ export const useUiState = defineStore('ui', {
   state: () => {
     return {
       sidebarExpanded: true,
+      mediaView: 'grid',
     }
   },
   actions: {
