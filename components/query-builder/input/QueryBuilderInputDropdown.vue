@@ -21,11 +21,27 @@ const mediaQuery = useMediaQuery()
     :field-condition="fieldCondition"
     :schema-config="schemaConfig"
   >
-    <Select
-      :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
-      :options="fieldConfig.availableOptions ?? []"
-      option-label="name"
-      @update:model-value="({ id }: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, id)"
-    />
+    <div class="control">
+      <Select
+        :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
+        :options="fieldConfig.availableOptions ?? []"
+        option-label="name"
+        @update:model-value="({ id }: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, id)"
+      />
+      <button
+        v-if="fieldCondition.value"
+        @click="() => mediaQuery.setFieldConditionValue(fieldCondition, '')"
+      >
+        clear
+      </button>
+    </div>
   </QueryBuilderInputBase>
 </template>
+
+<style scoped>
+  .control {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+  }
+</style>
