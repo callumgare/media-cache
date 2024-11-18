@@ -4,7 +4,15 @@
       v-if="uiState.mediaView === 'slide-show' && slideData.length"
       :slide-data="[...slideData, ...Array(totalMedias)]"
       @before-slide-change-hook="beforeSlideChangeHook"
-    />
+    >
+      <template #center-header>
+        <button
+          @click="uiState.mediaView = 'grid'"
+        >
+          <i class="pi pi-times" />
+        </button>
+      </template>
+    </big-shot>
     <MediaList
       :medias="medias"
     />
@@ -21,6 +29,7 @@
 </template>
 
 <script setup lang="ts">
+import 'primeicons/primeicons.css'
 // @ts-expect-error -- big-shot does not have ts types yet
 import BigShot from 'big-shot'
 import 'big-shot/css'
@@ -77,5 +86,9 @@ function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
   .load-more {
     margin: 1em auto;
     display: block;
+  }
+
+  .pi {
+    vertical-align: middle;
   }
 </style>

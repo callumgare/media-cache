@@ -1,6 +1,6 @@
 import { MediaFinderQuery, MediaFinder } from 'media-finder'
 
-const pluginPaths = process.env.MEDIA_FINDER_PLUGINS?.split(',')?.map(path => path.trim()) || []
+const pluginPaths = process.env.MEDIA_FINDER_PLUGINS ? process.env.MEDIA_FINDER_PLUGINS.split(',').map(path => path.trim()) : []
 
 const plugins = Promise.all(
   pluginPaths.map(pluginPath => import(pluginPath).then(module => module.default)),
