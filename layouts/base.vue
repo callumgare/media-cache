@@ -1,8 +1,12 @@
 <template>
   <div id="app-root">
     <Toast />
-    <SiteHeader :breadcrumbs="breadcrumbs" />
-    <div>
+    <SiteHeader :breadcrumbs="breadcrumbs">
+      <template #header-buttons>
+        <slot name="header-buttons" />
+      </template>
+    </SiteHeader>
+    <div class="base-layout-contents">
       <slot />
     </div>
   </div>
@@ -18,6 +22,21 @@ const breadcrumbs = computed(() => {
   return breadcrumbs
 })
 </script>
+
+<style scoped>
+  #app-root {
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+
+    .base-layout-contents {
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+  }
+</style>
 
 <style>
   @layer reset;

@@ -95,9 +95,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         <button @click="uiState.mediaView = 'slide-show'">
           Slide Show
         </button>
-        <button @click="uiState.toggleSidebar">
-          Sidebar
-        </button>
+        <slot name="header-buttons" />
       </div>
     </div>
     <hr>
@@ -160,6 +158,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 
         & :deep(.p-menubar-root-list) {
           font-size: 1.3em;
+          width: auto;
         }
 
         & :deep(.p-menubar-item-content):hover {

@@ -76,12 +76,6 @@ function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
 }
 </script>
 
-<style>
-  .big-shot {
-    z-index: 1;
-  }
-</style>
-
 <style scoped>
   .load-more {
     margin: 1em auto;
@@ -90,5 +84,10 @@ function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
 
   .pi {
     vertical-align: middle;
+  }
+
+  .big-shot {
+    z-index: 1;
+    position: fixed;
   }
 </style>
