@@ -9,9 +9,12 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
   const slideData = computed(() => medias.value.map((media) => {
     if (media) {
       // TODO a lot of this is copied from MediaPreview so we want to abstract that out at some point
+      const maxHeight = computed(() => Math.max(...media.files.map(file => file.height || 0)))
       const fileSortWeight = (file: File) => {
-        if (file.hasVideo) return 0
-        return 1
+        // Bias towards largest media
+        let weight = file.height ? file.height / maxHeight.value : 1
+        if (!file.hasVideo) weight += 1
+        return weight
       }
       const files = computed(() => media.files.toSorted((a, b) => fileSortWeight(a) - fileSortWeight(b)))
 
