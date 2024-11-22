@@ -12,7 +12,7 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
       const maxHeight = computed(() => Math.max(...media.files.map(file => file.height || 0)))
       const fileSortWeight = (file: File) => {
         // Bias towards largest media
-        let weight = file.height ? file.height / maxHeight.value : 1
+        let weight = file.height ? 1 - (file.height / maxHeight.value) : 0
         if (!file.hasVideo) weight += 1
         return weight
       }
