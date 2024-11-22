@@ -10,9 +10,14 @@ const props = defineProps<{
   media: z.infer<typeof APIMedia>
 }>()
 
+const maxHeight = computed(() => Math.max(...props.media.files.map(file => file.height || 0)))
+
 const fileSortWeight = (file: File) => {
-  if (file.hasVideo) return 0
-  return 1
+  const thumbnailDisplayHeight = 300
+  // Bias towards media that is closest to display height
+  let weight = file.height ? (Math.abs(file.height - thumbnailDisplayHeight) / Math.max(maxHeight.value, thumbnailDisplayHeight)) : 1
+  if (!file.hasVideo) weight += 1
+  return weight
 }
 const uiState = useUiState()
 
