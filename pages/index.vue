@@ -53,8 +53,9 @@ const uiState = useUiState()
 mediaQuery.$subscribe(() => {
   mediaQueryCondition.value = mediaQuery.condition
 })
+const { randomSeed } = storeToRefs(uiState)
 const { data, fetchNextPage, isFetchingNextPage, hasNextPage } = useInfiniteQuery({
-  queryKey: ['media', mediaQueryCondition],
+  queryKey: ['media', mediaQueryCondition, randomSeed],
   queryFn: ({ pageParam }) => $fetch(
     '/api/media',
     { query: { page: pageParam, seed: uiState.randomSeed }, method: 'POST', body: mediaQueryCondition.value },
