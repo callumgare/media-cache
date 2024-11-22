@@ -92,6 +92,9 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         </template>
       </Menubar>
       <div class="right-side">
+        <button @click="uiState.debugMode = !uiState.debugMode">
+          Debug
+        </button>
         <button @click="uiState.mediaView = 'slide-show'">
           Slide Show
         </button>

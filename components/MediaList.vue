@@ -30,9 +30,9 @@ defineProps<{
     gap: 0.5em;
     justify-content: center;
     align-items: center;
-  }
 
-  li {
-    max-height: 300px;
+    li {
+      max-width: 100%;
+    }
   }
 </style>

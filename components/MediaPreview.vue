@@ -14,6 +14,7 @@ const fileSortWeight = (file: File) => {
   if (file.hasVideo) return 0
   return 1
 }
+const uiState = useUiState()
 
 const files = computed(() => props.media.files.toSorted((a, b) => fileSortWeight(a) - fileSortWeight(b)))
 
@@ -29,6 +30,7 @@ const getSrc = (file: File) => `${document.location.origin}/file/${props.media.i
     v-if="videoFile || imageFile"
     class="item"
   >
+    <pre v-if="uiState.debugMode">{{ JSON.stringify(media, null, 2) }}</pre>
     <mux-player
       v-if="displayElement === 'video'"
       :src="videoFile ? getSrc(videoFile) : ''"
@@ -70,6 +72,10 @@ const getSrc = (file: File) => `${document.location.origin}/file/${props.media.i
   }
 
   a {
+  pre {
+    overflow: auto;
+  }
+
     display: block;
   }
 </style>
