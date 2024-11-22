@@ -16,11 +16,6 @@ export default defineNuxtConfig({
       stylistic: true,
     },
   },
-  vue: {
-    compilerOptions: {
-      isCustomElement: (tag: string) => ['mux-player'].includes(tag),
-    },
-  },
   primevue: {
     options: {
       theme: {

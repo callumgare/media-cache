@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { z } from 'zod'
-import '@mux/mux-player'
+import Hls from 'hls.js'
 
 import type { APIMedia, APIMediaFile } from '../types/api-media'
 
@@ -40,6 +40,45 @@ const posterSrc = computed(() => {
     return ''
   }
 })
+
+const hls = ref<Hls | null>(null)
+
+onMounted(() => {
+  const file = videoFile.value
+
+  if (!file || videoRef.value === null) {
+    return
+  }
+
+  const videoSrc = getSrc(file)
+  if (file.ext === 'm3u8') {
+    if (videoRef.value.canPlayType('application/vnd.apple.mpegurl')) {
+      videoRef.value.src = videoSrc
+    }
+    else if (Hls.isSupported()) {
+      hls.value = new Hls()
+    }
+    else {
+      throw Error('Browser can\'t play HLS')
+    }
+  }
+  else {
+    videoRef.value.src = videoSrc
+  }
+})
+
+const videoRef = ref<HTMLVideoElement | null>(null)
+
+function playHlsVideo() {
+  const file = videoFile.value
+  if (!file || videoRef.value === null || !hls.value) {
+    return
+  }
+
+  const videoSrc = getSrc(file)
+  hls.value.loadSource(videoSrc)
+  hls.value?.attachMedia(videoRef.value)
+}
 </script>
 
 <template>
@@ -48,12 +87,14 @@ const posterSrc = computed(() => {
     class="item"
   >
     <pre v-if="uiState.debugMode">{{ JSON.stringify(media, null, 2) }}</pre>
-    <mux-player
+    <video
       v-if="displayElement === 'video'"
-      :src="videoFile ? getSrc(videoFile) : ''"
+      ref="videoRef"
+      controls
       :poster="posterSrc"
-      stream-type="on-demand"
-      :preload="imageFile ? 'none' : 'metadata'"
+      preload="none"
+      playsinline="true"
+      @play="playHlsVideo"
     />
     <img
       v-else-if="displayElement === 'image'"
@@ -73,14 +114,10 @@ const posterSrc = computed(() => {
     background-color: grey;
   }
 
-  img, video, mux-player {
+  img, video {
     max-height: 300px;
     max-width: 100%;
     display: block;
-  }
-
-  mux-player {
-    height: 10000px;
   }
 
   .info {
