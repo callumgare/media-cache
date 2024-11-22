@@ -1,5 +1,9 @@
 FROM node:20-alpine
 
+RUN apk update
+RUN apk upgrade
+RUN apk add --no-cache ffmpeg
+
 RUN mkdir -p /usr/src/media-cache
 WORKDIR /usr/src/media-cache
 

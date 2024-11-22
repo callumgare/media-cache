@@ -23,6 +23,18 @@ const videoFile = computed(() => files.value.find(file => file.hasVideo && file.
 const imageFile = computed(() => files.value.find(file => file.hasImage || file.ext === 'gif'))
 
 const getSrc = (file: File) => `${document.location.origin}/file/${props.media.id}/${file?.id}/${file?.url}`
+
+const posterSrc = computed(() => {
+  if (imageFile.value) {
+    return getSrc(imageFile.value)
+  }
+  else if (videoFile.value) {
+    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.id}`
+  }
+  else {
+    return ''
+  }
+})
 </script>
 
 <template>
@@ -34,7 +46,7 @@ const getSrc = (file: File) => `${document.location.origin}/file/${props.media.i
     <mux-player
       v-if="displayElement === 'video'"
       :src="videoFile ? getSrc(videoFile) : ''"
-      :poster="imageFile ? getSrc(imageFile) : ''"
+      :poster="posterSrc"
       stream-type="on-demand"
       :preload="imageFile ? 'none' : 'metadata'"
     />
