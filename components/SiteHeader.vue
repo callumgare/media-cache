@@ -71,7 +71,10 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
               v-bind="itemProps.action"
               @click="navigate"
             >
-              <span :class="item.icon" />
+              <span
+                v-if="item.icon"
+                :class="item.icon"
+              />
               <span class="ml-2">{{ item.label }}</span>
             </a>
           </NuxtLink>
@@ -82,7 +85,10 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
             :target="item.target"
             v-bind="itemProps.action"
           >
-            <span :class="item.icon" />
+            <span
+              v-if="item.icon"
+              :class="item.icon"
+            />
             <span class="ml-2">{{ item.label }}</span>
             <span
               v-if="hasSubmenu"
@@ -158,7 +164,6 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
       margin: 0.5em 1em;
 
       .p-menubar {
-        margin-left: -1em;
         border: none;
         padding: 0;
 

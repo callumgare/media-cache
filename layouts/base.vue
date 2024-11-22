@@ -42,6 +42,36 @@ const breadcrumbs = computed(() => {
   @layer reset;
 
   /********************
+  Custom
+  ********************/
+  body {
+    font-family: sans-serif;
+    background: var(--primary-background);
+  }
+
+  :root {
+    --primary-background: light-dark(var(--p-zinc-100), var(--p-zinc-900));
+    --bg-highlight: var(--p-yellow-100);
+
+    @media (prefers-color-scheme: dark) {
+      --bg-highlight: var(--p-yellow-700);
+    }
+  }
+
+  @keyframes target-fade {
+    0% { background-color: var(--bg-highlight); }
+    100% { background-color: transparent; }
+  }
+
+  :target {
+    animation: target-fade 3s 1;
+  }
+
+  .p-button {
+    line-height: normal;
+  }
+
+  /********************
   CSS Reset
   Based on: https://www.joshwcomeau.com/css/custom-css-reset/
   ********************/
@@ -99,33 +129,5 @@ const breadcrumbs = computed(() => {
     #app-root, #__nuxt {
       isolation: isolate;
     }
-  }
-
-  /********************
-  Custom
-  ********************/
-  body {
-    font-family: sans-serif;
-  }
-
-  :root {
-    --bg-highlight: var(--p-yellow-100);
-
-    @media (prefers-color-scheme: dark) {
-      --bg-highlight: var(--p-yellow-700);
-    }
-  }
-
-  @keyframes target-fade {
-    0% { background-color: var(--bg-highlight); }
-    100% { background-color: transparent; }
-  }
-
-  :target {
-    animation: target-fade 3s 1;
-  }
-
-  .p-button {
-    line-height: normal;
   }
 </style>

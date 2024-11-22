@@ -6,6 +6,6 @@
 
 <style>
   .page {
-    margin: 1em;
+    padding: 1em;
   }
 </style>

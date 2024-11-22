@@ -33,7 +33,6 @@ const uiState = useUiState()
     grid-gap: 0;
 
     .page {
-      padding: 1em;
       overflow: auto;
     }
   }
@@ -56,7 +55,7 @@ const uiState = useUiState()
           left: 0;
           right: 0;
           width: 100%;
-          background: white;
+          background: var(--primary-background);
           margin: 0;
           padding: 1em;
           bottom: 0;
