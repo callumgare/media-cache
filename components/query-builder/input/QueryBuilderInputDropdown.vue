@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import 'primeicons/primeicons.css'
 import type { QueryFieldCondition } from '@/types/query-condition'
 import { type QuerySchemaConfig } from '@/types/query-schema-config.js'
 
@@ -32,16 +33,21 @@ const mediaQuery = useMediaQuery()
         v-if="fieldCondition.value"
         @click="() => mediaQuery.setFieldConditionValue(fieldCondition, '')"
       >
-        clear
+        <i class="pi pi-times" />
       </button>
     </div>
   </QueryBuilderInputBase>
 </template>
 
 <style scoped>
+  .pi {
+    vertical-align: middle;
+  }
+
   .control {
     display: flex;
     gap: 0.5em;
     align-items: center;
+    flex-wrap: wrap;
   }
 </style>

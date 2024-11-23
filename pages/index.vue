@@ -61,7 +61,7 @@ const { data, fetchNextPage, isFetchingNextPage, hasNextPage } = useInfiniteQuer
     { query: { page: pageParam, seed: uiState.randomSeed }, method: 'POST', body: mediaQueryCondition.value },
   ),
   initialPageParam: 1,
-  getNextPageParam: page => page.page + 1,
+  getNextPageParam: page => page.media.length ? page.page + 1 : null,
   getPreviousPageParam: page => page.page - 1,
 })
 

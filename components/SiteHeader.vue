@@ -162,6 +162,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
       justify-content: space-between;
       align-items: center;
       margin: 0.5em 1em;
+      gap: 1em;
 
       .p-menubar {
         border: none;

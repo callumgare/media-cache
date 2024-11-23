@@ -60,6 +60,6 @@ const querySchemaConfig: QuerySchemaConfig = {
 
 <style scoped>
   .root {
-    margin: 1em;
+    padding: 1em;
   }
 </style>

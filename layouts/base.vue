@@ -28,12 +28,14 @@ const breadcrumbs = computed(() => {
     max-height: 100vh;
     display: flex;
     flex-direction: column;
+    height: 100vh;
 
     .base-layout-contents {
       overflow: auto;
       display: flex;
       flex-direction: column;
       position: relative;
+      flex: 1 1 auto;
     }
   }
 </style>
