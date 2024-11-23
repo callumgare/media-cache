@@ -22,7 +22,7 @@
     "drizzle-orm": "^0.32.0",
     "fluent-ffmpeg": "^2.1.3",
     "hls.js": "^1.5.17",
-    "media-finder": "^2.1.0",
+    "media-finder": "^2.2.0",
     "nuxt": "^3.12.3",
     "object-hash": "^3.0.0",
     "pinia": "^2.2.1",
