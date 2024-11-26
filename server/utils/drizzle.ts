@@ -8,6 +8,6 @@ if (!process.env.DATABASE_URL) {
 }
 
 const queryClient = postgres(process.env.DATABASE_URL)
-const db = drizzle(queryClient, { schema: dbSchema })
+const db = drizzle(queryClient, { schema: dbSchema, logger: true })
 
 export { db, dbSchema }
