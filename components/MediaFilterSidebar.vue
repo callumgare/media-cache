@@ -17,10 +17,10 @@ const querySchemaConfig: QuerySchemaConfig = {
       availableOptions: sources,
     },
     {
-      id: 'group',
-      displayName: 'Groups',
+      id: 'tags',
+      displayName: 'Tags',
       type: 'list of text',
-      availableOptions: finderDetails.value?.groups || [],
+      availableOptions: finderDetails.value?.tags || [],
     },
     {
       id: 'type',

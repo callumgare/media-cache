@@ -4,7 +4,7 @@ import { getMediaFinder } from '~/server/lib/media-finder'
 
 export default defineEventHandler(async () => {
   const mediaFinder = await getMediaFinder()
-  const groups = await db.select({
+  const tags = await db.select({
     id: dbSchema.group.id,
     name: dbSchema.group.name,
     count: sql`count(*)`,
@@ -26,6 +26,6 @@ export default defineEventHandler(async () => {
           })),
         }]),
     ),
-    groups: groups,
+    tags: tags,
   }
 })

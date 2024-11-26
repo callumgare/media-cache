@@ -56,7 +56,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       if (field === 'source') {
         sqlField = dbSchema.cacheMediaSource.finderSourceId
       }
-      else if (field === 'group') {
+      else if (field === 'tags') {
         sqlField = dbSchema.cacheMediaGroup.groupId
       }
       else if (field === 'type') {
@@ -129,7 +129,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     else {
       let sqlField
       const { field, value, operator } = condition
-      if (field === 'group') {
+      if (field === 'tags') {
         sqlField = dbSchema.cacheMediaGroup.groupId
       }
       if (operator === 'includes all') {
