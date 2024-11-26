@@ -35,7 +35,11 @@ const mediaQuery = useMediaQuery()
         @update:model-value="(values: { id: string }[]) =>
           mediaQuery.setFieldConditionValue(fieldCondition, values.map(value => value.id))
         "
-      />
+      >
+        <template #option="slotProps">
+          <span data-pc-section="optionlabel">{{ slotProps.option.name }} ({{ slotProps.option.count }})</span>
+        </template>
+      </MultiSelect>
     </div>
   </QueryBuilderInputBase>
 </template>

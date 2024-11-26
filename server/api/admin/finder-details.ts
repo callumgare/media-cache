@@ -1,9 +1,18 @@
+import { eq, sql } from 'drizzle-orm'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { getMediaFinder } from '~/server/lib/media-finder'
 
 export default defineEventHandler(async () => {
   const mediaFinder = await getMediaFinder()
-  const groups = await db.query.group.findMany({ columns: { name: true, id: true } })
+  const groups = await db.select({
+    id: dbSchema.group.id,
+    name: dbSchema.group.name,
+    count: sql`count(*)`,
+  })
+    .from(dbSchema.group)
+    .leftJoin(dbSchema.cacheMediaGroup, eq(dbSchema.cacheMediaGroup.groupId, dbSchema.group.id))
+    .orderBy(sql`"count" desc`)
+    .groupBy(dbSchema.group.id)
   return {
     sources: Object.fromEntries(
       Object.values(mediaFinder.sources)
@@ -17,6 +26,6 @@ export default defineEventHandler(async () => {
           })),
         }]),
     ),
-    groups: groups.toSorted((a, b) => a.name.localeCompare(b.name)),
+    groups: groups,
   }
 })
