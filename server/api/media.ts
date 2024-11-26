@@ -40,7 +40,11 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       else {
         throw Error(`Unknown operator: ${condition.operator}`)
       }
-      const sqlChildConditions = childConditions.map(calculateWhereValue).filter(sql => sql !== null).map(sqlChunk => sql`(${sqlChunk})`)
+      const sqlChildConditions = childConditions
+        .map(calculateWhereValue)
+        .filter(sql => sql !== null)
+        .map(sqlChunk => sql`(${sqlChunk})`)
+      if (!sqlChildConditions.length) return null
       return sql.join(
         sqlChildConditions,
         sqlOperator,
@@ -79,10 +83,64 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       if (operator === 'equals') {
         sqlOperator = sql`=`
       }
+      else if (operator === 'includes all') {
+        if (!value.length) {
+          return null
+        }
+        // A having condition is also applied later on for fields with 'includes all'
+        return sql.join(
+          value.map(id => sql`${sqlField} = ${id}`),
+          sql` OR `,
+        )
+      }
       else {
         throw Error(`Unknown operator: ${operator}`)
       }
       return sql`${sqlField} ${sqlOperator} ${value}`
+    }
+  }
+
+  function calculateHavingValue(condition: QueryCondition): SQL | null {
+    if (condition.type === 'group') {
+      const childConditions = condition.conditions.filter(condition => !('value' in condition) || condition.value !== '')
+      if (!childConditions.length) {
+        return null
+      }
+      let sqlOperator: SQL
+      if (condition.operator === 'AND') {
+        sqlOperator = sql` AND `
+      }
+      else if (condition.operator === 'OR') {
+        sqlOperator = sql` OR `
+      }
+      else {
+        throw Error(`Unknown operator: ${condition.operator}`)
+      }
+      const sqlChildConditions = childConditions
+        .map(calculateHavingValue)
+        .filter(sql => sql !== null)
+        .map(sqlChunk => sql`(${sqlChunk})`)
+      if (!sqlChildConditions.length) return null
+      return sql.join(
+        sqlChildConditions,
+        sqlOperator,
+      )
+    }
+    else {
+      let sqlField
+      const { field, value, operator } = condition
+      if (field === 'group') {
+        sqlField = dbSchema.cacheMediaGroup.groupId
+      }
+      if (operator === 'includes all') {
+        if (!value.length) {
+          return null
+        }
+        return sql`COUNT(DISTINCT ${sqlField}) = ${value.length}`
+      }
+      else {
+        return null
+      }
     }
   }
 
@@ -98,6 +156,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     .offset((pageNumber - 1) * returnedNumber)
     .orderBy(sql`"hash"`)
     .groupBy(sql`"hash"`)
+    .having(calculateHavingValue(body) ?? undefined)
     .limit(returnedNumber)
 
   let dbMedias

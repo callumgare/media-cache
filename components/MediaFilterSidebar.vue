@@ -18,8 +18,8 @@ const querySchemaConfig: QuerySchemaConfig = {
     },
     {
       id: 'group',
-      displayName: 'Group',
-      type: 'text',
+      displayName: 'Groups',
+      type: 'list of text',
       availableOptions: finderDetails.value?.groups || [],
     },
     {
@@ -39,6 +39,11 @@ const querySchemaConfig: QuerySchemaConfig = {
       name: 'text',
       operators: ['equals'],
       getInputType: () => 'dropdown',
+    },
+    {
+      name: 'list of text',
+      operators: ['includes all'],
+      getInputType: () => 'multi-select dropdown',
     },
   ],
 }

@@ -23,13 +23,18 @@ const mediaQuery = useMediaQuery()
     :schema-config="schemaConfig"
   >
     <div class="control">
-      <Select
-        :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
-        :options="fieldConfig.availableOptions ?? []"
+      <MultiSelect
+        display="chip"
+        :options="fieldConfig.availableOptions"
         option-label="name"
+        filter
         :placeholder="`Select ${fieldConfig.displayName}`"
-        :show-clear="true"
-        @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
+        :model-value="(fieldCondition.value || []).map(
+          (id: string) => (fieldConfig.availableOptions ?? []).find(option => option.id === id),
+        )"
+        @update:model-value="(values: { id: string }[]) =>
+          mediaQuery.setFieldConditionValue(fieldCondition, values.map(value => value.id))
+        "
       />
     </div>
   </QueryBuilderInputBase>
@@ -48,6 +53,10 @@ const mediaQuery = useMediaQuery()
 
     .p-inputwrapper {
       min-width: 200px;
+    }
+
+    :deep(.p-multiselect-label) {
+      flex-wrap: wrap;
     }
   }
 </style>

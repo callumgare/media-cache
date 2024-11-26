@@ -25,7 +25,7 @@ export const useMediaQuery = defineStore('media-query', {
           id: 3,
           type: 'field',
           field: 'group',
-          operator: 'equals',
+          operator: 'includes all',
           value: '',
           parent: 1,
         },
