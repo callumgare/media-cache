@@ -5,6 +5,10 @@ import type { APIMedia } from '../types/api-media'
 defineProps<{
   medias: z.infer<typeof APIMedia>[]
 }>()
+
+const emit = defineEmits<{
+  (e: 'mediaClick', value: z.infer<typeof APIMedia>): void
+}>()
 </script>
 
 <template>
@@ -13,6 +17,7 @@ defineProps<{
       v-for="media in medias"
       :key="media.id"
       class="item"
+      @click="() => emit('mediaClick', media)"
     >
       <MediaPreview
         :media="media"

@@ -3,6 +3,7 @@
     <big-shot
       v-if="uiState.mediaView === 'slide-show' && slideData.length"
       :slide-data="[...slideData, ...Array(totalMedias)]"
+      :initial-slide-index="initialSlideIndex"
       @before-slide-change-hook="beforeSlideChangeHook"
     >
       <template #center-header>
@@ -15,6 +16,7 @@
     </big-shot>
     <MediaList
       :medias="medias"
+      @media-click="openMediaInSlideShow"
     />
     <button
       :disabled="!hasNextPage || isFetchingNextPage"
@@ -74,6 +76,17 @@ function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
   if (newIndex > (medias.value.length - 5)) {
     fetchNextPage()
   }
+}
+const initialSlideIndex = ref(0)
+function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
+  const slideIndex = medias.value.findIndex(m => m === media)
+  if (slideIndex === -1) {
+    console.error(`Failed to get index for media: ${media.id}`)
+    return
+  }
+  initialSlideIndex.value = slideIndex
+  console.log(initialSlideIndex.value)
+  uiState.mediaView = 'slide-show'
 }
 </script>
 
