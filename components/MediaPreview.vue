@@ -79,6 +79,14 @@ function playHlsVideo() {
   hls.value.loadSource(videoSrc)
   hls.value?.attachMedia(videoRef.value)
 }
+const hoverOverPlayCountdown = ref(null)
+function handleMouseEnter() {
+  hoverOverPlayCountdown.value = setTimeout(() => videoRef.value?.play(), 300)
+}
+function handleMouseLeave() {
+  clearTimeout(hoverOverPlayCountdown.value)
+  videoRef.value?.pause()
+}
 </script>
 
 <template>
@@ -90,11 +98,14 @@ function playHlsVideo() {
     <video
       v-if="displayElement === 'video'"
       ref="videoRef"
-      controls
       :poster="posterSrc"
       preload="none"
       playsinline="true"
+      muted="true"
       @play="playHlsVideo"
+      @click.prevent=""
+      @mouseenter="handleMouseEnter"
+      @mouseleave="handleMouseLeave"
     />
     <img
       v-else-if="displayElement === 'image'"
@@ -112,6 +123,9 @@ function playHlsVideo() {
 <style scoped>
   .item {
     background-color: grey;
+    position: relative;
+
+    --play-button-size: 70px;
   }
 
   img, video {
@@ -126,10 +140,56 @@ function playHlsVideo() {
   }
 
   a {
-  pre {
-    overflow: auto;
+    display: block;
+
+    pre {
+      overflow: auto;
+    }
   }
 
+  .item:has(video)::before {
+    content: "";
+    color: white;
+    background-color: rgb(0 0 0 / 60%); /* Semi-transparent dark background */
+    border-radius: 50%; /* Circular shape */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; /* Ensures button does not interfere with video controls */
+    transition: transform 0.05s ease-in;
+
+    --circle-diameter: var(--play-button-size);
+
+    width: var(--circle-diameter);
+    height: var(--circle-diameter);
+    text-align: center;
+    line-height: var(--circle-diameter);
+    padding-left: 0.19em;
+    box-sizing: border-box;
     display: block;
+  }
+
+  .item:has(video)::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    content: '';
+    border-color: transparent transparent transparent white;
+    will-change: border-width;
+    border-style: solid;
+
+    --height: calc(var(--play-button-size) * 0.437);
+    --width: calc(var(--height) * 0.8);
+
+    margin-left: calc(var(--width) * 0.15);
+    border-width: calc(var(--height) * 0.5) 0 calc(var(--height) * 0.5) var(--width);
+
+  }
+
+  /* Hover effect: Slightly grow the play button */
+  .item:has(video):hover::before, .item:has(video):hover::after {
+    transform: translate(-50%, -50%) scale(1.05); /* Scale the play button */
   }
 </style>
