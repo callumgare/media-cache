@@ -12,8 +12,8 @@ const props = defineProps<{
 
 const maxHeight = computed(() => Math.max(...props.media.files.map(file => file.height || 0)))
 
+const thumbnailDisplayHeight = 300
 const fileSortWeight = (file: File) => {
-  const thumbnailDisplayHeight = 300
   // Bias towards media that is closest to display height
   let weight = file.height ? (Math.abs(file.height - thumbnailDisplayHeight) / Math.max(maxHeight.value, thumbnailDisplayHeight)) : 1
   if (!file.hasVideo) weight += 1
@@ -34,7 +34,7 @@ const posterSrc = computed(() => {
     return getSrc(imageFile.value)
   }
   else if (videoFile.value) {
-    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.id}`
+    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.id}/${thumbnailDisplayHeight}`
   }
   else {
     return ''

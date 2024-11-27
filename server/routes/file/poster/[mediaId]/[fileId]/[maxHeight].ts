@@ -2,10 +2,11 @@ import fs from 'node:fs'
 import { updateFileUrl } from '../../../../../lib/media-finder/update-file-url'
 import { getPosterOfFile } from '~/server/lib/media-finder/poster'
 
-export default defineEventHandler(async (event): Promise<string> => {
-  const { fileId: fileIdString = '' } = event.context.params || {}
+export default defineEventHandler(async (event): Promise<string | undefined> => {
+  const { fileId: fileIdString = '', maxHeight: maxHeightString = '' } = event.context.params || {}
   const reqUrl = getRequestURL(event)
   const fileId = parseInt(fileIdString)
+  const maxHeight = parseInt(maxHeightString)
   if (isNaN(fileId)) {
     return 'wrong'
   }
@@ -26,7 +27,7 @@ export default defineEventHandler(async (event): Promise<string> => {
     fileUrl = new URL(file.url)
   }
 
-  const filePath = await getPosterOfFile(fileUrl, fileId)
+  const filePath = await getPosterOfFile(fileUrl, fileId, maxHeight)
 
-  return sendStream(event, fs.createReadStream(filePath))
+  return sendStream(event, fs.createReadStream(filePath)) as Promise<undefined>
 })

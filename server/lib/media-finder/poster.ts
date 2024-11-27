@@ -3,8 +3,9 @@ import FfmpegCommand from 'fluent-ffmpeg'
 
 const transcodesInProgress: { [key: string]: Promise<string> } = {}
 
-export async function getPosterOfFile(fileUrl: URL, fileId: string): Promise<string> {
-  const filePath = `/tmp/${fileId}.jpg`
+export async function getPosterOfFile(fileUrl: URL, fileId: number, maxHeight: number = 0): Promise<string> {
+  const key = `${fileId}-${maxHeight}`
+  const filePath = `/tmp/${key}.jpg`
   try {
     await fs.access(filePath)
     return filePath
@@ -12,12 +13,12 @@ export async function getPosterOfFile(fileUrl: URL, fileId: string): Promise<str
   catch (error) {
     // It's okay if poster file doesn't exist, it just means it's not been create yet
   }
-  if (fileId in transcodesInProgress) {
-    return transcodesInProgress[fileId]
+  if (key in transcodesInProgress) {
+    return transcodesInProgress[key]
   }
-  transcodesInProgress[fileId] = new Promise((resolve, reject) => {
-    const ffCommand = new FfmpegCommand()
-    ffCommand
+  transcodesInProgress[key] = new Promise((resolve, reject) => {
+    let ffCommand = new FfmpegCommand()
+    ffCommand = ffCommand
       .on('start', function (command) {
         console.log('Running ffmpeg command:', command)
       })
@@ -36,8 +37,10 @@ export async function getPosterOfFile(fileUrl: URL, fileId: string): Promise<str
       .input(fileUrl.href)
       .frames(1)
       .format('image2')
-      .videoFilters('scale=\'min(iw,iw)\':\'min(300,ih)\':force_original_aspect_ratio=decrease')
-      .save(filePath)
+    if (maxHeight) {
+      ffCommand = ffCommand.videoFilters(`scale='min(iw,iw)':'min(${maxHeight},ih)':force_original_aspect_ratio=decrease`)
+    }
+    ffCommand.save(filePath)
   })
-  return transcodesInProgress[fileId]
+  return transcodesInProgress[key]
 }
