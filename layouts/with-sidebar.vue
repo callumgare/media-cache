@@ -138,11 +138,11 @@ const handleClick = computed(() => (event) => {
           display: block;
           position: absolute;
           width: 100%;
-          background-color: #00000091;
+          background-color: light-dark(#0000005e, #0000008e);
           height: 100%;
           top: 0;
           left: 0;
-          opacity: 0.5;
+          z-index: 1;
         }
 
         .page {
