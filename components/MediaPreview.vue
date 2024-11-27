@@ -147,35 +147,30 @@ function handleMouseLeave() {
     }
   }
 
-  .item:has(video)::before {
-    content: "";
-    color: white;
-    background-color: rgb(0 0 0 / 60%); /* Semi-transparent dark background */
-    border-radius: 50%; /* Circular shape */
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none; /* Ensures button does not interfere with video controls */
-    transition: transform 0.05s ease-in;
-
-    --circle-diameter: var(--play-button-size);
-
-    width: var(--circle-diameter);
-    height: var(--circle-diameter);
-    text-align: center;
-    line-height: var(--circle-diameter);
-    padding-left: 0.19em;
-    box-sizing: border-box;
-    display: block;
-  }
-
-  .item:has(video)::after {
+  .item:has(video)::before, .item:has(video)::after {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     content: '';
+    transition: opacity 0.1s, transform 0.05s ease-in;
+  }
+
+  .item:has(video)::before {
+    color: white;
+    background-color: rgb(0 0 0 / 60%); /* Semi-transparent dark background */
+    border-radius: 50%; /* Circular shape */
+    pointer-events: none; /* Ensures button does not interfere with video controls */
+
+    --circle-diameter: var(--play-button-size);
+
+    width: var(--circle-diameter);
+    height: var(--circle-diameter);
+    line-height: var(--circle-diameter);
+    display: block;
+  }
+
+  .item:has(video)::after {
     border-color: transparent transparent transparent white;
     will-change: border-width;
     border-style: solid;
@@ -185,11 +180,12 @@ function handleMouseLeave() {
 
     margin-left: calc(var(--width) * 0.15);
     border-width: calc(var(--height) * 0.5) 0 calc(var(--height) * 0.5) var(--width);
-
   }
 
   /* Hover effect: Slightly grow the play button */
   .item:has(video):hover::before, .item:has(video):hover::after {
+    transition: opacity 1s 0.5s;
+    opacity: 0;
     transform: translate(-50%, -50%) scale(1.05); /* Scale the play button */
   }
 </style>
