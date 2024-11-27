@@ -17,7 +17,7 @@
     "@nuxt/eslint": "^0.3.13",
     "@pinia/nuxt": "^0.5.3",
     "@tanstack/vue-query": "^5.51.0",
-    "big-shot": "^0.9.4",
+    "big-shot": "^0.10.1",
     "consola": "^3.2.3",
     "drizzle-orm": "^0.32.0",
     "fluent-ffmpeg": "^2.1.3",

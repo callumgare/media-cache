@@ -29,6 +29,17 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
       }
 
       const getSrc = (file: File) => `${document.location.origin}/file/${media.id}/${file?.id}/${file?.url}`
+      const posterSrc = computed(() => {
+        if (imageFile.value) {
+          return getSrc(imageFile.value)
+        }
+        else if (videoFile.value) {
+          return `${document.location.origin}/file/poster/${media.id}/${videoFile.value?.id}/0`
+        }
+        else {
+          return ''
+        }
+      })
 
       // We cache slide data objects since Big Shot uses object references
       // to identify slides. If we create a new object each time then Big
@@ -39,6 +50,7 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
         cachedSlideData[media.id] = {
           type: displayElement.value,
           src: getSrc(file),
+          posterSrc: posterSrc.value,
           duration: undefined,
           tags: [],
           title: media.title,
