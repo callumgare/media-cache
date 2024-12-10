@@ -18,10 +18,12 @@ export default defineEventHandler(async (event): Promise<string> => {
   if (file.urlExpires && (new Date() > file.urlExpires)) {
     const refreshedUrl = await updateFileUrl(file)
     fileUrl = new URL(refreshedUrl)
-    fileUrl.search = reqUrl.search
   }
   else {
     fileUrl = new URL(file.url)
+  }
+  if (reqUrl.search) {
+    fileUrl.search = reqUrl.search
   }
 
   if (path) {
