@@ -206,7 +206,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
             width: file.width,
             height: file.height,
             ext: file.ext,
-            url: filename ? filename + fileUrl.search : '',
+            originalFilenameAndSearchQuery: filename ? filename + fileUrl.search : '',
           }
         },
       ),

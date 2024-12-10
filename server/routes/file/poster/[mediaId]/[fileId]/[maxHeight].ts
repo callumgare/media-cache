@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { updateFileUrl } from '../../../../../lib/media-finder/update-file-url'
-import { getPosterOfFile } from '~/server/lib/media-finder/poster'
+import { getPosterOfFile } from '~/server/lib/transcoding/poster'
 
 export default defineEventHandler(async (event): Promise<string | undefined> => {
   const { fileId: fileIdString = '', maxHeight: maxHeightString = '' } = event.context.params || {}
