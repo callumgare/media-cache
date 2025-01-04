@@ -70,7 +70,18 @@
               show-buttons
             />
           </div>
-
+          <div
+            v-else-if="option.type === 'object'"
+            class="option"
+          >
+            <label :for="option.name">{{ camelCaseToTitleCase(option.name) }}</label>
+            <JsonInput
+              :id="option.name"
+              v-model="formValue.requestOptions[option.name]"
+              rows="5"
+              cols="30"
+            />
+          </div>
           <div
             v-else-if="option.type === 'boolean'"
             class="option"
@@ -114,6 +125,8 @@
 </template>
 
 <script setup lang="ts">
+import JsonInput from './forms/JsonInput.vue'
+
 const props = defineProps<{
   mediaQuery?: Omit<DBMediaFinderQuery, 'requestOptions'> & { requestOptions: Record<string, unknown> }
 }>()
