@@ -1,4 +1,5 @@
 import type { GenericRequest } from 'media-finder'
+import { getSecrets } from 'media-finder/dist/test/utils/general.js'
 import {
   createCacheMedia, createCacheMediaSource, createFinderQueryExecution, createFinderQueryExecutionMedia, createFinderQueryExecutionMediaContent, getAllCopiesOfFinderMedia, getCacheMedia, mergeFinderMedia, createOrUpdateCacheMediaFiles, updateCacheMediaSource, updateCacheMedia,
   createOrUpdateCacheMediaGroups,
@@ -30,8 +31,10 @@ export async function runMediaFinderQuery({
 }) {
   const finderQueryExecution = await createFinderQueryExecution({ dbFinderQuery })
 
-  mediaFinderQueryOptions.secrets = mediaFinderQueryOptions.secrets || {}
-  mediaFinderQueryOptions.secrets.apiKey = process.env.GIPHY_API_KEY
+  mediaFinderQueryOptions.secrets = {
+    ...mediaFinderQueryOptions.secrets,
+    ...(await getSecrets(mediaFinderRequest)),
+  }
 
   const mediaQuery = await getMediaQuery({
     request: mediaFinderRequest,
