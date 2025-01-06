@@ -337,7 +337,9 @@ export const finderQueryExecutionMediaContent = pgTable('finder_query_execution_
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
   source: text('source').notNull(),
   mediaId: text('media_id').notNull(),
-  content: text('content').notNull().unique(),
+  content: text('content').notNull(), // This should be unique because contentHash is guaranteed to be unique
+  // but we don't want to actually set the column to be unique values only since that limits the length of the
+  // row to ~2000 chars which content can sometimes exceed
 })
 
 export const finderQueryExecutionMediaContentRelations = relations(finderQueryExecutionMediaContent, ({ many }) => ({

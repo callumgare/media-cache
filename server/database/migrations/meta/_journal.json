@@ -36,6 +36,13 @@
       "when": 1731835849722,
       "tag": "0004_complete_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1736067462939,
+      "tag": "0005_remove_content_unique_requirement",
+      "breakpoints": true
     }
   ]
 }
