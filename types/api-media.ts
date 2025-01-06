@@ -27,7 +27,8 @@ export const APIMediaFile = z.object({
   width: z.number().nullable(),
   height: z.number().nullable(),
   ext: z.string().nullable(),
-  originalFilenameAndSearchQuery: z.string(),
+  filename: z.string(),
+  sourceUrl: z.string(),
 })
 
 export const APIMedia = z.object({

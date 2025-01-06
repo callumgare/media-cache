@@ -1,7 +1,10 @@
 import { updateFileUrl } from '../../../../lib/media-finder/update-file-url'
+import { replaceLast } from '~/lib/string'
 
-export default defineEventHandler(async (event): Promise<string> => {
-  const { fileId: fileIdString = '', path } = event.context.params || {}
+import { proxyRequest } from '@/server/lib/proxy'
+
+export default defineEventHandler(async (event) => {
+  const { fileId: fileIdString = '' } = event.context.params || {}
   const reqUrl = getRequestURL(event)
   const fileId = parseInt(fileIdString)
   if (isNaN(fileId)) {
@@ -26,12 +29,36 @@ export default defineEventHandler(async (event): Promise<string> => {
     fileUrl.search = reqUrl.search
   }
 
-  if (path) {
-    const endingPath = '/' + path
-    if (!fileUrl.pathname.endsWith('/' + path)) {
-      fileUrl.pathname = fileUrl.pathname.replace(/\/[^/]*$/, endingPath)
+  const basePath = replaceLast(
+    // We only want the path but event.path includes the query string if present
+    new URL(event.path, 'http://domain.tld').pathname,
+    '/' + event.context.matchedRoute?.params?.path,
+  )
+
+  const pathParam = event.path.replace(basePath, '')
+  const virtualFilename = `media-${event.context.params?.mediaId}-${event.context.params?.fileId}.${file.ext}`
+  const upstreamUrl = pathParam === `/${virtualFilename}` ? fileUrl : new URL(pathParam, fileUrl.origin)
+
+  let res = await proxyRequest(event, upstreamUrl)
+
+  if (res.headers.get('content-type') === 'application/vnd.apple.mpegurl') {
+    const body = await res.text()
+    const makeAddressAbsolute = (address: string) => {
+      if (address.startsWith('/')) {
+        return address.replace(/^\/\/?/, basePath + '/')
+      }
+      return basePath + upstreamUrl.pathname.replace(/\/[^/]*$/, '/') + address
     }
+    const modifiedBody = body
+      .split('\n')
+      .map(line => !line || line.startsWith('#') ? line : makeAddressAbsolute(line))
+      .join('\n')
+    res = new Response(modifiedBody, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    })
   }
 
-  return sendProxy(event, fileUrl.href)
+  return sendWebResponse(event, res)
 })

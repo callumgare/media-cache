@@ -28,7 +28,7 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
         return {}
       }
 
-      const getSrc = (file: File) => `${document.location.origin}/file/${media.id}/${file?.id}/${file?.originalFilenameAndSearchQuery}`
+      const getSrc = (file: File) => `${document.location.origin}/file/${media.id}/${file?.id}/${file.filename}`
       const posterSrc = computed(() => {
         if (imageFile.value) {
           return getSrc(imageFile.value)

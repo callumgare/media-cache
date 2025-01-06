@@ -194,8 +194,6 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       ),
       files: media.files.map(
         (file) => {
-          const fileUrl = new URL(file.url)
-          const filename = fileUrl.pathname.match(/\/([^/]*)$/)?.[1]
           return {
             id: file.id,
             type: file.type,
@@ -206,7 +204,8 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
             width: file.width,
             height: file.height,
             ext: file.ext,
-            originalFilenameAndSearchQuery: filename ? filename + fileUrl.search : '',
+            filename: `media-${media.id}-${file.id}.${file.ext}`,
+            sourceUrl: file.url,
           }
         },
       ),
