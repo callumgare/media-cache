@@ -101,7 +101,7 @@ function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
   }
 
   .big-shot {
-    z-index: 1;
+    z-index: 3;
     position: fixed;
   }
 </style>

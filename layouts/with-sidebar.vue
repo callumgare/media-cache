@@ -1,15 +1,8 @@
 <script setup lang="ts">
-import { onClickOutside } from '@vueuse/core'
 import 'primeicons/primeicons.css'
 
-const sidebarExpanded = ref<boolean>(false)
+const uiState = useUiState()
 const refSidebar = ref<HTMLDivElement | null>(null)
-
-onClickOutside(refSidebar, () => {
-  if (sidebarExpanded.value) {
-    sidebarExpanded.value = false
-  }
-})
 </script>
 
 <template>
@@ -17,29 +10,32 @@ onClickOutside(refSidebar, () => {
     <template #header-buttons>
       <button
         class="toggle-sidebar"
-        @click="sidebarExpanded = true"
+        @click="uiState.toggleSidebarMobileCollapsed"
       >
         Sidebar
       </button>
     </template>
     <div
       class="container"
-      :class="sidebarExpanded && 'expanded-sidebar'"
+      :class="uiState.sidebarMobileCollapsed && 'sidebar-collapsed-on-mobile'"
     >
       <MediaFilterSidebar
         ref="refSidebar"
         class="sidebar"
       />
-      <div class="page">
-        <NuxtPage />
-      </div>
-
       <button
         class="toggle-sidebar"
-        @click="sidebarExpanded = true"
+        @click="uiState.toggleSidebarMobileCollapsed"
       >
         <i class="pi pi-angle-right" />
       </button>
+      <div
+        class="sidebar-shadow"
+        @click="uiState.toggleSidebarMobileCollapsed"
+      />
+      <div class="page">
+        <NuxtPage />
+      </div>
     </div>
   </NuxtLayout>
 </template>
@@ -71,7 +67,7 @@ onClickOutside(refSidebar, () => {
     .sidebar {
       width: var(--default-sidebar-width);
       height: 100%;
-      z-index: 1;
+      z-index: 3;
       transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out;
       overflow: hidden auto;
       background: var(--primary-background);
@@ -79,6 +75,7 @@ onClickOutside(refSidebar, () => {
 
     .toggle-sidebar {
       position: absolute;
+      z-index: 2;
       top: 2em;
       background: #ffffff91;
       border-radius: 0 1em 1em 0;
@@ -87,11 +84,7 @@ onClickOutside(refSidebar, () => {
       transition: padding-left 0.1s ease-in-out;
     }
 
-    .toggle-sidebar:hover {
-      padding-left: 0.5em;
-    }
-
-    &::before {
+    .sidebar-shadow {
       content: '';
       display: block;
       position: absolute;
@@ -99,6 +92,11 @@ onClickOutside(refSidebar, () => {
       transition: background-color 0.1s ease-in-out;
       transition-delay: 0.05s;
     }
+
+    .toggle-sidebar:hover {
+      padding-left: 0.5em;
+    }
+
   }
 
   @media (width <= 500px) {
@@ -111,7 +109,7 @@ onClickOutside(refSidebar, () => {
         padding: 1em 0;
       }
 
-      &:not(.expanded-sidebar) {
+      &.sidebar-collapsed-on-mobile {
         grid-template-columns: 0 1fr;
 
         .sidebar {
@@ -121,7 +119,7 @@ onClickOutside(refSidebar, () => {
         }
       }
 
-      &.expanded-sidebar {
+      &:not(.sidebar-collapsed-on-mobile) {
         grid-template-columns: calc( 100vw - 200px ) 200px;
         overflow-x: hidden;
 
@@ -129,7 +127,7 @@ onClickOutside(refSidebar, () => {
           width: 90vw;
         }
 
-        &::before {
+        .sidebar-shadow {
           content: '';
           display: block;
           position: absolute;

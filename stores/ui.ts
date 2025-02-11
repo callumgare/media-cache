@@ -3,16 +3,18 @@ import { defineStore } from 'pinia'
 export const useUiState = defineStore('ui', {
   state: () => {
     return {
-      sidebarExpanded: true,
+      sidebarMobileCollapsed: true,
       mediaView: 'grid',
       randomSeed: Math.floor(Math.random() * (100000 - 1)),
       debugMode: false,
     }
   },
   actions: {
-    toggleSidebar() {
-      this.sidebarExpanded = !this.sidebarExpanded
+    toggleSidebarMobileCollapsed() {
+      this.sidebarMobileCollapsed = !this.sidebarMobileCollapsed
     },
   },
-  persist: true,
+  persist: {
+    omit: ['sidebarMobileCollapsed'],
+  },
 })
