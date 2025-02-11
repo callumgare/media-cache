@@ -20,6 +20,7 @@ const refSidebar = ref<HTMLDivElement | null>(null)
       :class="uiState.sidebarMobileCollapsed && 'sidebar-collapsed-on-mobile'"
     >
       <MediaFilterSidebar
+        id="page-sidebar"
         ref="refSidebar"
         class="sidebar"
       />

@@ -18,15 +18,33 @@
       :medias="medias"
       @media-click="openMediaInSlideShow"
     />
-    <button
-      :disabled="!hasNextPage || isFetchingNextPage"
-      class="load-more"
-      @click="() => fetchNextPage()"
-    >
-      <span v-if="isFetchingNextPage">Loading more...</span>
-      <span v-else-if="hasNextPage">Load More</span>
-      <span v-else>Nothing more to load</span>
-    </button>
+    <div class="load-info">
+      <button
+        v-if="(medias.length && hasNextPage) || isFetchingNextPage"
+        :disabled="!hasNextPage || isFetchingNextPage"
+        class="load-more"
+        @click="() => fetchNextPage()"
+      >
+        <span v-if="isFetchingNextPage">Loading more...</span>
+        <span v-else>Load More</span>
+      </button>
+      <div v-else>
+        <span v-if="!medias.length">
+          No results. Try
+          <Button
+            v-if="!pageSidebarWidth"
+            label="Link"
+            variant="link"
+            @click="uiState.sidebarMobileCollapsed = false"
+          >
+            modifying the search
+          </Button>
+          <template v-else>modifying the search</template><!--
+          -->.
+        </span>
+        <span v-else>Nothing more to load</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -35,7 +53,13 @@ import 'primeicons/primeicons.css'
 // @ts-expect-error -- big-shot does not have ts types yet
 import BigShot from 'big-shot'
 import 'big-shot/css'
+import { useElementSize, useMounted } from '@vueuse/core'
 import useSlideData from '~/lib/useSlideData'
+
+const isMounted = useMounted()
+
+const pageSidebarElm = computed<null | HTMLElement>(() => isMounted.value ? document.querySelector('#page-sidebar') : null)
+const { width: pageSidebarWidth } = useElementSize(pageSidebarElm)
 
 definePageMeta({
   layout: 'with-sidebar',
@@ -91,6 +115,13 @@ function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
 </script>
 
 <style scoped>
+  .load-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 1.5em 0;
+  }
+
   .load-more {
     margin: 1em auto;
     display: block;
@@ -103,5 +134,9 @@ function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
   .big-shot {
     z-index: 3;
     position: fixed;
+  }
+
+  .p-button-link {
+    padding: 0;
   }
 </style>
