@@ -1,17 +1,14 @@
 <script setup lang="ts">
-import { useUiState } from '@/stores/ui'
+import { onClickOutside } from '@vueuse/core'
 import 'primeicons/primeicons.css'
 
-const uiState = useUiState()
+const sidebarExpanded = ref<boolean>(false)
 const refSidebar = ref<HTMLDivElement | null>(null)
-const handleClick = computed(() => (event) => {
-  const sidebarElm = refSidebar.value?.$el
-  if (!sidebarElm) return true
-  if (uiState.sidebarExpanded && event.target !== sidebarElm && !sidebarElm.contains(event.target)) {
-    uiState.sidebarExpanded = false
-    return false
+
+onClickOutside(refSidebar, () => {
+  if (sidebarExpanded.value) {
+    sidebarExpanded.value = false
   }
-  return true
 })
 </script>
 
@@ -20,15 +17,14 @@ const handleClick = computed(() => (event) => {
     <template #header-buttons>
       <button
         class="toggle-sidebar"
-        @click="uiState.toggleSidebar"
+        @click="sidebarExpanded = true"
       >
         Sidebar
       </button>
     </template>
     <div
       class="container"
-      :class="uiState.sidebarExpanded && 'expanded-sidebar'"
-      @click.capture="handleClick"
+      :class="sidebarExpanded && 'expanded-sidebar'"
     >
       <MediaFilterSidebar
         ref="refSidebar"
@@ -40,7 +36,7 @@ const handleClick = computed(() => (event) => {
 
       <button
         class="toggle-sidebar"
-        @click="uiState.toggleSidebar"
+        @click="sidebarExpanded = true"
       >
         <i class="pi pi-angle-right" />
       </button>

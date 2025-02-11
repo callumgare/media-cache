@@ -15,6 +15,8 @@ const fieldConfig = computed(() => {
   return fieldConfig
 })
 const mediaQuery = useMediaQuery()
+
+const rootElm = ref<HTMLDivElement | null>(null)
 </script>
 
 <template>
@@ -22,13 +24,17 @@ const mediaQuery = useMediaQuery()
     :field-condition="fieldCondition"
     :schema-config="schemaConfig"
   >
-    <div class="control">
+    <div
+      ref="rootElm"
+      class="control"
+    >
       <Select
         :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
         :options="fieldConfig.availableOptions ?? []"
         option-label="name"
         :placeholder="`Select ${fieldConfig.displayName}`"
         :show-clear="true"
+        :append-to="'self' /* We set append-to here so we can use onClickOutside on sidebar without collapsing sidebar when clicking option */"
         @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
       />
     </div>

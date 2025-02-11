@@ -32,6 +32,7 @@ const mediaQuery = useMediaQuery()
         :model-value="(fieldCondition.value || []).map(
           (id: string) => (fieldConfig.availableOptions ?? []).find(option => option.id === id),
         )"
+        :append-to="'self' /* We set append-to here so we can use onClickOutside on sidebar without collapsing sidebar when clicking option */"
         @update:model-value="(values: { id: string }[]) =>
           mediaQuery.setFieldConditionValue(fieldCondition, values.map(value => value.id))
         "
