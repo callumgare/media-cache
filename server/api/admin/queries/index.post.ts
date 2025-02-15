@@ -1,4 +1,4 @@
-import { serialize } from '~/lib/general'
+import { serialize } from '~/server/lib/general'
 
 export default defineEventHandler(async (event) => {
   const { requestOptions, ...other } = await readBody(event)

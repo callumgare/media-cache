@@ -6,7 +6,7 @@ import type { PgTransaction } from 'drizzle-orm/pg-core'
 import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js'
 
 import { finderFileToCacheFile } from './shared'
-import { deserialize, serialize } from '~/lib/general'
+import { deserialize, serialize } from '~/server/lib/general'
 import { db, dbSchema } from '@/server/utils/drizzle'
 
 type DbTransaction = PgTransaction<PostgresJsQueryResultHKT, typeof dbSchema, ExtractTablesWithRelations<typeof dbSchema>>

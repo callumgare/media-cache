@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { serialize } from '~/lib/general'
+import { serialize } from '~/server/lib/general'
 
 export default defineEventHandler(async (event) => {
   const { requestOptions, createdAt, updatedAt, ...other } = await readBody(event)

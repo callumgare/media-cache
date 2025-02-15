@@ -5,7 +5,7 @@ import {
   createOrUpdateCacheMediaGroups,
 } from './utils'
 import { getMediaQuery } from '.'
-import { deserialize } from '~/lib/general'
+import { deserialize } from '~/server/lib/general'
 
 import type { dbSchema } from '@/server/utils/drizzle'
 

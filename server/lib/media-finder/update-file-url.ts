@@ -2,7 +2,7 @@ import { type GenericRequestInput } from 'media-finder/dist/schemas/request'
 import { and, eq } from 'drizzle-orm'
 import { finderFileToCacheFile } from './shared'
 import { getMediaQuery } from '.'
-import { deserialize } from '~/lib/general'
+import { deserialize } from '~/server/lib/general'
 import { dbSchema } from '#imports'
 
 export async function updateFileUrl(fileToRefresh: dbSchema.CacheMediaFile) {

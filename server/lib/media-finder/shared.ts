@@ -1,6 +1,6 @@
 import type { GenericFile } from 'media-finder'
 import type { dbSchema } from '#imports'
-import { serialize } from '~/lib/general'
+import { serialize } from '~/server/lib/general'
 
 type Result = Omit<dbSchema.CacheMediaFile, 'finderSourceId' | 'finderMediaId' | 'media' | 'updatedAt' | 'id' | 'createdAt' | 'mediaId'>
 

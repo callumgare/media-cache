@@ -1,4 +1,4 @@
-import { deserialize } from '~/lib/general'
+import { deserialize } from '~/server/lib/general'
 
 export default defineEventHandler(async (event) => {
   const idParam = getRouterParam(event, 'id')
