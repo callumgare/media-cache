@@ -22,7 +22,7 @@ const isValid = (value: string) => {
     return false
   }
 }
-const valid = ref(isValid(modelValue.value))
+const valid = ref(isValid(jsonString.value))
 watch(jsonString, () => {
   valid.value = isValid(jsonString.value)
   if (valid.value) {
