@@ -95,8 +95,29 @@
               :input-id="option.name"
             />
           </div>
+          <div
+            v-else-if="option.type === 'array' && option.items?.type === 'string'"
+            class="option"
+          >
+            <label
+              :for="option.name"
+            > {{ camelCaseToTitleCase(option.name) }} </label>
+            <TextList
+              v-model="formValue.requestOptions[option.name]"
+              name="fdsafasf"
+            />
+          </div>
           <span v-else>
             Option type "{{ option.type }}" is unknown.
+            <pre v-if="uiState.debugMode">{{
+              JSON.stringify(option, null, 2)
+            }}</pre>
+            <JsonInput
+              :id="option.name"
+              v-model="formValue.requestOptions[option.name]"
+              rows="5"
+              cols="30"
+            />
           </span>
         </li>
       </ul>
@@ -126,12 +147,15 @@
 
 <script setup lang="ts">
 import JsonInput from './forms/JsonInput.vue'
+import TextList from './forms/TextList.vue'
 
 const props = defineProps<{
   mediaQuery?: Omit<DBMediaFinderQuery, 'requestOptions'> & { requestOptions: Record<string, unknown> }
 }>()
 
 const toast = useToast()
+
+const uiState = useUiState()
 
 const { data: finderDetails, error: finderDetailsError } = await useFetch('/api/admin/finder-details')
 
