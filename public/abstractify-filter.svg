@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <filter id="abstractify" primitiveUnits="objectBoundingBox">
+      <!-- 
+      The warping of the displacement map move some of the edge of the image
+      inwards resulting in a chunk missing from the image around that edge.
+      We can't scale the image using svg filters so instead we repeat it 4 times
+      in a tiled pattern so that there is more image extending outside the displayed
+      bounds which means when warped some of this extra image data might be dragged
+      in rather than leaving a gap there.
+      -->
+      <feOffset in="SourceGraphic" dx="0.5" dy="0.5" result="tile1" />
+      <feOffset in="SourceGraphic" dx="0.5" dy="-0.5" result="tile2" />
+      <feOffset in="SourceGraphic" dx="-0.5" dy="-0.5" result="tile3" />
+      <feOffset in="SourceGraphic" dx="-0.5" dy="0.5" result="tile4" />
+      <feMerge result="tiled">
+        <feMergeNode in="tile1" />
+        <feMergeNode in="tile2" />
+        <feMergeNode in="tile3" />
+        <feMergeNode in="tile4" />
+      </feMerge>
+
+      <!-- Warp the image -->
+      <feTurbulence
+        type="turbulence"
+        baseFrequency="0.01"
+        numOctaves="20"
+        result="turbulence"
+      />
+      <feDisplacementMap in="tiled" scale="0.2" />
+
+      <!-- Blur -->
+      <feGaussianBlur stdDeviation="0.0005" edgeMode="duplicate" />
+
+      <!-- Change the colours -->
+      <feColorMatrix type="contrast" values="888" />
+      <feColorMatrix type="saturate" values="5" />
+    
+      <!-- Clip image to original image boundaries -->
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+</svg>

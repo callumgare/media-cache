@@ -98,6 +98,12 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         </template>
       </Menubar>
       <div class="right-side">
+        <button
+          v-if="uiState.debugMode"
+          @click="uiState.mediaBlurred = !uiState.mediaBlurred"
+        >
+          {{ uiState.mediaBlurred ? 'Unblur' : 'Blur' }}
+        </button>
         <button @click="uiState.debugMode = !uiState.debugMode">
           Debug
         </button>
@@ -176,6 +182,13 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         & :deep(.p-menubar-item-content):hover {
           background-color: transparent;
         }
+      }
+
+      > * {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5em;
       }
     }
 

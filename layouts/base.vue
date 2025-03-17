@@ -1,5 +1,8 @@
 <template>
-  <div id="app-root">
+  <div
+    id="app-root"
+    :class="{ 'blur-media': uiState.mediaBlurred }"
+  >
     <Toast />
     <SiteHeader :breadcrumbs="breadcrumbs">
       <template #header-buttons>
@@ -21,6 +24,8 @@ const breadcrumbs = computed(() => {
   }
   return breadcrumbs
 })
+
+const uiState = useUiState()
 </script>
 
 <style scoped>
@@ -49,6 +54,12 @@ const breadcrumbs = computed(() => {
   body {
     font-family: sans-serif;
     background: var(--primary-background);
+  }
+
+  body:has(#app-root.blur-media) {
+    img, video {
+      filter:  url("/abstractify-filter.svg#abstractify");
+    }
   }
 
   :root {
