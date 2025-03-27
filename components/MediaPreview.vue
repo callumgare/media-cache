@@ -83,12 +83,12 @@ function playHlsVideo() {
   hls.value.loadSource(videoSrc)
   hls.value?.attachMedia(videoRef.value)
 }
-const hoverOverPlayCountdown = ref(null)
+const hoverOverPlayCountdown = ref<NodeJS.Timeout | null>(null)
 function handleMouseEnter() {
-  hoverOverPlayCountdown.value = setTimeout(() => videoRef.value?.play(), 300)
+  hoverOverPlayCountdown.value = setTimeout(() => videoRef.value?.play(), 500)
 }
 function handleMouseLeave() {
-  clearTimeout(hoverOverPlayCountdown.value)
+  hoverOverPlayCountdown.value && clearTimeout(hoverOverPlayCountdown.value)
   videoRef.value?.pause()
 }
 </script>
