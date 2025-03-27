@@ -13,14 +13,16 @@ const emit = defineEmits<{
 
 <template>
   <ul>
+    <!-- data-media-id is used by MediaSwipe to determine where to center the growth effect -->
     <li
       v-for="media in medias"
       :key="media.id"
+      :data-media-id="media.id"
       class="item"
-      @click="() => emit('mediaClick', media)"
     >
       <MediaPreview
         :media="media"
+        @media-click="() => emit('mediaClick', media)"
       />
     </li>
   </ul>

@@ -1,10 +1,11 @@
 import type { z } from 'zod'
+import type { PhotoSwipeSlide } from '~/components/MediaSwipe.vue'
 import type { APIMedia, APIMediaFile } from '~/types/api-media'
 
 type File = z.infer<typeof APIMediaFile>
 
 export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
-  const cachedSlideData = {}
+  const cachedSlideData: Record<string, PhotoSwipeSlide> = {}
 
   const slideData = computed(() => medias.value.map((media) => {
     if (media) {
@@ -25,7 +26,7 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
       const file = (displayElement.value === 'image' ? imageFile : videoFile).value
 
       if (file === undefined) {
-        return {}
+        return null
       }
 
       const getSrc = (file: File) => `${document.location.origin}/file/${media.id}/${file?.id}/${file.filename}`
@@ -48,22 +49,19 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
       // actually new or not. This causes a flash which we want to try and avoid
       if (!cachedSlideData[media.id]) {
         cachedSlideData[media.id] = {
+          id: media.id,
           type: displayElement.value,
           src: getSrc(file),
-          posterSrc: posterSrc.value,
-          duration: undefined,
-          tags: [],
-          title: media.title,
-          media,
-          sources: [],
+          videoSrc: getSrc(file),
+          msrc: getSrc(file) !== posterSrc.value ? posterSrc.value : undefined,
         }
       }
       return cachedSlideData[media.id]
     }
     else {
-      return { }
+      return null
     }
-  }))
+  }).filter(slide => slide !== null))
 
   return slideData
 }

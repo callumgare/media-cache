@@ -1,31 +1,22 @@
 <template>
   <div>
-    <big-shot
-      v-if="uiState.mediaView === 'slide-show' && slideData.length"
-      :slide-data="[...slideData, ...Array(totalMedias)]"
-      :initial-slide-index="initialSlideIndex"
-      @before-slide-change-hook="beforeSlideChangeHook"
-    >
-      <template #center-header>
-        <button
-          @click="uiState.mediaView = 'grid'"
-        >
-          <i class="pi pi-times" />
-        </button>
-      </template>
-    </big-shot>
+    <media-swipe
+      :slides="slideData"
+      :total="totalMedias"
+      @change="beforeSlideChangeHook"
+    />
     <MediaList
       :medias="medias"
       @media-click="openMediaInSlideShow"
     />
     <div class="load-info">
       <button
-        v-if="(medias.length && hasNextPage) || isFetchingNextPage"
-        :disabled="!hasNextPage || isFetchingNextPage"
+        v-if="(medias.length && hasNextPage) || isPending"
+        :disabled="isPending"
         class="load-more"
         @click="() => fetchNextPage()"
       >
-        <span v-if="isFetchingNextPage">Loading more...</span>
+        <span v-if="isPending">Loading more...</span>
         <span v-else>Load More</span>
       </button>
       <div v-else>
@@ -50,9 +41,6 @@
 
 <script setup lang="ts">
 import 'primeicons/primeicons.css'
-// @ts-expect-error -- big-shot does not have ts types yet
-import BigShot from 'big-shot'
-import 'big-shot/css'
 import { useElementSize, useMounted } from '@vueuse/core'
 import useSlideData from '~/lib/useSlideData'
 
@@ -68,11 +56,7 @@ definePageMeta({
 const mediaQuery = useMediaQuery()
 const mediaQueryCondition = ref(mediaQuery.condition)
 
-if (typeof window === 'object') {
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') uiState.mediaView = 'grid'
-  })
-}
+const mediaSwipeOpen = useMediaSwipeOpen()
 
 const uiState = useUiState()
 
@@ -80,7 +64,7 @@ mediaQuery.$subscribe(() => {
   mediaQueryCondition.value = mediaQuery.condition
 })
 const { randomSeed } = storeToRefs(uiState)
-const { data, fetchNextPage, isFetchingNextPage, hasNextPage } = useInfiniteQuery({
+const { data, fetchNextPage, isPending, hasNextPage } = useInfiniteQuery({
   queryKey: ['media', mediaQueryCondition, randomSeed],
   queryFn: ({ pageParam }) => $fetch(
     '/api/media',
@@ -101,16 +85,14 @@ function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
     fetchNextPage()
   }
 }
-const initialSlideIndex = ref(0)
+
 function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
   const slideIndex = medias.value.findIndex(m => m === media)
   if (slideIndex === -1) {
     console.error(`Failed to get index for media: ${media.id}`)
     return
   }
-  initialSlideIndex.value = slideIndex
-  console.log(initialSlideIndex.value)
-  uiState.mediaView = 'slide-show'
+  mediaSwipeOpen(slideIndex)
 }
 </script>
 
@@ -129,11 +111,6 @@ function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
 
   .pi {
     vertical-align: middle;
-  }
-
-  .big-shot {
-    z-index: 3;
-    position: fixed;
   }
 
   .p-button-link {

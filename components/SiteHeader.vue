@@ -107,9 +107,6 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         <button @click="uiState.debugMode = !uiState.debugMode">
           Debug
         </button>
-        <button @click="uiState.mediaView = 'slide-show'">
-          Slide Show
-        </button>
         <button @click="uiState.randomSeed = Math.floor(Math.random() * (100000 - 1))">
           Randomise
         </button>

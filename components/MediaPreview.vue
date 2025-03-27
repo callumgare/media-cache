@@ -10,6 +10,10 @@ const props = defineProps<{
   media: z.infer<typeof APIMedia>
 }>()
 
+const emits = defineEmits<{
+  (e: 'mediaClick', value: z.infer<typeof APIMedia>): void
+}>()
+
 const maxHeight = computed(() => Math.max(...props.media.files.map(file => file.height || 0)))
 
 const thumbnailDisplayHeight = 300
@@ -103,13 +107,14 @@ function handleMouseLeave() {
       playsinline="true"
       muted="true"
       @play="playHlsVideo"
-      @click.prevent=""
+      @click.prevent="(event: Event) => { handleMouseLeave(); emits('mediaClick', media) }"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     />
     <img
       v-else-if="displayElement === 'image'"
       :src="imageFile ? getSrc(imageFile) : ''"
+      @click.prevent="emits('mediaClick', media)"
     >
     <div v-else>
       Unknown display type {{ displayElement }}

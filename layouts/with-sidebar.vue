@@ -34,7 +34,8 @@ useMotion(sidebarElm, {
 
 // Disable Safari iOS back gesture so it doesn't interfere with sidebar gesture
 onMounted(() => {
-  document.querySelector('body > *')?.addEventListener('touchstart', (event: TouchEvent) => {
+  // @ts-expect-error Types in vue don't seem to cover all the events yet
+  document.querySelector('body > *')?.addEventListener('touchstart', (event: Event & { target: HTMLElement, pageX: number }) => {
     // The only way to disable back gesture is to call preventDefault() on a touchstart event. Unfortunately this
     // breaks a bunch of things like tapping on buttons. To avoid this we try only preventDefault() on touches
     // at the edge of the screen. We don't want to prevent the tapping of important navigational elements that
@@ -42,7 +43,7 @@ onMounted(() => {
     const targetElementsToAllowSwipesFor = [
       sidebarExpandButtonElm.value,
       document.querySelector('.p-menubar-button'),
-    ]
+    ].filter(element => element !== null)
     const targetIsAllowedElement = event.target && targetElementsToAllowSwipesFor.some(element => element.contains(event.target))
     const touchNotOnLeftEdge = event.pageX > 30
     if (targetIsAllowedElement || touchNotOnLeftEdge) return

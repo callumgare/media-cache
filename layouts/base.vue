@@ -118,7 +118,6 @@ const uiState = useUiState()
     */
     img, picture, video, canvas, svg {
       display: block;
-      max-width: 100%;
     }
 
     /*
