@@ -108,7 +108,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
           Debug
         </button>
         <button @click="uiState.randomSeed = Math.floor(Math.random() * (100000 - 1))">
-          Randomise
+          Randomise{{ uiState.debugMode ? ` (seed: ${uiState.randomSeed})` : '' }}
         </button>
         <slot name="header-buttons" />
       </div>

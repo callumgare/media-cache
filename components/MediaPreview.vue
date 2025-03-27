@@ -98,7 +98,10 @@ function handleMouseLeave() {
     v-if="videoFile || imageFile"
     class="item"
   >
-    <pre v-if="uiState.debugMode">{{ JSON.stringify(media, null, 2) }}</pre>
+    <details v-if="uiState.debugMode">
+      <summary>Details</summary>
+      <pre>{{ JSON.stringify(media, null, 2) }}</pre>
+    </details>
     <video
       v-if="displayElement === 'video'"
       ref="videoRef"
