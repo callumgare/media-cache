@@ -102,6 +102,12 @@ function handleMouseLeave() {
       <summary>Details</summary>
       <pre>{{ JSON.stringify(media, null, 2) }}</pre>
     </details>
+    <a
+      v-if="uiState.debugMode"
+      :href="getSrc(videoFile || imageFile)"
+    >
+      File Link
+    </a>
     <video
       v-if="displayElement === 'video'"
       ref="videoRef"
