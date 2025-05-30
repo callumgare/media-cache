@@ -29,5 +29,6 @@ export default defineEventHandler(async (event): Promise<string | undefined> => 
 
   const filePath = await getPosterOfFile(fileUrl, fileId, maxHeight)
 
+  setResponseHeader(event, 'Content-Type', 'image/jpeg')
   return sendStream(event, fs.createReadStream(filePath)) as Promise<undefined>
 })
