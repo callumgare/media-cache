@@ -82,7 +82,7 @@ const { data, fetchNextPage, isPending, hasNextPage, error: mediaError } = useIn
 })
 
 const medias = computed(() => data.value?.pages.map(page => page.media).flat() || [])
-const totalMedias = computed(() => Math.ceil((data.value?.pages?.[0].totalCount || 0) / 10))
+const totalMedias = computed(() => data.value?.pages?.[0].totalCount || 0)
 
 const slideData = useSlideData(medias)
 
