@@ -2,14 +2,15 @@ import type { GenericMedia, GenericRequest } from 'media-finder'
 import { getSecrets } from 'media-finder/dist/test/utils/general.js'
 import {
   createCacheMedia, createFinderQueryExecution, createFinderQueryMedia, createFinderQueryMediaContent,
-  getAllCopiesOfFinderMedia, getCacheMedia, mergeFinderMedia, updateCacheMedia,
+  getCacheMedia, updateCacheMedia,
   createOrUpdateCacheMediaGroups, getPreviousFinderQueryExecution, getChangedPairs,
   deleteCacheMediaEntry, deleteOldFinderQueryMedia, finalizeFinderQueryExecution,
 } from './utils'
 import { getMediaQuery } from '.'
 import { deserialize } from '~/server/lib/general'
 
-import { db, type dbSchema } from '@/server/utils/drizzle'
+import { db } from '@/server/utils/drizzle'
+import type { dbSchema } from '@/server/utils/drizzle'
 
 type MediaFinderQueryOptions = Parameters<typeof getMediaQuery>[0]['queryOptions']
 
@@ -77,6 +78,21 @@ export async function runMediaFinderQuery({
 
   console.log(`Changes: ${added.length} added, ${updated.length} updated, ${removed.length} removed`)
 
+  // Build a map of pairKey → contentHash for the current execution so Phase 2 only reads
+  // the exact content that belongs to this run (not stale historical records).
+  const currentContentHashByPair = new Map(
+    [...added, ...updated].map(p => [`${p.finderSourceId}:${p.finderMediaId}`, p.contentHash]),
+  )
+
+  async function fetchCurrentMedia(pairKey: string): Promise<GenericMedia | null> {
+    const contentHash = currentContentHashByPair.get(pairKey)
+    if (!contentHash) return null
+    const row = await db.query.finderQueryMediaContent.findFirst({
+      where: (c, { eq }) => eq(c.contentHash, contentHash),
+    })
+    return row ? (deserialize(row.content) as GenericMedia) : null
+  }
+
   // Expand the set of changed pairs to include all source/media pairs that share a cache_media
   // with any of the changed pairs, so multi-source cache_media entries are fully rebuilt.
   const allChangedPairs = [...added, ...updated, ...removed]
@@ -102,11 +118,8 @@ export async function runMediaFinderQuery({
     const pairsWithContent: GenericMedia[] = []
 
     for (const pairKey of pairKeys) {
-      const [finderSourceId, finderMediaId] = pairKey.split(':') as [string, string]
-      const copies = await getAllCopiesOfFinderMedia({ finderSourceId, finderMediaId })
-      if (copies.length > 0) {
-        pairsWithContent.push(await mergeFinderMedia({ finderMedias: copies }))
-      }
+      const media = await fetchCurrentMedia(pairKey)
+      if (media) pairsWithContent.push(media)
     }
 
     if (pairsWithContent.length === 0) {
@@ -134,12 +147,13 @@ export async function runMediaFinderQuery({
   for (const pair of added) {
     if (handledAddedPairKeys.has(`${pair.finderSourceId}:${pair.finderMediaId}`)) continue
 
-    const copies = await getAllCopiesOfFinderMedia({ finderSourceId: pair.finderSourceId, finderMediaId: pair.finderMediaId })
-    const mergedFinderMedia = await mergeFinderMedia({ finderMedias: copies })
+    const pairKey = `${pair.finderSourceId}:${pair.finderMediaId}`
+    const finderMedia = await fetchCurrentMedia(pairKey)
+    if (!finderMedia) continue
 
     await db.transaction(async (dbTx) => {
-      const cacheMedia = await createCacheMedia({ finderMedias: [mergedFinderMedia], dbTx })
-      await createOrUpdateCacheMediaGroups({ finderMedias: [mergedFinderMedia], cacheMedia, dbTx })
+      const cacheMedia = await createCacheMedia({ finderMedias: [finderMedia], dbTx })
+      await createOrUpdateCacheMediaGroups({ finderMedias: [finderMedia], cacheMedia, dbTx })
     })
     mediaNewCount++
   }
