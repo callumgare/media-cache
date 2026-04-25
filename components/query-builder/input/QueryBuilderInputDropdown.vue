@@ -30,7 +30,15 @@ const mediaQuery = useMediaQuery()
         :placeholder="`Select ${fieldConfig.displayName}`"
         :show-clear="true"
         @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
-      />
+      >
+        <template #option="{ option }">
+          <span class="option-name">{{ option.name }}</span>
+          <span
+            v-if="option.count != null"
+            class="option-count"
+          >{{ option.count }}</span>
+        </template>
+      </Select>
     </div>
   </QueryBuilderInputBase>
 </template>
@@ -49,5 +57,21 @@ const mediaQuery = useMediaQuery()
     .p-inputwrapper {
       min-width: 200px;
     }
+  }
+
+  .option-name {
+    flex: 1;
+  }
+
+  .option-count {
+    color: var(--p-text-muted-color);
+    font-size: 0.85em;
+    margin-left: 0.5em;
+  }
+
+  :deep(.p-select-option) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 </style>

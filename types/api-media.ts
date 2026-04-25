@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 export const APISourceMediaDetails = z.object({
-  id: z.number(),
   sourceName: z.string(),
   title: z.string().nullable(),
   url: z.string().nullable(),
@@ -18,7 +17,6 @@ export const APIUserMediaDetails = z.object({
 })
 
 export const APIMediaFile = z.object({
-  id: z.number(),
   type: z.string(),
   hasVideo: z.boolean().nullable(),
   hasAudio: z.boolean().nullable(),

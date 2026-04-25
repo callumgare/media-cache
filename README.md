@@ -1,75 +1,17 @@
-# Nuxt 3 Minimal Starter
+> [!WARNING]
+> This project is very much still a work in progress and not ready for public
+> consumption yet. But feel free to have a play around if you're feeling
+> adventurous. Just be aware there's no documentation yet.
 
-Look at the [Nuxt 3 documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
-## Setup
-
-Make sure to install the dependencies:
-
-```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+## Development Notes
+### Running Migrations
+Migrations will automatically be run when starting the server however they can also be run explicitly with
+```shell
+drizzle-kit migrate
 ```
-
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
-```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm run dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
+### Creating a Migration
+```shell
+# Add "--custom" for creating an empty migration to manually edit
+drizzle-kit generate --name short_description_of_change
 ```
-
-## Production
-
-Build the application for production:
-
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm run build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm run preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.

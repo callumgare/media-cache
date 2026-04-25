@@ -31,14 +31,14 @@ const displayElement = computed(() => files.value.some(file => file.hasVideo && 
 const videoFile = computed(() => files.value.find(file => file.hasVideo && file.ext !== 'gif'))
 const imageFile = computed(() => files.value.find(file => file.hasImage || file.ext === 'gif'))
 
-const getSrc = (file: File) => `${document.location.origin}/file/${props.media.id}/${file?.id}/${file.filename}`
+const getSrc = (file: File) => `${document.location.origin}/file/${props.media.id}/${file?.type}/${file.filename}`
 
 const posterSrc = computed(() => {
   if (imageFile.value) {
     return getSrc(imageFile.value)
   }
   else if (videoFile.value) {
-    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.id}/${thumbnailDisplayHeight}`
+    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.type}/${thumbnailDisplayHeight}`
   }
   else {
     return ''

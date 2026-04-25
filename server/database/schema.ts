@@ -1,6 +1,6 @@
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
-import { boolean, doublePrecision, index, integer, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, doublePrecision, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 /*
 user
@@ -28,10 +28,6 @@ export const source = pgTable('source', {
   finderSourceId: text('finder_source_id').notNull().unique(),
 })
 
-export const SourceRelations = relations(source, ({ many }) => ({
-  cachedMediaSourceInfo: many(cacheMediaSource),
-}))
-
 export type Source = typeof source.$inferSelect
 
 /*
@@ -45,83 +41,34 @@ export const cacheMedia = pgTable('cache_media', {
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
   title: text('title'),
   description: text('description'),
-})
-
-export const cacheMediaRelations = relations(cacheMedia, ({ many }) => ({
-  files: many(cacheMediaFile),
-  userSpecificInfo: many(cacheMediaUser),
-  sourceSpecificInfo: many(cacheMediaSource),
-  groups: many(cacheMediaGroup),
-}))
-
-export type CacheMedia = typeof cacheMedia.$inferSelect
-
-/*
-cacheMediaSource
-
-cacheMedia can have multiple sources so each cacheMedia has at least 1 cacheMediaSource which
-contains media info that is specific to that particular source rather than info that is the same
-no matter what source it comes from.
-*/
-export const cacheMediaSource = pgTable('cache_media_source', {
-  id: serial('id').notNull().primaryKey(),
-  createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  sourceUploadedAt: timestamp('source_uploaded_at', { precision: 3 }),
-  title: text('title'),
-  description: text('description'),
-  url: text('url'),
-  creator: text('creator'),
-  uploader: text('uploader'),
+  earliestUploadedAt: timestamp('earliest_uploaded_at', { precision: 3 }),
+  creators: text('creators')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
+  uploaders: text('uploaders')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
   views: integer('views'),
   likes: integer('likes'),
-  likesPercentage: doublePrecision('likes_percentage'),
   dislikes: integer('dislikes'),
-  finderSourceId: text('finder_source_id').notNull().references(() => source.finderSourceId),
-  finderMediaId: text('finder_media_id').notNull(),
-  cacheMediaId: integer('cache_media_id').notNull().references(() => cacheMedia.id),
-}, cacheMediaSource => ({
-  cacheMediaIdIdx: index('cache_media_id_idx').on(cacheMediaSource.cacheMediaId),
-  // A cacheMedia should have a maximum of 1 cacheMediaSource per source
-  uniquePerSourceIdx:
-    uniqueIndex('unique_per_source_idx')
-      .on(cacheMediaSource.finderSourceId, cacheMediaSource.cacheMediaId),
-  // Maximum of 1 cacheMediaSource per finder media
-  uniquePerFinderMediaIdx:
-    uniqueIndex('unique_per_finder_media_idx_key')
-      .on(cacheMediaSource.finderSourceId, cacheMediaSource.finderMediaId),
-}))
-
-export const cacheMediaSourceRelations = relations(cacheMediaSource, ({ one }) => ({
-  source: one(source, {
-    fields: [cacheMediaSource.finderSourceId],
-    references: [source.finderSourceId],
-  }),
-  media: one(cacheMedia, {
-    fields: [cacheMediaSource.cacheMediaId],
-    references: [cacheMedia.id],
-  }),
-}))
-
-export type CacheMediaSource = typeof cacheMediaSource.$inferSelect
-
-/*
-cacheMediaFile
-
-cacheMedia often have multiple associated files (for example a thumbnail and a full sized file) so cacheMediaFile
-includes info about each cacheMedia file.
-*/
-export const cacheMediaFile = pgTable('cache_media_file', {
-  id: serial('id').notNull().primaryKey(),
-  createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  mediaId: integer('media_id').notNull().references(() => cacheMedia.id),
-  finderSourceId: text('finder_source_id').notNull(),
-  finderMediaId: text('finder_media_id').notNull(),
-  type: text('type').notNull(),
-  url: text('url').notNull(),
-  ext: text('ext'),
-  mimeType: text('mime_type'),
+  finderSourceMediaIds: text('finder_source_media_ids')
+    .array(2)
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[][]`),
+  // These are 2d arrays because instead of just storing the group id we store a tuple of [group id, parent group id] to make it easier to query for only subgroups of a specific group without needing to join with the group table to check the parent group id
+  groupIds: integer('group_ids') // groups here are populated based on the media finder results
+    .array(2)
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::int[][]`),
+  originalGroupIds: integer('original_group_ids') // groups here are not from media finder results
+    .array(2)
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::int[][]`),
   hasVideo: boolean('has_video'),
   hasAudio: boolean('has_audio'),
   hasImage: boolean('has_image'),
@@ -129,88 +76,84 @@ export const cacheMediaFile = pgTable('cache_media_file', {
   fileSize: integer('file_size'),
   width: integer('width'),
   height: integer('height'),
-  urlExpires: timestamp('url_expires', { precision: 3 }),
-  urlRefreshDetails: text('url_refresh_details'),
-}, cacheMediaFile => ({
-  mediaIdIdx: index('cache_media_file__media_id_idx').on(cacheMediaFile.mediaId),
-  // Max of 1 cacheMediaFile per file type of a finder media
-  uniquePerFinderMediaFileTypeIdx: uniqueIndex('cache_media_file__unique_per_finder_media_file_type_idx')
-    .on(cacheMediaFile.finderSourceId, cacheMediaFile.finderMediaId, cacheMediaFile.type),
+  files: jsonb('files')
+    .$type<
+    {
+      createdAt: Date
+      updatedAt: Date
+      finderSourceId: string
+      finderMediaId: string
+      type: string
+      url: string
+      ext: string | null
+      mimeType: string | null
+      hasVideo: boolean | null
+      hasAudio: boolean | null
+      hasImage: boolean | null
+      duration: number | null
+      fileSize: number | null
+      width: number | null
+      height: number | null
+      urlExpires: Date | null
+      urlRefreshDetails: string | null
+      urlUpdatedAt: Date
+    }[]>(),
+  sources: jsonb('sources')
+    .$type<
+    {
+      finderSourceId: string
+      finderMediaId: string
+      createdAt: Date
+      updatedAt: Date
+      uploadedAt: Date | null
+      title: string | null
+      description: string | null
+      url: string | null
+      creator: string | null
+      uploader: string | null
+      views: number | null
+      likes: number | null
+      likesPercentage: number | null
+      dislikes: number | null
+    }[]>(),
+}, cacheMedia => ({
+  hasVideoIndex: index('cache_media__has_video_idx').on(cacheMedia.hasVideo),
+  hasImageIndex: index('cache_media__has_image_idx').on(cacheMedia.hasImage),
+  hasAudioIndex: index('cache_media__has_audio_idx').on(cacheMedia.hasAudio),
+  durationIndex: index('cache_media__duration_idx').on(cacheMedia.duration),
+  finderSourceMediaIds: index('cache_media__finder_source_media_ids_idx').on(cacheMedia.finderSourceMediaIds),
+  groupIdsIndex: index('cache_media__group_ids_idx').on(cacheMedia.groupIds),
+  originalGroupIdsIndex: index('cache_media__original_group_ids_idx').on(cacheMedia.originalGroupIds),
+  fileSizeIndex: index('cache_media__file_size_idx').on(cacheMedia.fileSize),
+  heightIndex: index('cache_media__height_idx').on(cacheMedia.height),
+  widthIndex: index('cache_media__width_idx').on(cacheMedia.width),
 }))
 
-export const cacheMediaFileRelations = relations(cacheMediaFile, ({ one }) => ({
-  media: one(cacheMedia, {
-    fields: [cacheMediaFile.mediaId],
-    references: [cacheMedia.id],
-  }),
-}))
-
-export type CacheMediaFile = typeof cacheMediaFile.$inferSelect
+export type CacheMedia = typeof cacheMedia.$inferSelect
 
 /*
-cacheMediaUser
+deletedCacheMedia
 
-cacheMedia info that is specific to a given Media Cache user. For example whether a user has
-favoured a cacheMedia or not.
+A record of cacheMedia that have been deleted. If deleted as the contents was merged into other media then
+it also tracks the id of the cacheMedia it was merged into so that any references to it can be redirected.
 */
-export const cacheMediaUser = pgTable('cache_media_user', {
+export const deletedCacheMedia = pgTable('deleted_cache_media', {
   id: serial('id').notNull().primaryKey(),
   createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  userId: integer('user_id').notNull().references(() => user.id),
-  mediaId: integer('media_id').notNull().references(() => cacheMedia.id),
-}, cacheMediaUser => ({
-  mediaIdIdx: index('cache_media_user__media_id_idx').on(cacheMediaUser.mediaId),
-  // Max of 1 per user for each media
-  uniquePerUserPerMediaIdx:
-    uniqueIndex('unique_per_user_per_media_idx')
-      .on(cacheMediaUser.mediaId, cacheMediaUser.userId),
-}))
+  cacheMediaId: integer('cache_media_id').notNull().unique(),
+  deletionReason: text('deletion_reason').notNull(),
+  mergedIntoCacheMediaId: integer('merged_into_cache_media_id').references(() => cacheMedia.id),
+})
 
-export const cacheMediaUserRelations = relations(cacheMediaUser, ({ one }) => ({
-  user: one(user, {
-    fields: [cacheMediaUser.userId],
-    references: [user.id],
-  }),
-  media: one(cacheMedia, {
-    fields: [cacheMediaUser.mediaId],
+export const deletedCacheMediaRelations = relations(deletedCacheMedia, ({ one }) => ({
+  mergedIntoCacheMedia: one(cacheMedia, {
+    fields: [deletedCacheMedia.mergedIntoCacheMediaId],
     references: [cacheMedia.id],
   }),
 }))
 
-export type CacheMediaUser = typeof cacheMediaUser.$inferSelect
-
-/*
-cacheMediaGroup
-
-Related groups which a cacheMedia belongs to.
-*/
-export const cacheMediaGroup = pgTable('cache_media_group', {
-  id: serial('id').notNull().primaryKey(),
-  createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  groupId: integer('group_id').notNull().references(() => group.id),
-  mediaId: integer('media_id').notNull().references(() => cacheMedia.id),
-}, cacheMediaGroup => ({
-  mediaIdIdx: index('cache_media_group__media_id_idx').on(cacheMediaGroup.mediaId),
-  // Max of 1 per group for each media
-  uniquePerGroupPerMediaIdx:
-    uniqueIndex('cache_media_group__unique_per_group_per_media_idx')
-      .on(cacheMediaGroup.mediaId, cacheMediaGroup.groupId),
-}))
-
-export const cacheMediaGroupRelations = relations(cacheMediaGroup, ({ one }) => ({
-  group: one(group, {
-    fields: [cacheMediaGroup.groupId],
-    references: [group.id],
-  }),
-  media: one(cacheMedia, {
-    fields: [cacheMediaGroup.mediaId],
-    references: [cacheMedia.id],
-  }),
-}))
-
-export type CacheMediaGroup = typeof cacheMediaGroup.$inferSelect
+export type DeletedCacheMedia = typeof deletedCacheMedia.$inferSelect
 
 /*
 group
@@ -290,76 +233,60 @@ export const finderQueryExecutionRelations = relations(finderQueryExecution, ({ 
     fields: [finderQueryExecution.queryId],
     references: [finderQuery.id],
   }),
-  finderMedia: many(finderQueryExecutionMedia),
+  finderMedia: many(finderQueryMedia),
 }))
 
 export type FinderQueryExecution = typeof finderQueryExecution.$inferSelect
 
 /*
-finderQueryExecutionMedia
+finderQueryMedia
 
-There is a finderQueryExecutionMedia created for every Media Finder media found when executing a
+There is a finderQueryMedia created for every Media Finder media found when executing a
 Media Finder query. To avoid duplication the actual contents of the Media Finder media isn't included
 here. Instead the hash of the contents is recorded and can be used to retrieve the actual contents from
-finderQueryExecutionMediaContent.
+finderQueryMediaContent.
 */
-export const finderQueryExecutionMedia = pgTable('finder_query_execution_media', {
+export const finderQueryMedia = pgTable('finder_query_media', {
   id: serial('id').notNull().primaryKey(),
   createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  source: text('source').notNull(),
-  mediaId: text('media_id').notNull(),
-  contentHash: text('content_hash').notNull().references(() => finderQueryExecutionMediaContent.contentHash),
-  queryExecutionId: integer('query_execution_id').notNull().references(() => finderQueryExecution.id),
+  finderSourceId: text('finder_source_id').notNull(),
+  finderMediaId: text('finder_media_id').notNull(),
+  contentHash: text('content_hash').notNull().references(() => finderQueryMediaContent.contentHash),
+  queryExecutionId: integer('query_execution_id').references(() => finderQueryExecution.id),
 })
 
-export const finderQueryExecutionMediaRelations = relations(finderQueryExecutionMedia, ({ one }) => ({
-  content: one(finderQueryExecutionMediaContent, {
-    fields: [finderQueryExecutionMedia.contentHash],
-    references: [finderQueryExecutionMediaContent.contentHash],
+export const finderQueryMediaRelations = relations(finderQueryMedia, ({ one }) => ({
+  content: one(finderQueryMediaContent, {
+    fields: [finderQueryMedia.contentHash],
+    references: [finderQueryMediaContent.contentHash],
   }),
   finderQueryExecution: one(finderQueryExecution, {
-    fields: [finderQueryExecutionMedia.queryExecutionId],
+    fields: [finderQueryMedia.queryExecutionId],
     references: [finderQueryExecution.id],
   }),
 }))
 
-export type FinderQueryExecutionMedia = typeof finderQueryExecutionMedia.$inferSelect
+export type FinderQueryMedia = typeof finderQueryMedia.$inferSelect
 
 /*
-finderQueryExecutionMediaContent
+finderQueryMediaContent
 
 The contents of a Media Finder media found when executing a media query.
 */
-export const finderQueryExecutionMediaContent = pgTable('finder_query_execution_media_content', {
+export const finderQueryMediaContent = pgTable('finder_query_media_content', {
   contentHash: text('content_hash').notNull().primaryKey(),
   createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  source: text('source').notNull(),
-  mediaId: text('media_id').notNull(),
+  finderSourceId: text('finder_source_id').notNull(),
+  finderMediaId: text('finder_media_id').notNull(),
   content: text('content').notNull(), // This should be unique because contentHash is guaranteed to be unique
   // but we don't want to actually set the column to be unique values only since that limits the length of the
   // row to ~2000 chars which content can sometimes exceed
 })
 
-export const finderQueryExecutionMediaContentRelations = relations(finderQueryExecutionMediaContent, ({ many }) => ({
-  finderQueryExecutionMedia: many(finderQueryExecutionMedia),
+export const finderQueryMediaContentRelations = relations(finderQueryMediaContent, ({ many }) => ({
+  finderQueryMedia: many(finderQueryMedia),
 }))
 
-export type FinderQueryExecutionMediaContent = typeof finderQueryExecutionMediaContent.$inferSelect
-
-/*
-mergedCacheMedia
-
-A record of one media being merged into another. This can be used to connect the original media id
-of a media that no longer exists after being merged, to the media it was merged into.
-*/
-export const mergedCacheMedia = pgTable('merged_cache_media', {
-  id: serial('id').notNull().primaryKey(),
-  createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
-  currentMediaId: integer('current_media_id').notNull(),
-  originalMediaId: integer('original_media_id').notNull().unique(),
-})
-
-export type MergedCacheMedia = typeof mergedCacheMedia.$inferSelect
+export type FinderQueryMediaContent = typeof finderQueryMediaContent.$inferSelect

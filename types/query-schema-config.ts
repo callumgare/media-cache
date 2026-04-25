@@ -10,6 +10,8 @@ export const querySchemaConfigSchema = z.object({
         z.object({
           id: z.union([z.string(), z.number()]),
           name: z.string(),
+          count: z.number().nullable().optional(),
+          addedIfRemoved: z.number().nullable().optional(),
         }),
       ).optional(),
     }).strict(),

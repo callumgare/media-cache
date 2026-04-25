@@ -3,25 +3,17 @@ import { count, sql } from 'drizzle-orm'
 export default defineEventHandler(async () => {
   ;(async () => {
     await new Promise(resolve => setTimeout(resolve, 1000))
-    console.log('Deleting cacheMediaGroup')
-    await db.delete(dbSchema.cacheMediaGroup)
-    console.log('Deleting cacheMediaFile')
-    await db.delete(dbSchema.cacheMediaFile)
-    console.log('Deleting cacheMediaSource')
-    await db.delete(dbSchema.cacheMediaSource)
-    console.log('Deleting cacheMediaUser')
-    await db.delete(dbSchema.cacheMediaUser)
     console.log('Deleting cacheMedia')
     await db.delete(dbSchema.cacheMedia)
-    console.log('Deleting finderQueryExecutionMedia')
-    await db.delete(dbSchema.finderQueryExecutionMedia)
-    console.log('Deleting finderQueryExecutionMediaContent')
+    console.log('Deleting finderQueryMedia')
+    await db.delete(dbSchema.finderQueryMedia)
+    console.log('Deleting finderQueryMediaContent')
     let isRowsRemaining = true
     while (isRowsRemaining) {
-      await db.delete(dbSchema.finderQueryExecutionMediaContent).where(sql`content_hash IN (
-        select content_hash from ${dbSchema.finderQueryExecutionMediaContent} LIMIT 500
+      await db.delete(dbSchema.finderQueryMediaContent).where(sql`content_hash IN (
+        select content_hash from ${dbSchema.finderQueryMediaContent} LIMIT 500
       )`)
-      const rowsRemaining = await db.select({ count: count() }).from(dbSchema.finderQueryExecutionMediaContent).then(res => res[0].count)
+      const rowsRemaining = await db.select({ count: count() }).from(dbSchema.finderQueryMediaContent).then(res => res[0]?.count ?? 0)
       console.log(`  Rows remaining: ${rowsRemaining}`)
       isRowsRemaining = Boolean(rowsRemaining)
     }

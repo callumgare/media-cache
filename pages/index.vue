@@ -19,6 +19,10 @@
         <span v-if="isPending">Loading more...</span>
         <span v-else>Load More</span>
       </button>
+      <div v-if="mediaError">
+        <span class="pi pi-exclamation-triangle" />
+        An error occurred while loading media.
+      </div>
       <div v-else>
         <span v-if="!medias.length">
           No results. Try
@@ -42,7 +46,9 @@
 <script setup lang="ts">
 import 'primeicons/primeicons.css'
 import { useElementSize, useMounted } from '@vueuse/core'
+import type z from 'zod'
 import useSlideData from '~/lib/useSlideData'
+import type { APIMedia } from '~/types/api-media'
 
 const isMounted = useMounted()
 
@@ -64,7 +70,7 @@ mediaQuery.$subscribe(() => {
   mediaQueryCondition.value = mediaQuery.condition
 })
 const { randomSeed } = storeToRefs(uiState)
-const { data, fetchNextPage, isPending, hasNextPage } = useInfiniteQuery({
+const { data, fetchNextPage, isPending, hasNextPage, error: mediaError } = useInfiniteQuery({
   queryKey: ['media', mediaQueryCondition, randomSeed],
   queryFn: ({ pageParam }) => $fetch(
     '/api/media',

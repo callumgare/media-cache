@@ -4,22 +4,28 @@ import { replaceLast } from '~/lib/string'
 import { proxyRequest } from '@/server/lib/proxy'
 
 export default defineEventHandler(async (event) => {
-  const { fileId: fileIdString = '' } = event.context.params || {}
+  const { mediaId: mediaIdString = '', fileId: fileType = '' } = event.context.params || {}
   const reqUrl = getRequestURL(event)
-  const fileId = parseInt(fileIdString)
-  if (isNaN(fileId)) {
+  const mediaId = parseInt(mediaIdString)
+  if (isNaN(mediaId)) {
     return 'wrong'
   }
-  const file = await db.query.cacheMediaFile.findFirst({
-    where: (cacheMediaFile, { eq }) => eq(cacheMediaFile.id, fileId),
+
+  const cacheMedia = await db.query.cacheMedia.findFirst({
+    where: (m, { eq }) => eq(m.id, mediaId),
   })
+  if (!cacheMedia) {
+    throw Error('Could not fetch media')
+  }
+
+  const file = (cacheMedia.files ?? []).find(f => f.type === fileType)
   if (!file) {
     throw Error('Could not fetch file')
   }
 
   let fileUrl
-  if (file.urlExpires && (new Date() > file.urlExpires)) {
-    const refreshedUrl = await updateFileUrl(file)
+  if (file.urlExpires && (new Date() > new Date(file.urlExpires))) {
+    const refreshedUrl = await updateFileUrl({ mediaId, file })
     fileUrl = new URL(refreshedUrl)
   }
   else {

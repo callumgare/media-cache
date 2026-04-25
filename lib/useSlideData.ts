@@ -29,13 +29,13 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
         return null
       }
 
-      const getSrc = (file: File) => `${document.location.origin}/file/${media.id}/${file?.id}/${file.filename}`
+      const getSrc = (file: File) => `${document.location.origin}/file/${media.id}/${file?.type}/${file.filename}`
       const posterSrc = computed(() => {
         if (imageFile.value) {
           return getSrc(imageFile.value)
         }
         else if (videoFile.value) {
-          return `${document.location.origin}/file/poster/${media.id}/${videoFile.value?.id}/0`
+          return `${document.location.origin}/file/poster/${media.id}/${videoFile.value?.type}/0`
         }
         else {
           return ''

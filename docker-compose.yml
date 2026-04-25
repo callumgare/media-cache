@@ -9,13 +9,13 @@ services:
       - postgres
 
   postgres:
-    image: postgres
+    image: paradedb/paradedb:latest
     restart: always
     shm_size: 1g
     environment:
       POSTGRES_PASSWORD: example
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql
 
 volumes:
   postgres:

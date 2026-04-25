@@ -10,6 +10,9 @@ const props = defineProps<{
 const fieldType = computed(() => {
   const fieldSchema = props.schemaConfig.availableFields
     .find(fieldSchema => fieldSchema.id === props.fieldCondition.field)
+  if (!fieldSchema) {
+    throw Error(`Could not get field schema for field: "${props.fieldCondition.field}"`)
+  }
   const fieldType = props.schemaConfig.fieldTypes
     .find(fieldType => fieldType.name === fieldSchema.type)
 

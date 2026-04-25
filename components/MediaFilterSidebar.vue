@@ -1,5 +1,16 @@
 <script setup lang="ts">
+import type { APIMediaFacetsResponse, FacetCount, FacetResult, SourceFacetCount, TagFacetCount, TypeFacetCount } from '@/types/api-media-facets'
 import { type QuerySchemaConfig } from '@/types/query-schema-config.js'
+
+function findFieldCounts(facets: FacetResult | null | undefined, field: string): FacetCount[] {
+  if (!facets) return []
+  if (facets.type === 'field') return facets.field === field ? facets.counts : []
+  for (const condition of facets.conditions) {
+    const found = findFieldCounts(condition, field)
+    if (found.length > 0) return found
+  }
+  return []
+}
 
 const { data: finderDetails, error: finderDetailsError } = await useFetch('/api/admin/finder-details')
 if (finderDetailsError.value) {
@@ -8,19 +19,39 @@ if (finderDetailsError.value) {
 const sources = Object.values(finderDetails.value?.sources || {})
 
 const mediaQuery = useMediaQuery()
-const querySchemaConfig: QuerySchemaConfig = {
+const mediaQueryCondition = ref(mediaQuery.condition)
+mediaQuery.$subscribe(() => {
+  mediaQueryCondition.value = mediaQuery.condition
+})
+
+const { data: facets } = useQuery({
+  queryKey: ['media-facets', mediaQueryCondition],
+  queryFn: () => $fetch<APIMediaFacetsResponse>('/api/media-facets', { method: 'POST', body: mediaQueryCondition.value }),
+})
+
+const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
   availableFields: [
     {
       id: 'source',
       displayName: 'Source',
       type: 'text',
-      availableOptions: sources,
+      availableOptions: sources.map(s => ({
+        ...s,
+        count: (findFieldCounts(facets.value, 'source') as SourceFacetCount[]).find(f => f.finderSourceId === s.id)?.count ?? null,
+      })),
     },
     {
       id: 'tags',
       displayName: 'Tags',
       type: 'list of text',
-      availableOptions: finderDetails.value?.tags || [],
+      availableOptions: (finderDetails.value?.tags || []).map((g) => {
+        const facet = (findFieldCounts(facets.value, 'tags') as TagFacetCount[]).find(f => f.id === g.id)
+        return {
+          ...g,
+          count: facet?.count ?? null,
+          addedIfRemoved: facet?.addedIfRemoved ?? null,
+        }
+      }),
     },
     {
       id: 'type',
@@ -31,7 +62,10 @@ const querySchemaConfig: QuerySchemaConfig = {
         { id: 'video-with-audio', name: 'Video With Audio' },
         { id: 'video-without-audio', name: 'Video Without Audio' },
         { id: 'image', name: 'Image' },
-      ],
+      ].map(option => ({
+        ...option,
+        count: (findFieldCounts(facets.value, 'type') as TypeFacetCount[]).find(f => f.value === option.id)?.count ?? null,
+      })),
     },
   ],
   fieldTypes: [
@@ -46,7 +80,7 @@ const querySchemaConfig: QuerySchemaConfig = {
       getInputType: () => 'multi-select dropdown',
     },
   ],
-}
+}))
 </script>
 
 <template>

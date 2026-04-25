@@ -1,10 +1,23 @@
 import type { GenericFile } from 'media-finder'
-import type { dbSchema } from '#imports'
 import { serialize } from '~/server/lib/general'
 
-type Result = Omit<dbSchema.CacheMediaFile, 'finderSourceId' | 'finderMediaId' | 'media' | 'updatedAt' | 'id' | 'createdAt' | 'mediaId'>
+type CacheFileResult = {
+  type: string
+  url: string
+  ext: string | null
+  mimeType: string | null
+  hasVideo: boolean | null
+  hasAudio: boolean | null
+  hasImage: boolean | null
+  duration: number | null
+  fileSize: number | null
+  width: number | null
+  height: number | null
+  urlExpires: Date | null
+  urlRefreshDetails: string | null
+}
 
-export function finderFileToCacheFile(finderFile: GenericFile): Result {
+export function finderFileToCacheFile(finderFile: GenericFile): CacheFileResult {
   let urlExpires = null
   if (finderFile.urlExpires instanceof Date) {
     urlExpires = finderFile.urlExpires

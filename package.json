@@ -35,13 +35,15 @@
     "primeicons": "^7.0.0",
     "primevue": "^4.2.5",
     "serialize-javascript": "^6.0.2",
+    "tasuku": "^2.3.0",
     "vue": "latest",
     "zod-to-json-schema": "^3.23.1"
   },
   "devDependencies": {
-    "@faker-js/faker": "^8.4.1",
+    "@faker-js/faker": "^10.4.0",
     "@primevue/nuxt-module": "^4.2.5",
     "@primevue/themes": "^4.2.5",
+    "@types/node": "^25.6.0",
     "@types/object-hash": "^3.0.6",
     "@types/serialize-javascript": "^5.0.4",
     "drizzle-kit": "^0.23.0",

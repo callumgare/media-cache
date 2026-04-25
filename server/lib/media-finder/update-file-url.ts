@@ -1,62 +1,66 @@
 import { type GenericRequestInput } from 'media-finder/dist/schemas/request'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { finderFileToCacheFile } from './shared'
 import { getMediaQuery } from '.'
 import { deserialize } from '~/server/lib/general'
-import { dbSchema } from '#imports'
+import { db, dbSchema } from '@/server/utils/drizzle'
 
-export async function updateFileUrl(fileToRefresh: dbSchema.CacheMediaFile) {
-  if (!fileToRefresh.urlRefreshDetails) {
-    throw Error(`File has not urlRefreshDetails`)
+type InlineFile = NonNullable<dbSchema.CacheMedia['files']>[number]
+
+export async function updateFileUrl({
+  mediaId,
+  file,
+}: {
+  mediaId: number
+  file: InlineFile
+}): Promise<string> {
+  if (!file.urlRefreshDetails) {
+    throw Error('File has no urlRefreshDetails')
   }
   const mediaQuery = await getMediaQuery({
-    request: deserialize(fileToRefresh.urlRefreshDetails) as GenericRequestInput,
+    request: deserialize(file.urlRefreshDetails) as GenericRequestInput,
     queryOptions: {
       fetchCountLimit: 3,
-      secrets: {
-        apiKey: process.env.GIPHY_API_KEY,
-      },
+      secrets: { apiKey: process.env.GIPHY_API_KEY },
     },
   })
 
   const response = await mediaQuery.getNext()
-
   if (response === null) {
     throw Error('Could not refresh files')
   }
 
-  const transactionOperations = []
-  let newUrlForGivenFile
-  for (const media of response?.media || []) {
-    for (const finderFile of media.files) {
-      const cacheFile = finderFileToCacheFile(finderFile)
-      if (
-        (fileToRefresh.finderMediaId === media.id)
-        && (fileToRefresh.finderSourceId === media.mediaFinderSource)
-        && (fileToRefresh.type === finderFile.type)
-      ) {
-        newUrlForGivenFile = finderFile.url
-      }
-      transactionOperations.push(
-        db.update(dbSchema.cacheMediaFile)
-          .set({
-            url: cacheFile.url,
-            urlExpires: cacheFile.urlExpires,
-            urlRefreshDetails: cacheFile.urlRefreshDetails,
-          })
-          .where(and(
-            eq(dbSchema.cacheMediaFile.finderMediaId, media.id),
-            eq(dbSchema.cacheMediaFile.finderSourceId, media.mediaFinderSource),
-            eq(dbSchema.cacheMediaFile.type, finderFile.type),
-          )),
-      )
+  const cacheMedia = await db.query.cacheMedia.findFirst({
+    where: (m, { eq }) => eq(m.id, mediaId),
+  })
+  if (!cacheMedia) throw Error('Could not find media')
+
+  let newUrl: string | undefined
+
+  const updatedFiles = (cacheMedia.files ?? []).map((f) => {
+    if (f.finderSourceId !== file.finderSourceId || f.finderMediaId !== file.finderMediaId || f.type !== file.type) {
+      return f
     }
-  }
 
-  await Promise.all(transactionOperations)
+    for (const media of response?.media || []) {
+      if (media.id !== file.finderMediaId || media.mediaFinderSource !== file.finderSourceId) continue
+      for (const finderFile of media.files) {
+        if (finderFile.type !== file.type) continue
+        const refreshed = finderFileToCacheFile(finderFile)
+        newUrl = refreshed.url
+        return { ...f, url: refreshed.url, urlExpires: refreshed.urlExpires, urlRefreshDetails: refreshed.urlRefreshDetails, updatedAt: new Date() }
+      }
+    }
+    return f
+  })
 
-  if (!newUrlForGivenFile) {
+  if (!newUrl) {
     throw Error('Returned media did not contain expected file')
   }
-  return newUrlForGivenFile
+
+  await db.update(dbSchema.cacheMedia)
+    .set({ files: updatedFiles, updatedAt: new Date() })
+    .where(eq(dbSchema.cacheMedia.id, mediaId))
+
+  return newUrl
 }
