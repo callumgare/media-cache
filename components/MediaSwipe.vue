@@ -42,6 +42,11 @@ onMounted(() => {
     pswpModule: PhotoSwipe,
     allowPanToNext: false, // prevent swiping to the next slide when image is zoomed
     wheelToZoom: true, // enable wheel-based zoom
+    // close when backdrop is clicked
+    tapAction: (point, event) => {
+      if (event.target instanceof HTMLElement && event.target.classList.contains('pswp__img')) return
+      photoSwipe.value?.pswp?.close()
+    },
   })
   new PhotoSwipeCustomVideoPlugin(photoSwipe.value, {})
   new PhotoSwipeSizeOnLoadPlugin(photoSwipe.value, {})
