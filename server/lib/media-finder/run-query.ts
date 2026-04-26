@@ -46,7 +46,9 @@ export async function runMediaFinderQuery({
 
   // Phase 1: Download all results and record them in finder_query_media
   let mediaFoundCount = 0
+  let pageCount = 0
   for await (const response of mediaQuery) {
+    pageCount++
     if (response.page && response.page.paginationType === 'offset') {
       console.log(`Downloading page number ${response.page.pageNumber}`)
     }
@@ -164,7 +166,7 @@ export async function runMediaFinderQuery({
   }
   await finalizeFinderQueryExecution({
     executionId: finderQueryExecution.id,
-    stats: { mediaFound: mediaFoundCount, mediaNew: mediaNewCount, mediaUpdated: mediaUpdatedCount, mediaRemoved: mediaRemovedCount },
+    stats: { pageCount, mediaFound: mediaFoundCount, mediaNew: mediaNewCount, mediaUpdated: mediaUpdatedCount, mediaRemoved: mediaRemovedCount },
   })
 
   console.log('Done running query')

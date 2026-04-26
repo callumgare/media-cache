@@ -50,6 +50,13 @@
       "when": 1777114455699,
       "tag": "0006_giant_skrulls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777194002709,
+      "tag": "0007_sturdy_marten_broadcloak",
+      "breakpoints": true
     }
   ]
 }

@@ -21,15 +21,6 @@ export async function createFinderQueryExecution({
       updatedAt: new Date(),
       startedAt: new Date(),
       finishedAt: new Date(),
-      mediaFound: 0,
-      mediaNew: 0,
-      mediaUpdated: 0,
-      mediaRemoved: 0,
-      mediaNotSuitable: 0,
-      mediaUnchanged: 0,
-      warningCount: 0,
-      nonFatalErrorCount: 0,
-      fatalErrorCount: 0,
       queryId: dbFinderQuery?.id ?? null,
     })
     .returning()
@@ -401,7 +392,7 @@ export async function finalizeFinderQueryExecution({
   stats,
 }: {
   executionId: number
-  stats: { mediaFound: number, mediaNew: number, mediaUpdated: number, mediaRemoved: number }
+  stats: { pageCount: number, mediaFound: number, mediaNew: number, mediaUpdated: number, mediaRemoved: number }
 }): Promise<void> {
   await db.update(dbSchema.finderQueryExecution)
     .set({ ...stats, finishedAt: new Date(), updatedAt: new Date() })
