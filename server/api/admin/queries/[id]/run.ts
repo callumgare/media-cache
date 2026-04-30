@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!mediaFinderQuery) {
     throw Error(`Could not get query for "${idParam}" id`)
   }
+  // Run without awaiting — execution proceeds in background
   runDbMediaFinderQuery(mediaFinderQuery)
-  return {}
+  return { queryId: id }
 })

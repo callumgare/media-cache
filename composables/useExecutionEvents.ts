@@ -1,0 +1,115 @@
+import type { Task, TaskEvent } from '@/server/utils/tasks'
+import type { QueryExecutionTask } from '@/server/lib/media-finder/execution-tasks'
+
+export type { QueryExecutionTask }
+
+// Shared reactive state across all component instances
+const tasks = ref(new Map<string, Task>())
+const tasksLoaded = ref(false)
+let eventSource: EventSource | null = null
+let listenerCount = 0
+
+function deserializeTask(raw: unknown): Task {
+  const task = raw as QueryExecutionTask & { startedAt: string, finishedAt: string | null }
+  if (task.type === 'query_execution') {
+    const qet: QueryExecutionTask = {
+      ...task,
+      startedAt: new Date(task.startedAt),
+      finishedAt: task.finishedAt ? new Date(task.finishedAt) : null,
+    }
+    return qet
+  }
+  return task as Task
+}
+
+function handleEvent(raw: string) {
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>
+  }
+  catch {
+    return
+  }
+
+  if (typeof parsed.type !== 'string' || !parsed.type.startsWith('task.')) return
+
+  const event = parsed as unknown as TaskEvent
+  const task = deserializeTask(event.task)
+  tasks.value = new Map(tasks.value).set(task.id, task)
+}
+
+async function fetchInitialTasks() {
+  try {
+    const response = await fetch('/api/tasks')
+    const data = await response.json() as unknown[]
+    const newTasks = new Map<string, Task>()
+    for (const raw of data) {
+      const task = deserializeTask(raw)
+      newTasks.set(task.id, task)
+    }
+    tasks.value = newTasks
+  }
+  catch (err) {
+    console.warn('Failed to fetch initial tasks:', err)
+  }
+  finally {
+    tasksLoaded.value = true
+  }
+}
+
+function connect() {
+  if (eventSource) return
+  fetchInitialTasks()
+  eventSource = new EventSource('/api/events')
+  eventSource.onmessage = e => handleEvent(e.data)
+  eventSource.onerror = () => {
+    eventSource?.close()
+    eventSource = null
+    // Reconnect after a delay
+    setTimeout(() => {
+      if (listenerCount > 0) connect()
+    }, 3000)
+  }
+}
+
+function disconnect() {
+  eventSource?.close()
+  eventSource = null
+  tasks.value = new Map()
+  tasksLoaded.value = false
+}
+
+export function useTasks() {
+  onMounted(() => {
+    listenerCount++
+    connect()
+  })
+
+  onUnmounted(() => {
+    listenerCount--
+    if (listenerCount === 0) disconnect()
+  })
+
+  const runningExecutions = computed(() => {
+    const map = new Map<number, QueryExecutionTask>()
+    for (const task of tasks.value.values()) {
+      if (task.type === 'query_execution') {
+        const qet = task as QueryExecutionTask
+        if (qet.finishedAt === null) map.set(qet.executionId, qet)
+      }
+    }
+    return map
+  })
+
+  const runningExecutionList = computed(() => [...runningExecutions.value.values()])
+
+  return {
+    tasks,
+    tasksLoaded,
+    runningExecutions,
+    runningExecutionList,
+  }
+}
+
+/** @deprecated Use useTasks() instead */
+export const useExecutionEvents = useTasks

@@ -51,7 +51,10 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
           count: facet?.count ?? null,
           addedIfRemoved: facet?.addedIfRemoved ?? null,
         }
-      }),
+      })
+        // .sort((a, b) => (b.count ? 1 : 0) - (a.count ? 1 : 0))
+        .filter(option => option.count)
+        .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
     },
     {
       id: 'type',

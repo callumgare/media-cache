@@ -216,6 +216,7 @@ export const finderQueryExecution = pgTable('finder_query_execution', {
   updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
   startedAt: timestamp('started_at', { precision: 3 }).notNull().defaultNow(),
   finishedAt: timestamp('finished_at', { precision: 3 }).notNull(),
+  status: text('status').notNull().default('running'), // 'running' | 'completed' | 'failed'
   mediaFound: integer('media_found').notNull().default(-1),
   mediaNew: integer('media_new').notNull().default(-1),
   mediaUpdated: integer('media_updated').notNull().default(-1),
@@ -223,9 +224,9 @@ export const finderQueryExecution = pgTable('finder_query_execution', {
   mediaNotSuitable: integer('media_not_suitable').notNull().default(-1),
   mediaUnchanged: integer('media_unchanged').notNull().default(-1),
   pageCount: integer('page_count').notNull().default(-1),
-  warningCount: integer('warning_count').notNull().default(-1),
-  nonFatalErrorCount: integer('non_fatal_error_count').notNull().default(-1),
-  fatalErrorCount: integer('fatal_error_count').notNull().default(-1),
+  warningCount: integer('warning_count').notNull().default(0),
+  nonFatalErrorCount: integer('non_fatal_error_count').notNull().default(0),
+  fatalErrorCount: integer('fatal_error_count').notNull().default(0),
   queryId: integer('query_id').references(() => finderQuery.id),
 })
 
@@ -235,9 +236,33 @@ export const finderQueryExecutionRelations = relations(finderQueryExecution, ({ 
     references: [finderQuery.id],
   }),
   finderMedia: many(finderQueryMedia),
+  logs: many(finderQueryExecutionLog),
 }))
 
 export type FinderQueryExecution = typeof finderQueryExecution.$inferSelect
+
+/*
+finderQueryExecutionLog
+
+A log entry created during the execution of a finder query, recording warnings and errors.
+*/
+export const finderQueryExecutionLog = pgTable('finder_query_execution_log', {
+  id: serial('id').notNull().primaryKey(),
+  createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
+  executionId: integer('execution_id').notNull().references(() => finderQueryExecution.id),
+  level: text('level').notNull(), // 'warning' | 'non_fatal_error' | 'fatal_error'
+  message: text('message').notNull(),
+  context: jsonb('context'),
+})
+
+export const finderQueryExecutionLogRelations = relations(finderQueryExecutionLog, ({ one }) => ({
+  execution: one(finderQueryExecution, {
+    fields: [finderQueryExecutionLog.executionId],
+    references: [finderQueryExecution.id],
+  }),
+}))
+
+export type FinderQueryExecutionLog = typeof finderQueryExecutionLog.$inferSelect
 
 /*
 finderQueryMedia

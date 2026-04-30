@@ -5,6 +5,9 @@ const props = defineProps<{
   breadcrumbs?: string[] | MenuItem[]
 }>()
 
+const { runningExecutionList } = useTasks()
+const activeExecution = computed(() => runningExecutionList.value[0] ?? null)
+
 const items = ref([
   {
     label: 'Media',
@@ -98,6 +101,17 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         </template>
       </Menubar>
       <div class="right-side">
+        <NuxtLink
+          v-if="activeExecution"
+          :to="`/admin/queries?expandQuery=${activeExecution.queryId}`"
+          class="execution-indicator"
+          :title="`Query running — ${activeExecution.pageCount} page${activeExecution.pageCount === 1 ? '' : 's'} processed`"
+        >
+          <ProgressSpinner
+            stroke-width="6"
+            animation-duration="1.2s"
+          />
+        </NuxtLink>
         <button
           v-if="uiState.debugMode"
           @click="uiState.mediaBlurred = !uiState.mediaBlurred"
@@ -186,6 +200,17 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         justify-content: space-between;
         align-items: center;
         gap: 0.5em;
+      }
+
+      .execution-indicator {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+
+        .p-progressspinner {
+          width: 1.6rem;
+          height: 1.6rem;
+        }
       }
     }
 

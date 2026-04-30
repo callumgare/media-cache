@@ -8,6 +8,7 @@ import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js'
 import { finderFileToCacheFile } from './shared'
 import { deserialize, serialize } from '~/server/lib/general'
 import { db, dbSchema } from '@/server/utils/drizzle'
+import { queryExecutionTaskSystem } from '@/server/lib/media-finder/execution-tasks'
 
 type DbTransaction = PgTransaction<PostgresJsQueryResultHKT, typeof dbSchema, ExtractTablesWithRelations<typeof dbSchema>>
 
@@ -16,19 +17,63 @@ export async function createFinderQueryExecution({
 }: {
   dbFinderQuery?: dbSchema.FinderQuery
 }) {
-  return db.insert(dbSchema.finderQueryExecution)
+  const execution = await db.insert(dbSchema.finderQueryExecution)
     .values({
       updatedAt: new Date(),
       startedAt: new Date(),
       finishedAt: new Date(),
+      status: 'running',
+      warningCount: 0,
+      nonFatalErrorCount: 0,
+      fatalErrorCount: 0,
       queryId: dbFinderQuery?.id ?? null,
     })
     .returning()
     .then((result) => {
-      const execution = result[0]
-      if (!execution) throw new Error('Failed to create finder query execution')
-      return execution
+      const row = result[0]
+      if (!row) throw new Error('Failed to create finder query execution')
+      return row
     })
+  queryExecutionTaskSystem.create(execution)
+  return execution
+}
+
+export async function createExecutionLogEntry({
+  executionId,
+  queryId: _queryId,
+  level,
+  message,
+  context,
+}: {
+  executionId: number
+  queryId: number | null
+  level: 'warning' | 'non_fatal_error' | 'fatal_error'
+  message: string
+  context?: Record<string, unknown>
+}): Promise<dbSchema.FinderQueryExecutionLog> {
+  const countColumn = {
+    warning: dbSchema.finderQueryExecution.warningCount,
+    non_fatal_error: dbSchema.finderQueryExecution.nonFatalErrorCount,
+    fatal_error: dbSchema.finderQueryExecution.fatalErrorCount,
+  }[level]
+
+  const [log] = await db.transaction(async (tx) => {
+    const result = await tx.insert(dbSchema.finderQueryExecutionLog)
+      .values({ executionId, level, message, context: context ?? null })
+      .returning()
+    await tx.update(dbSchema.finderQueryExecution)
+      .set({ [countColumn.name]: sql`${countColumn} + 1`, updatedAt: new Date() })
+      .where(eq(dbSchema.finderQueryExecution.id, executionId))
+    return result
+  })
+  if (!log) throw new Error('Failed to create execution log entry')
+
+  queryExecutionTaskSystem.addLog(
+    executionId,
+    { id: log.id, level: log.level, message: log.message, createdAt: log.createdAt.toISOString() },
+    level,
+  )
+  return log
 }
 
 export async function createFinderQueryMedia({
@@ -389,12 +434,34 @@ export async function deleteOldFinderQueryMedia({
 
 export async function finalizeFinderQueryExecution({
   executionId,
+  queryId: _queryId,
   stats,
 }: {
   executionId: number
+  queryId: number | null
   stats: { pageCount: number, mediaFound: number, mediaNew: number, mediaUpdated: number, mediaRemoved: number }
 }): Promise<void> {
-  await db.update(dbSchema.finderQueryExecution)
-    .set({ ...stats, finishedAt: new Date(), updatedAt: new Date() })
+  const updated = await db.update(dbSchema.finderQueryExecution)
+    .set({ ...stats, status: 'completed', finishedAt: new Date(), updatedAt: new Date() })
     .where(eq(dbSchema.finderQueryExecution.id, executionId))
+    .returning()
+  const row = updated[0]
+  if (!row) return
+  queryExecutionTaskSystem.complete(row)
+}
+
+export async function failFinderQueryExecution({
+  executionId,
+  queryId: _queryId,
+  error,
+}: {
+  executionId: number
+  queryId: number | null
+  error: string
+}): Promise<void> {
+  const [row] = await db.update(dbSchema.finderQueryExecution)
+    .set({ status: 'failed', finishedAt: new Date(), updatedAt: new Date() })
+    .where(eq(dbSchema.finderQueryExecution.id, executionId))
+    .returning()
+  if (row) queryExecutionTaskSystem.fail(row, error)
 }
