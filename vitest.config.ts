@@ -12,6 +12,7 @@ function toTestDbUrl(url: string): string {
 
 export default defineConfig({
   test: {
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
     globalSetup: ['./tests/setup/global-setup.ts'],
     env: {
       DATABASE_URL: toTestDbUrl(process.env.DATABASE_URL ?? ''),

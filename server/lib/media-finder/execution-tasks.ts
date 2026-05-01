@@ -96,6 +96,11 @@ class QueryExecutionTaskSystem implements TaskProvider {
     return tasks
   }
 
+  /** For use in tests only: discard all in-memory running states without emitting events. */
+  clearRunningStates(): void {
+    this.runningStates.clear()
+  }
+
   create(exec: dbSchema.FinderQueryExecution): void {
     const state: RunningExecutionState = {
       executionId: exec.id,

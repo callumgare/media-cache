@@ -32,3 +32,5 @@ export async function setup() {
     await migrateClient.end()
   }
 }
+
+export default setup

@@ -35,6 +35,46 @@ jobs:
       - name: Check formatting
         run: npm run lint
 
+  test-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: paradedb/paradedb:latest
+        env:
+          POSTGRES_PASSWORD: example
+        ports:
+          - 5433:5432
+        options: >-
+          --shm-size=1g
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "lts/*"
+
+      - name: Install project packages
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Create test database
+        run: |
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=example psql -h localhost -p 5433 -U postgres -c "CREATE DATABASE media_cache_test"
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgresql://postgres:example@localhost:5433/postgres
+          CI: "true"
+
   build-and-push-image:
     runs-on: ubuntu-latest
     # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
@@ -45,6 +85,7 @@ jobs:
       id-token: write
     needs:
       - check
+      - test-e2e
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
