@@ -1,7 +1,6 @@
 import { resolve } from 'path'
 import { defineConfig, devices } from '@playwright/test'
 import { config as loadEnv } from 'dotenv'
-import setup from './tests/setup/global-setup'
 
 loadEnv()
 
@@ -14,10 +13,6 @@ function toTestDbUrl(url: string): string {
 const testDbUrl = toTestDbUrl(process.env.DATABASE_URL ?? 'postgresql://postgres:example@localhost:5432/postgres')
 const testPluginPath = resolve('./tests/fixtures/test-plugin.ts')
 
-process.env.DATABASE_URL = testDbUrl
-process.env.MEDIA_FINDER_PLUGINS = testPluginPath
-setup()
-
 export default defineConfig({
   testDir: './tests/e2e',
   use: {
@@ -26,7 +21,7 @@ export default defineConfig({
   // Run tests serially — they share a DB
   workers: 1,
   webServer: {
-    command: `ENABLE_TEST_API=true DATABASE_URL=${testDbUrl} MEDIA_FINDER_PLUGINS=${testPluginPath} npx nuxt dev --port 3001`,
+    command: `ENABLE_TEST_API=true DATABASE_URL=${testDbUrl} MEDIA_FINDER_PLUGINS=${testPluginPath} tests/e2e/run-test-server.sh`,
     url: 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,
     timeout: process.env.CI ? 300_000 : 120_000,
