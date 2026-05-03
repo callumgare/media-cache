@@ -1,6 +1,6 @@
 import { createEventStream } from 'h3'
-import { taskManager } from '@@/server/utils/tasks'
-import type { TaskEvent } from '@@/server/utils/tasks'
+import { taskManager } from '@@/server/utils/task-manager'
+import type { TaskEvent } from '@@/server/utils/task-provider'
 
 export default defineEventHandler(async (event) => {
   const eventStream = createEventStream(event)
@@ -30,6 +30,8 @@ export default defineEventHandler(async (event) => {
     }
   })
 
+  const sendPromise = eventStream.send()
+
   // Send current tasks so the client is immediately up-to-date
   try {
     for (const task of await taskManager.getTasks()) {
@@ -43,5 +45,5 @@ export default defineEventHandler(async (event) => {
     // Stream closed before initial state could be sent
   }
 
-  return eventStream.send()
+  return sendPromise
 })

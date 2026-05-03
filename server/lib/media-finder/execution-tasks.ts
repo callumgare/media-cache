@@ -1,7 +1,7 @@
 import { ne, desc, eq } from 'drizzle-orm'
 import { db, dbSchema } from '@@/server/utils/drizzle'
-import { taskManager } from '@@/server/utils/tasks'
-import type { TaskProvider } from '@@/server/utils/tasks'
+import type { TaskProvider } from '@@/server/utils/task-provider'
+import EventEmitter from 'node:events'
 
 export interface QueryExecutionTask {
   type: 'query_execution'
@@ -45,11 +45,12 @@ interface RunningExecutionState {
   logs: Array<{ id: number, level: string, message: string, createdAt: string }>
 }
 
-class QueryExecutionTaskSystem implements TaskProvider {
+class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   private runningStates = new Map<number, RunningExecutionState>()
   private startupRecovery: Promise<void>
 
   constructor() {
+    super()
     // Mark any executions left as 'running' from a previous server process as failed,
     // and add a log entry to each explaining why.
     this.startupRecovery = db.update(dbSchema.finderQueryExecution)
@@ -120,7 +121,7 @@ class QueryExecutionTaskSystem implements TaskProvider {
       logs: [],
     }
     this.runningStates.set(exec.id, state)
-    taskManager.publish({ type: 'task.created', task: this.stateToTask(state) })
+    this.publish({ type: 'task.created', task: this.stateToTask(state) })
   }
 
   update(
@@ -130,7 +131,7 @@ class QueryExecutionTaskSystem implements TaskProvider {
     const state = this.runningStates.get(executionId)
     if (!state) return
     Object.assign(state, updates)
-    taskManager.publish({ type: 'task.updated', task: this.stateToTask(state) })
+    this.publish({ type: 'task.updated', task: this.stateToTask(state) })
   }
 
   addLog(
@@ -144,21 +145,21 @@ class QueryExecutionTaskSystem implements TaskProvider {
     if (level === 'warning') state.warningCount++
     else if (level === 'non_fatal_error') state.nonFatalErrorCount++
     else state.fatalErrorCount++
-    taskManager.publish({ type: 'task.updated', task: this.stateToTask(state) })
+    this.publish({ type: 'task.updated', task: this.stateToTask(state) })
   }
 
   complete(exec: dbSchema.FinderQueryExecution): void {
     const logs = this.runningStates.get(exec.id)?.logs ?? []
     this.runningStates.delete(exec.id)
     const task: QueryExecutionTask = { ...this.dbRowToTask(exec), logs }
-    taskManager.publish({ type: 'task.completed', task })
+    this.publish({ type: 'task.completed', task })
   }
 
   fail(exec: dbSchema.FinderQueryExecution, error: string): void {
     const logs = this.runningStates.get(exec.id)?.logs ?? []
     this.runningStates.delete(exec.id)
     const task: QueryExecutionTask = { ...this.dbRowToTask(exec), error, logs }
-    taskManager.publish({ type: 'task.failed', task })
+    this.publish({ type: 'task.failed', task })
   }
 
   private stateToTask(state: RunningExecutionState): QueryExecutionTask {
@@ -215,6 +216,10 @@ class QueryExecutionTaskSystem implements TaskProvider {
       })),
     }
   }
+
+  publish(event: TaskEvent): void {
+    this.emit('event', event)
+  }
 }
 
 // Store on globalThis so the singleton survives Nitro HMR module reloads in dev
@@ -225,7 +230,6 @@ declare global {
 
 if (!globalThis.__queryExecutionTaskSystem__) {
   globalThis.__queryExecutionTaskSystem__ = new QueryExecutionTaskSystem()
-  taskManager.registerProvider(globalThis.__queryExecutionTaskSystem__)
 }
 
 export const queryExecutionTaskSystem: QueryExecutionTaskSystem = globalThis.__queryExecutionTaskSystem__

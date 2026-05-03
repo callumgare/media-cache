@@ -1,24 +1,21 @@
 import { EventEmitter } from 'node:events'
-
-export interface Task {
-  type: string
-  id: string
-}
-
-export interface TaskEvent {
-  type: 'task.created' | 'task.updated' | 'task.completed' | 'task.failed'
-  task: Task
-}
-
-export interface TaskProvider {
-  getTasks(): Promise<Task[]> | Task[]
-}
+import type { Task, TaskEvent, TaskProvider } from './task-provider'
+import { queryExecutionTaskSystem } from '@@/server/lib/media-finder/execution-tasks'
 
 class TaskManager extends EventEmitter {
   private providers: TaskProvider[] = []
 
-  registerProvider(provider: TaskProvider): void {
-    this.providers.push(provider)
+  constructor() {
+    super()
+    this.initializeProviders()
+  }
+
+  private initializeProviders(): void {
+    // Import and register all providers
+    this.providers.push(queryExecutionTaskSystem)
+    queryExecutionTaskSystem.on('event', (event: TaskEvent) => {
+      this.publish(event)
+    })
   }
 
   async getTasks(): Promise<Task[]> {
@@ -45,7 +42,6 @@ class TaskManager extends EventEmitter {
 
 // Store on globalThis so the singleton survives Nitro HMR module reloads in dev
 declare global {
-
   var __taskManager__: TaskManager | undefined
 }
 

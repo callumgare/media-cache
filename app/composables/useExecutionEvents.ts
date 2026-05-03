@@ -1,4 +1,4 @@
-import type { Task, TaskEvent } from '@@/server/utils/tasks'
+import type { Task, TaskEvent } from '@@/server/utils/task-provider'
 import type { QueryExecutionTask } from '@@/server/lib/media-finder/execution-tasks'
 
 export type { QueryExecutionTask }
