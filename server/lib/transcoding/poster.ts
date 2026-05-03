@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
-import FfmpegCommand from 'fluent-ffmpeg'
+import type { FfmpegCommand } from 'fluent-ffmpeg'
+import Ffmpeg from 'fluent-ffmpeg'
 
 const transcodesInProgress: { [key: string]: Promise<string> } = {}
 
@@ -17,18 +18,18 @@ export async function getPosterOfFile(fileUrl: URL, fileId: number, maxHeight: n
     return transcodesInProgress[key]
   }
   transcodesInProgress[key] = new Promise((resolve, reject) => {
-    let ffCommand = new FfmpegCommand()
+    let ffCommand: FfmpegCommand = Ffmpeg()
     ffCommand = ffCommand
-      .on('start', function (command) {
+      .on('start', function (command: string) {
         console.log('Running ffmpeg command:', command)
       })
-      .on('end', function (stdout, stderr) {
+      .on('end', function (stdout: string | null, stderr: string | null) {
         if (stderr) console.log(stderr)
         if (stdout) console.log(stdout)
         console.log('Transcoding succeeded !')
         resolve(filePath)
       })
-      .on('error', function (err, stdout, stderr) {
+      .on('error', function (err: Error, stdout: string | null, stderr: string | null) {
         console.log('Cannot process video: ' + err.message)
         if (stderr) console.log(stderr)
         if (stdout) console.log(stdout)

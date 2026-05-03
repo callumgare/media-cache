@@ -172,6 +172,7 @@ function buildSingleMedia(index: number, sourceRecords: schema.Source[], tagGrou
       duration,
       urlExpires: null,
       urlRefreshDetails: null,
+      urlUpdatedAt: now,
     })
   }
 
@@ -194,6 +195,7 @@ function buildSingleMedia(index: number, sourceRecords: schema.Source[], tagGrou
       duration: null,
       urlExpires: null,
       urlRefreshDetails: null,
+      urlUpdatedAt: now,
     })
   }
 

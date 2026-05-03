@@ -53,9 +53,10 @@
             <label :for="option.name">{{ camelCaseToTitleCase(option.name) }}</label>
             <InputText
               :id="option.name"
-              v-model="formValue.requestOptions[option.name]"
+              :model-value="getStringOption(option.name)"
               placeholder=""
               type="text"
+              @update:model-value="setOption(option.name, $event)"
             />
           </div>
           <div
@@ -65,9 +66,10 @@
             <label :for="option.name">{{ camelCaseToTitleCase(option.name) }}</label>
             <InputNumber
               :id="option.name"
-              v-model="formValue.requestOptions[option.name]"
+              :model-value="getNumberOption(option.name)"
               placeholder=""
               show-buttons
+              @update:model-value="setOption(option.name, $event)"
             />
           </div>
           <div
@@ -77,9 +79,10 @@
             <label :for="option.name">{{ camelCaseToTitleCase(option.name) }}</label>
             <JsonInput
               :id="option.name"
-              v-model="formValue.requestOptions[option.name]"
+              :model-value="getJsonOption(option.name)"
               rows="5"
               cols="30"
+              @update:model-value="setOption(option.name, $event)"
             />
           </div>
           <div
@@ -103,8 +106,9 @@
               :for="option.name"
             > {{ camelCaseToTitleCase(option.name) }} </label>
             <TextList
-              v-model="formValue.requestOptions[option.name]"
+              :model-value="getArrayOption(option.name)"
               name="fdsafasf"
+              @update:model-value="setOption(option.name, $event)"
             />
           </div>
           <span v-else>
@@ -114,9 +118,10 @@
             }}</pre>
             <JsonInput
               :id="option.name"
-              v-model="formValue.requestOptions[option.name]"
+              :model-value="getJsonOption(option.name)"
               rows="5"
               cols="30"
+              @update:model-value="setOption(option.name, $event)"
             />
           </span>
         </li>
@@ -148,9 +153,31 @@
 <script setup lang="ts">
 import JsonInput from './forms/JsonInput.vue'
 import TextList from './forms/TextList.vue'
+import type { FinderQuery } from '~/server/database/schema'
+
+type JsonSchemaWithProperties = { properties: Record<string, Record<string, unknown>> }
+
+type SchemaOption = {
+  name: string
+  type?: string
+  enum?: unknown[]
+  items?: { type?: string }
+  [key: string]: unknown
+}
+
+type FormData = Partial<Omit<FinderQuery, 'requestOptions' | 'createdAt' | 'updatedAt'>> & {
+  requestOptions: Record<string, unknown>
+  id?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
 
 const props = defineProps<{
-  mediaQuery?: Omit<DBMediaFinderQuery, 'requestOptions'> & { requestOptions: Record<string, unknown> }
+  mediaQuery?: Omit<FinderQuery, 'requestOptions' | 'createdAt' | 'updatedAt'> & {
+    requestOptions: Record<string, unknown>
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
 }>()
 
 const toast = useToast()
@@ -165,33 +192,73 @@ if (finderDetailsError.value) {
 
 const sources = Object.values(finderDetails.value?.sources || {})
 
-const formValue = ref(props.mediaQuery ?? {
+const formValue = ref<FormData>(props.mediaQuery ?? {
   requestOptions: {
     source: null,
     queryType: null,
   },
   fetchCountLimit: null,
 })
-const requestHandlers = computed(() => {
-  return finderDetails.value?.sources[formValue.value?.requestOptions.source ?? '']?.requestHandlers
+
+const selectedSourceId = computed(() => {
+  const source = formValue.value.requestOptions.source
+  return typeof source === 'string' ? source : ''
 })
-const requestOptions = computed(() => {
-  const schema = finderDetails.value?.sources[formValue.value?.requestOptions.source ?? '']
-    ?.requestHandlers.find(requestHandler => requestHandler.id === formValue.value?.requestOptions.queryType)
+
+const requestHandlers = computed(() => {
+  return finderDetails.value?.sources[selectedSourceId.value]?.requestHandlers
+})
+
+const requestOptions = computed<SchemaOption[]>(() => {
+  const schema = finderDetails.value?.sources[selectedSourceId.value]
+    ?.requestHandlers.find(handler => handler.id === formValue.value.requestOptions.queryType)
     ?.schema
 
-  return schema ? convertJSONSchemaToListOfOptions(schema) : []
+  return schema && isJsonSchemaWithProperties(schema) ? convertJSONSchemaToListOfOptions(schema) : []
 })
 
 const formattedFormValue = computed(() => ({
   ...formValue.value,
   requestOptions: Object.fromEntries(
-    Object.entries(formValue.value.requestOptions).filter(([,value]) => value !== null),
+    Object.entries(formValue.value.requestOptions).filter(([, value]) => value !== null),
   ),
 }))
 
-function convertJSONSchemaToListOfOptions(schema) {
-  const { source, queryType, ...otherOptions } = schema.properties || {}
+function getStringOption(name: string): string | null | undefined {
+  const val = formValue.value.requestOptions[name]
+  if (typeof val === 'string' || val === null || val === undefined) return val
+  return undefined
+}
+
+function getNumberOption(name: string): number | null | undefined {
+  const val = formValue.value.requestOptions[name]
+  if (typeof val === 'number' || val === null || val === undefined) return val
+  return undefined
+}
+
+function getJsonOption(name: string): string | undefined {
+  const val = formValue.value.requestOptions[name]
+  if (typeof val === 'string' || val === undefined) return val
+  if (val === null) return undefined
+  return JSON.stringify(val)
+}
+
+function getArrayOption(name: string): string[] | undefined {
+  const val = formValue.value.requestOptions[name]
+  if (!Array.isArray(val)) return undefined
+  return val.filter((item): item is string => typeof item === 'string')
+}
+
+function setOption(name: string, value: unknown): void {
+  formValue.value.requestOptions[name] = value
+}
+
+function isJsonSchemaWithProperties(schema: unknown): schema is JsonSchemaWithProperties {
+  return typeof schema === 'object' && schema !== null && 'properties' in schema
+}
+
+function convertJSONSchemaToListOfOptions(schema: JsonSchemaWithProperties): SchemaOption[] {
+  const { source, queryType, ...otherOptions } = schema.properties
   return Object.entries(otherOptions).map(([name, value]) => ({ name, ...value }))
 }
 
@@ -214,7 +281,7 @@ async function handleValidateClick() {
       toast.add({ severity: 'success', summary: 'Created', life: 3000 })
       await navigateTo(`/admin/queries`)
       setTimeout(() => {
-        location.hash = `#query-${mediaQuery.id}`
+        location.hash = `#query-${mediaQuery?.id}`
       }, 200)
     }
     else {
@@ -235,7 +302,7 @@ async function handleValidateClick() {
   }
   catch (error) {
     console.error(error)
-    toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 3000 })
+    toast.add({ severity: 'error', summary: 'Failed', detail: error instanceof Error ? error.message : String(error), life: 3000 })
   }
 }
 </script>

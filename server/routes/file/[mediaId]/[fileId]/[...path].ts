@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   const basePath = replaceLast(
     // We only want the path but event.path includes the query string if present
     new URL(event.path, 'http://domain.tld').pathname,
-    '/' + event.context.matchedRoute?.params?.path,
+    '/' + event.context.params?.path,
   )
 
   const pathParam = event.path.replace(basePath, '')

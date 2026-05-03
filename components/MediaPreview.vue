@@ -104,7 +104,7 @@ function handleMouseLeave() {
     </details>
     <a
       v-if="uiState.debugMode"
-      :href="getSrc(videoFile || imageFile)"
+      :href="(videoFile && getSrc(videoFile)) || (imageFile && getSrc(imageFile)) || ''"
     >
       File Link
     </a>

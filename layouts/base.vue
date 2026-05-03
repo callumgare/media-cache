@@ -16,13 +16,23 @@
 </template>
 
 <script setup lang="ts">
+import type { MenuItem } from 'primevue/menuitem'
+
 const route = useRoute()
+
+function isBreadcrumbs(value: unknown): value is string[] | MenuItem[] {
+  if (!Array.isArray(value)) return false
+  if (value.every(item => typeof item === 'string')) return true
+  if (value.every(item => typeof item === 'object' && item !== null)) return true
+  return false
+}
+
 const breadcrumbs = computed(() => {
-  let { breadcrumbs } = route.meta
-  if (typeof breadcrumbs === 'function') {
-    breadcrumbs = breadcrumbs({ route })
+  let { breadcrumbs: meta } = route.meta
+  if (typeof meta === 'function') {
+    meta = meta({ route })
   }
-  return breadcrumbs
+  return isBreadcrumbs(meta) ? meta : undefined
 })
 
 const uiState = useUiState()

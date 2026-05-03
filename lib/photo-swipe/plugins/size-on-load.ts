@@ -108,7 +108,10 @@ export class PhotoSwipeSizeOnLoadPlugin {
     const sizeKnown = Boolean(content.data.width || content.data.height)
 
     if (sizeKnown) {
-      content.instance.opener._animateZoom = true
+      const opener = Reflect.get(content.instance, 'opener')
+      if (opener) {
+        Reflect.set(opener, '_animateZoom', true)
+      }
     }
     if (content.element) {
       if (!sizeKnown) {
@@ -134,7 +137,7 @@ export class PhotoSwipeSizeOnLoadPlugin {
     if (content.data.width || content.data.height || !mediaElement || this.mediaCurrentlyLoading.get(mediaElement)) return
     this.mediaCurrentlyLoading.set(mediaElement, true)
 
-    const mediaSizeLoadedHandler = () => {
+    const mediaSizeLoadedHandler = (_event?: Event | { type: string }) => {
       this.mediaCurrentlyLoading.delete(mediaElement)
       this.updateSlideSizeFromMedia({ content, pswp })
     }

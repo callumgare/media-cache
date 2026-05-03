@@ -72,15 +72,15 @@ export interface RunningExecutionState {
 class ServerEventBus extends EventEmitter {
   private runningExecutions = new Map<number, RunningExecutionState>()
 
-  emit(event: string, ...args: unknown[]): boolean {
+  override emit(event: string, ...args: unknown[]): boolean {
     return super.emit(event, ...args)
   }
 
-  on(event: string, listener: (...args: unknown[]) => void): this {
+  override on(event: string, listener: (...args: unknown[]) => void): this {
     return super.on(event, listener)
   }
 
-  off(event: string, listener: (...args: unknown[]) => void): this {
+  override off(event: string, listener: (...args: unknown[]) => void): this {
     return super.off(event, listener)
   }
 

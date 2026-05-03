@@ -3,12 +3,19 @@ import type PhotoSwipeLightbox from 'photoswipe/lightbox'
 import type { PhotoSwipe, PhotoSwipeEventsMap } from 'photoswipe/lightbox'
 import { getObjectSanitizer } from '~/lib/general'
 
+declare global {
+  interface Window {
+    pswp?: PhotoSwipe
+    lightbox?: PhotoSwipeLightbox
+  }
+}
+
 type Slide = NonNullable<PhotoSwipe['currSlide']>
 
 type Options = Record<never, never>
 
 export class PhotoSwipeDebugPlugin {
-  domMutationObserver = MutationObserver['prototype']
+  domMutationObserver: MutationObserver | undefined
   constructor(lightbox: PhotoSwipeLightbox, options: Options = {}) {
     this.options = options
 
@@ -31,21 +38,21 @@ export class PhotoSwipeDebugPlugin {
       this.initEvents(lightbox.pswp)
 
       setInterval(() => {
-        performance.mark(`%% - ${document.querySelector('.pswp__zoom-wrap')?.attributes.style.value} - ${document.querySelector('.pswp__zoom-wrap img')?.attributes.style.value}`)
+        performance.mark(`%% - ${document.querySelector('.pswp__zoom-wrap')?.attributes.getNamedItem('style')?.value} - ${document.querySelector('.pswp__zoom-wrap img')?.attributes.getNamedItem('style')?.value}`)
       }, 10)
 
       this.wrapEventDispatch(
         lightbox.pswp,
-        (
-          name, details,
-        ) => {
+        <eventName2 extends keyof PhotoSwipeEventsMap>(
+          name: eventName2, details?: PhotoSwipeEventsMap[eventName2] | undefined,
+        ): AugmentedEvent<eventName2> => {
           this.printEventDetails({ name, details, source: 'pswp', pswp: lightbox.pswp })
           for (const content of lightbox.pswp?.contentLoader._cachedItems || []) {
             if (content.slide) {
               this.attachDomMonitoringToSlide({ slide: content.slide })
             }
           }
-          return details as AugmentedEvent<eventName>
+          return details as AugmentedEvent<eventName2>
         },
       )
 
@@ -179,15 +186,16 @@ export class PhotoSwipeDebugPlugin {
       console.log('((((((( Creating element proxy', element)
       proxiedElement = new Proxy(element, {
         set(target, key, value) {
-          if (target[key] !== value) {
-            console.log(`Property '${key}' changed from '${target[key]}' to '${value}'`)
+          const prevValue = Reflect.get(target, key)
+          if (prevValue !== value) {
+            console.log(`Property '${String(key)}' changed from '${String(prevValue)}' to '${String(value)}'`)
           }
-          target[key] = value
+          Reflect.set(target, key, value)
           return true
         },
         get(target, key) {
           if (key === 'setAttribute') {
-            return function (attr, value) {
+            return function (attr: string, value: string) {
               if (target.getAttribute(attr) !== value) {
                 console.log(`Attribute '${attr}' changed from '${target.getAttribute(attr)}' to '${value}'`)
               }
@@ -195,21 +203,21 @@ export class PhotoSwipeDebugPlugin {
             }
           }
           if (key === 'getAttribute') {
-            return function (attr) {
+            return function (attr: string) {
               return target.getAttribute(attr)
             }
           }
-          return target[key]
+          return Reflect.get(target, key)
         },
-      })
-      this.proxyRegistry.set(element, proxiedElement)
-      this.proxyRegistry.set(proxiedElement, proxiedElement)
+      }) as Elm
+      this.proxyRegistry.set(element, proxiedElement as HTMLElement)
+      this.proxyRegistry.set(proxiedElement as HTMLElement, proxiedElement as HTMLElement)
     }
 
-    return proxiedElement
+    return proxiedElement as Elm
   }
 
-  setupDomMutationObserver(): MutationObserver {
+  setupDomMutationObserver(): MutationObserver | undefined {
     return
     const detectedInDom = new Map<HTMLElement, boolean>()
     const domMutationObserver = new MutationObserver((mutations) => {
@@ -240,7 +248,7 @@ export class PhotoSwipeDebugPlugin {
               console.log('🌪️ &&&&4 attr changed')
               console.log('  target:', mutation.target)
               console.log('  old val:', mutation.oldValue)
-              console.log('  val:', mutation.target?.getAttribute?.(mutation.attributeName))
+              console.log('  val:', mutation.target instanceof Element && mutation.attributeName ? mutation.target.getAttribute(mutation.attributeName) : null)
             }
           }
         }

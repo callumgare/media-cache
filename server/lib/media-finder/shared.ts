@@ -15,6 +15,7 @@ type CacheFileResult = {
   height: number | null
   urlExpires: Date | null
   urlRefreshDetails: string | null
+  urlUpdatedAt: Date
 }
 
 export function finderFileToCacheFile(finderFile: GenericFile): CacheFileResult {
@@ -41,5 +42,6 @@ export function finderFileToCacheFile(finderFile: GenericFile): CacheFileResult 
     height: finderFile.height ?? null,
     urlExpires,
     urlRefreshDetails: finderFile.urlRefreshDetails ? serialize(finderFile.urlRefreshDetails) : null,
+    urlUpdatedAt: new Date(),
   }
 }

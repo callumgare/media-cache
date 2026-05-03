@@ -48,7 +48,7 @@ import 'primeicons/primeicons.css'
 import { useElementSize, useMounted } from '@vueuse/core'
 import type z from 'zod'
 import useSlideData from '~/lib/useSlideData'
-import type { APIMedia } from '~/types/api-media'
+import type { APIMedia, APIMediaResponse } from '~/types/api-media'
 
 const isMounted = useMounted()
 
@@ -72,7 +72,7 @@ mediaQuery.$subscribe(() => {
 const { randomSeed } = storeToRefs(uiState)
 const { data, fetchNextPage, isPending, hasNextPage, error: mediaError } = useInfiniteQuery({
   queryKey: ['media', mediaQueryCondition, randomSeed],
-  queryFn: ({ pageParam }) => $fetch(
+  queryFn: ({ pageParam }) => $fetch<z.infer<typeof APIMediaResponse>>(
     '/api/media',
     { query: { page: pageParam, seed: uiState.randomSeed }, method: 'POST', body: mediaQueryCondition.value },
   ),

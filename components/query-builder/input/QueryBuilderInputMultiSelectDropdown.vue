@@ -29,7 +29,7 @@ const mediaQuery = useMediaQuery()
         option-label="name"
         filter
         :placeholder="`Select ${fieldConfig.displayName}`"
-        :model-value="(fieldCondition.value || []).map(
+        :model-value="(Array.isArray(fieldCondition.value) ? fieldCondition.value : []).map(
           (id: string) => (fieldConfig.availableOptions ?? []).find(option => option.id === id),
         )"
         @update:model-value="(values: { id: string }[]) =>

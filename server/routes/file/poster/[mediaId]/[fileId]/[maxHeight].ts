@@ -33,7 +33,7 @@ export default defineEventHandler(async (event): Promise<string | undefined> => 
     fileUrl = new URL(file.url)
   }
 
-  const filePath = await getPosterOfFile(fileUrl, mediaIdString, maxHeight)
+  const filePath = await getPosterOfFile(fileUrl, mediaId, maxHeight)
 
   setResponseHeader(event, 'Content-Type', 'image/jpeg')
   return sendStream(event, fs.createReadStream(filePath)) as Promise<undefined>

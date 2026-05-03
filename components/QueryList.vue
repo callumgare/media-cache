@@ -4,7 +4,7 @@
     :value="queryList ?? []"
     data-key="id"
     table-style="min-width: 50rem"
-    :pt="{ bodyRow: options => ({ id: 'query-' + options.props.rowData.id }) }"
+    :pt="{ bodyRow: options => ({ id: 'query-' + (queryList ?? [])[options.context.index]?.id }) }"
   >
     <Column expander />
     <Column

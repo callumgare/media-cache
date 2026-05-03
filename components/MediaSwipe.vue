@@ -8,7 +8,12 @@ import { PhotoSwipeCustomZoomPlugin } from '~/lib/photo-swipe/plugins/custom-zoo
 import { PhotoSwipeCustomVideoPlugin } from '~/lib/photo-swipe/plugins/custom-video'
 
 export type PhotoSwipeSlide = {
+  id?: number
+  type?: string
   src: string
+  videoSrc?: string
+  msrc?: string
+  [key: string]: unknown
 }
 
 const props = defineProps<{

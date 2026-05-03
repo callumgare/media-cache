@@ -22,14 +22,14 @@ const minSidebarXPos = computed(() => -sidebarWidth.value)
 const maxSidebarXPos = computed(() => 0)
 
 // Move sidebar to sidebarXPos
-useMotion(sidebarElm, {
-  initial: { x: sidebarXPos }, // Start closed
-  animate: { x: sidebarXPos }, // Bind to reactive x
-  transition: {
-    type: 'spring',
-    stiffness: 200,
-    damping: 20,
-  },
+const sidebarMotion = useMotion(sidebarElm, {
+  initial: { x: sidebarXPos.value },
+})
+watchEffect(() => {
+  void sidebarMotion.apply({
+    x: sidebarXPos.value,
+    transition: { type: 'spring', stiffness: 200, damping: 20 },
+  })
 })
 
 // Disable Safari iOS back gesture so it doesn't interfere with sidebar gesture

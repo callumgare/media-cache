@@ -26,7 +26,7 @@ function makeMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
 const TEST_REQUEST = { source: 'test-source', queryType: 'test-handler' }
 
 async function setup(
-  { request }: { request: ReturnType<typeof test.info>['request'] extends never ? never : import('@playwright/test').APIRequestContext },
+  { request }: { request: import('@playwright/test').APIRequestContext },
   opts: { media?: GenericMedia[][], delay?: number } = {},
 ) {
   const res = await request.post('/api/_test/setup', { data: { media: opts.media ?? [], delay: opts.delay ?? 0 } })

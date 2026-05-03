@@ -15,34 +15,37 @@ export class PhotoSwipeCustomZoomPlugin {
       if (!lightbox.pswp) {
         throw Error('Failed to init')
       }
-      this.initEvents(lightbox.pswp)
-      // this.logPswpEvents(lightbox.pswp)
+      const pswp = lightbox.pswp
+      this.initEvents(pswp)
+      // this.logPswpEvents(pswp)
 
-      lightbox.pswp.addFilter('isContentZoomable', () => {
+      pswp.addFilter('isContentZoomable', () => {
         // Override video block on zooming
         return true
       })
 
-      lightbox.pswp.on('beforeResize', () => {
+      pswp.on('beforeResize', () => {
         // Needed to force PhotoSwipe to recalculate the zoom button visibility on resize.
         // (https://github.com/dimsemenov/PhotoSwipe/blob/d80c32a62b169e776ad1c983d1fcdc6eea8b48e0/src/js/ui/ui.js#L112)
         // Even though the current zoom level, changing the window size changes if it's possible to zoom or not.
-        lightbox.pswp.ui._lastUpdatedZoomLevel = -1
+        if (!pswp.ui) return
+        Reflect.set(pswp.ui, '_lastUpdatedZoomLevel', -1)
       })
 
       // The init event occurs before PhotoSwipe's zoomPanUpdate listen is registered so this is called first
       // https://github.com/dimsemenov/PhotoSwipe/blob/d80c32a62b169e776ad1c983d1fcdc6eea8b48e0/src/js/ui/ui.js#L76
-      lightbox.pswp.on('zoomPanUpdate', (event) => {
+      pswp.on('zoomPanUpdate', (event) => {
         // The secondary zoom level is hardcoded to max at 1 but that will mean the
         // zoom button when won't be shown (
         // https://github.com/dimsemenov/PhotoSwipe/blob/d80c32a62b169e776ad1c983d1fcdc6eea8b48e0/src/js/ui/ui.js#L117)
         // so we manually set the secondary zoom level just before the zoom button visibility is
         // calculated
         event.slide.zoomLevels.secondary = 100
-        lightbox.pswp.ui._lastUpdatedZoomLevel = -1
+        if (!pswp.ui) return event
+        Reflect.set(pswp.ui, '_lastUpdatedZoomLevel', -1)
         return event
       })
-      lightbox.pswp.on('slideInit', (event) => {
+      pswp.on('slideInit', (event) => {
         this.modifyZoomFunction.call(this, event.slide)
       })
     })
@@ -50,10 +53,12 @@ export class PhotoSwipeCustomZoomPlugin {
     lightbox.on('firstUpdate', () => {
       // The firstUpdate event occurs after PhotoSwipe's zoomPanUpdate listen is registered so this is called after that
       // https://github.com/dimsemenov/PhotoSwipe/blob/d80c32a62b169e776ad1c983d1fcdc6eea8b48e0/src/js/ui/ui.js#L76
-      lightbox.pswp.on('zoomPanUpdate', (event) => {
+      const pswp = lightbox.pswp
+      if (!pswp) return
+      pswp.on('zoomPanUpdate', (event) => {
         const slide = event.slide
         const canZoomInMore = this.getNextZoomLevel(slide) > slide.currZoomLevel
-        lightbox.pswp?.template?.classList.toggle('pswp--zoomed-in', !canZoomInMore)
+        pswp.template?.classList.toggle('pswp--zoomed-in', !canZoomInMore)
         return event
       })
     })
@@ -82,6 +87,9 @@ export class PhotoSwipeCustomZoomPlugin {
 
   getCustomZoomLevels(slide: Slide) {
     const { zoomLevels } = slide
+    if (!zoomLevels.panAreaSize || !zoomLevels.elementSize) {
+      return []
+    }
     // slide.zoomLevels.fit and slide.zoomLevels.fill seems to have a max value of 1 but we want
     // media that is natually smaller than the viewport to still be able
     // to zoom to fit/fill. So we have to calculate those zoom levels ourselves.

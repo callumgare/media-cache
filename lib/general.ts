@@ -14,7 +14,7 @@ export function wrapNumber(value: number, max: number) {
 export function getObjectSanitizer(customReplacer?: (key: string, value: unknown) => unknown) {
   const ancestors: unknown[] = []
   const previouslySeen = new WeakMap()
-  return function (key: string, value: unknown) {
+  return function (this: object, key: string, value: unknown) {
     if (value === window) {
       return '[Window]'
     }

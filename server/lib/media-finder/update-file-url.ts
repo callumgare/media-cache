@@ -48,7 +48,7 @@ export async function updateFileUrl({
         if (finderFile.type !== file.type) continue
         const refreshed = finderFileToCacheFile(finderFile)
         newUrl = refreshed.url
-        return { ...f, url: refreshed.url, urlExpires: refreshed.urlExpires, urlRefreshDetails: refreshed.urlRefreshDetails, updatedAt: new Date() }
+        return { ...f, url: refreshed.url, urlExpires: refreshed.urlExpires, urlRefreshDetails: refreshed.urlRefreshDetails, urlUpdatedAt: refreshed.urlUpdatedAt, updatedAt: new Date() }
       }
     }
     return f
