@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import task from 'tasuku'
 import * as schema from '../server/database/schema'
-import { getMediaFinder } from '~/server/lib/media-finder'
+import { getMediaFinder } from '@@/server/lib/media-finder'
 
 const mediaFinder = await getMediaFinder()
 

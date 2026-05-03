@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { getMediaFinder } from '~/server/lib/media-finder'
+import { getMediaFinder } from '@@/server/lib/media-finder'
 
 export default defineEventHandler(async () => {
   const mediaFinder = await getMediaFinder()

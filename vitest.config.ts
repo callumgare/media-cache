@@ -25,9 +25,12 @@ export default defineConfig({
     },
   },
   resolve: {
+    // Default here: https://nuxt.com/docs/4.x/api/nuxt-config#alias
     alias: {
-      '@': resolve('.'),
-      '~': resolve('.'),
+      '@': resolve('./app'),
+      '~': resolve('./app'),
+      '@@': resolve('.'),
+      '~~': resolve('.'),
     },
   },
 })

@@ -54,10 +54,10 @@ export interface ExecutionFailedEvent {
 
 export type ServerEvent
   = ExecutionStartedEvent
-  | ExecutionPageCompleteEvent
-  | ExecutionLogEvent
-  | ExecutionCompletedEvent
-  | ExecutionFailedEvent
+    | ExecutionPageCompleteEvent
+    | ExecutionLogEvent
+    | ExecutionCompletedEvent
+    | ExecutionFailedEvent
 
 // In-memory state of currently running executions (reset on server restart)
 export interface RunningExecutionState {

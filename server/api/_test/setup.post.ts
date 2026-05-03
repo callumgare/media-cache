@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import type { GenericMedia } from 'media-finder'
-import { queryExecutionTaskSystem } from '@/server/lib/media-finder/execution-tasks'
+import { queryExecutionTaskSystem } from '@@/server/lib/media-finder/execution-tasks'
 
 declare global {
-  // eslint-disable-next-line no-var
+
   var __testPluginQueue: Array<GenericMedia[]>
 }
 

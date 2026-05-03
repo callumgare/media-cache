@@ -45,7 +45,7 @@ class TaskManager extends EventEmitter {
 
 // Store on globalThis so the singleton survives Nitro HMR module reloads in dev
 declare global {
-  // eslint-disable-next-line no-var
+
   var __taskManager__: TaskManager | undefined
 }
 

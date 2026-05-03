@@ -1,7 +1,7 @@
 import { ne, desc, eq } from 'drizzle-orm'
-import { db, dbSchema } from '@/server/utils/drizzle'
-import { taskManager } from '@/server/utils/tasks'
-import type { TaskProvider } from '@/server/utils/tasks'
+import { db, dbSchema } from '@@/server/utils/drizzle'
+import { taskManager } from '@@/server/utils/tasks'
+import type { TaskProvider } from '@@/server/utils/tasks'
 
 export interface QueryExecutionTask {
   type: 'query_execution'
@@ -219,7 +219,7 @@ class QueryExecutionTaskSystem implements TaskProvider {
 
 // Store on globalThis so the singleton survives Nitro HMR module reloads in dev
 declare global {
-  // eslint-disable-next-line no-var
+
   var __queryExecutionTaskSystem__: QueryExecutionTaskSystem | undefined
 }
 

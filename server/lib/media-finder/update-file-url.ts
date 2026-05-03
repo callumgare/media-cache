@@ -1,9 +1,9 @@
-import { type GenericRequestInput } from 'media-finder/dist/schemas/request'
+import type { GenericRequestInput } from 'media-finder/dist/schemas/request'
 import { eq } from 'drizzle-orm'
 import { finderFileToCacheFile } from './shared'
-import { getMediaQuery } from '.'
-import { deserialize } from '~/server/lib/general'
-import { db, dbSchema } from '@/server/utils/drizzle'
+import { getMediaQuery } from '../media-finder'
+import { deserialize } from '@@/server/lib/general'
+import { db, dbSchema } from '@@/server/utils/drizzle'
 
 type InlineFile = NonNullable<dbSchema.CacheMedia['files']>[number]
 

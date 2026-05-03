@@ -1,5 +1,5 @@
 import type { GenericFile } from 'media-finder'
-import { serialize } from '~/server/lib/general'
+import { serialize } from '@@/server/lib/general'
 
 type CacheFileResult = {
   type: string

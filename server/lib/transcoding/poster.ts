@@ -11,7 +11,7 @@ export async function getPosterOfFile(fileUrl: URL, fileId: number, maxHeight: n
     await fs.access(filePath)
     return filePath
   }
-  catch (error) {
+  catch {
     // It's okay if poster file doesn't exist, it just means it's not been create yet
   }
   if (key in transcodesInProgress) {

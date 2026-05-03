@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type QueryCondition, type QueryFieldCondition, type QueryGroupCondition } from '@/types/query-condition.js'
+import type { QueryCondition, QueryFieldCondition, QueryGroupCondition } from '@@/types/query-condition.js'
 
 type QueryConditionFlatNode = (Omit<QueryGroupCondition, 'conditions'> | QueryFieldCondition) & { parent: number | null }
 

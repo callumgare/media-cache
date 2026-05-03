@@ -11,10 +11,10 @@ import {
   enqueueMedia,
   truncateAll,
 } from './fixtures/helpers'
-import { calculateWhereValue } from '@/server/utils/query-builder'
-import { db, dbSchema } from '@/server/utils/drizzle'
-import type { QueryGroupCondition } from '@/types/query-condition'
-import { runMediaFinderQuery } from '@/server/lib/media-finder/run-query'
+import { calculateWhereValue } from '@@/server/utils/query-builder'
+import { db, dbSchema } from '@@/server/utils/drizzle'
+import type { QueryGroupCondition } from '@@/types/query-condition'
+import { runMediaFinderQuery } from '@@/server/lib/media-finder/run-query'
 
 beforeEach(truncateAll)
 

@@ -1,6 +1,6 @@
 import { createEventStream } from 'h3'
-import { taskManager } from '@/server/utils/tasks'
-import type { TaskEvent } from '@/server/utils/tasks'
+import { taskManager } from '@@/server/utils/tasks'
+import type { TaskEvent } from '@@/server/utils/tasks'
 
 export default defineEventHandler(async (event) => {
   const eventStream = createEventStream(event)

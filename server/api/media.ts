@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { sql } from 'drizzle-orm'
 import type { APIMediaResponse, APIMedia } from '../../types/api-media'
 import { calculateWhereValue } from '../utils/query-builder'
-import type { QueryGroupCondition } from '~/types/query-condition'
+import type { QueryGroupCondition } from '@@/types/query-condition'
 
 const returnedNumber = 10
 

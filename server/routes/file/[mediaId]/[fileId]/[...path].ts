@@ -1,7 +1,7 @@
 import { updateFileUrl } from '../../../../lib/media-finder/update-file-url'
 import { replaceLast } from '~/lib/string'
 
-import { proxyRequest } from '@/server/lib/proxy'
+import { proxyRequest } from '@@/server/lib/proxy'
 
 export default defineEventHandler(async (event) => {
   const { mediaId: mediaIdString = '', fileId: fileType = '' } = event.context.params || {}

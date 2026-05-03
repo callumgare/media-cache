@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { db, dbSchema } from '@/server/utils/drizzle'
-import { runMediaFinderQuery } from '@/server/lib/media-finder/run-query'
+import { db, dbSchema } from '@@/server/utils/drizzle'
+import { runMediaFinderQuery } from '@@/server/lib/media-finder/run-query'
 import {
   TEST_REQUEST,
   makeMedia,
@@ -11,7 +11,7 @@ import {
   getDeletedCacheMediaAll,
   getFinderQueryExecutionAll,
   getFinderQueryMediaAll,
-} from '@/tests/fixtures/helpers'
+} from '@@/tests/fixtures/helpers'
 
 beforeEach(truncateAll)
 

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { GenericMedia } from 'media-finder'
-import { db, dbSchema } from '@/server/utils/drizzle'
+import { db, dbSchema } from '@@/server/utils/drizzle'
 
 export const TEST_REQUEST = { source: 'test-source' as const, queryType: 'test-handler' as const }
 

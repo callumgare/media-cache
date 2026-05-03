@@ -1,6 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { dbSchema } from './drizzle'
-import type { QueryCondition } from '~/types/query-condition'
+import type { QueryCondition } from '@@/types/query-condition'
 
 export function removeField(condition: QueryCondition, field: string): QueryCondition {
   if (condition.type === 'field') {

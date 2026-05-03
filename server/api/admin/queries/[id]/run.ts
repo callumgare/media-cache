@@ -1,4 +1,4 @@
-import { runDbMediaFinderQuery } from '@/server/lib/media-finder/run-query'
+import { runDbMediaFinderQuery } from '@@/server/lib/media-finder/run-query'
 
 export default defineEventHandler(async (event) => {
   const idParam = getRouterParam(event, 'id')

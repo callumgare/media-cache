@@ -2,9 +2,9 @@ import { z } from 'zod'
 import type { Plugin, GenericMedia } from 'media-finder'
 
 declare global {
-  // eslint-disable-next-line no-var
+
   var __testPluginQueue: Array<GenericMedia[]>
-  // eslint-disable-next-line no-var
+
   var __testPluginDelayMs: number
 }
 

@@ -7,12 +7,12 @@ import {
   deleteCacheMediaEntry, deleteOldFinderQueryMedia, failFinderQueryExecution,
   finalizeFinderQueryExecution,
 } from './utils'
-import { getMediaQuery } from '.'
-import { deserialize } from '~/server/lib/general'
-import { queryExecutionTaskSystem } from '@/server/lib/media-finder/execution-tasks'
+import { getMediaQuery } from '../media-finder'
+import { deserialize } from '@@/server/lib/general'
+import { queryExecutionTaskSystem } from '@@/server/lib/media-finder/execution-tasks'
 
-import { db } from '@/server/utils/drizzle'
-import type { dbSchema } from '@/server/utils/drizzle'
+import { db } from '@@/server/utils/drizzle'
+import type { dbSchema } from '@@/server/utils/drizzle'
 
 type MediaFinderQueryOptions = Parameters<typeof getMediaQuery>[0]['queryOptions']
 

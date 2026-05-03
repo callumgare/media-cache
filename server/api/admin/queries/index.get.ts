@@ -1,7 +1,7 @@
 import { asc } from 'drizzle-orm'
 import type { MediaFinderQuery } from 'media-finder'
 
-import { deserialize } from '~/server/lib/general'
+import { deserialize } from '@@/server/lib/general'
 
 type MediaFinderQueryOptions = ConstructorParameters<typeof MediaFinderQuery>[0]
 
