@@ -8,6 +8,7 @@ export default defineNuxtConfig({
     '@peterbud/nuxt-query',
     '@pinia/nuxt',
     'pinia-plugin-persistedstate/nuxt',
+    'nuxt-drizzle-migrations',
   ],
   devtools: { enabled: true },
   compatibilityDate: '2024-04-03',

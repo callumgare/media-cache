@@ -54,6 +54,7 @@
     "drizzle-kit": "^0.31.10",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "nuxt-drizzle-migrations": "^0.3.0",
     "stylelint": "^17.9.1",
     "stylelint-config-recommended-vue": "^1.6.1",
     "stylelint-config-standard": "^40.0.0",
