@@ -171,7 +171,7 @@ watch(sidebarXPos, () => {
     .sidebar {
       width: var(--default-sidebar-width);
       height: 100%;
-      z-index: 3;
+      z-index: 1;
       transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out;
       overflow: hidden auto;
       background: var(--primary-background);

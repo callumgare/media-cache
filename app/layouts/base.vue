@@ -4,7 +4,10 @@
     :class="{ 'blur-media': uiState.mediaBlurred }"
   >
     <Toast />
-    <SiteHeader :breadcrumbs="breadcrumbs">
+    <SiteHeader
+      :breadcrumbs="breadcrumbs"
+      class="site-header"
+    >
       <template #header-buttons>
         <slot name="header-buttons" />
       </template>
@@ -45,6 +48,11 @@ const uiState = useUiState()
     display: flex;
     flex-direction: column;
     height: 100vh;
+
+    .site-header {
+      /* Ensure any header menus are placed on-top of the sidebar */
+      z-index: 2;
+    }
 
     .base-layout-contents {
       overflow: auto;
