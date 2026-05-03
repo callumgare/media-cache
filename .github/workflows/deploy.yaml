@@ -10,7 +10,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -35,7 +35,7 @@ jobs:
       - name: Check formatting
         run: npm run lint
 
-  test-e2e:
+  test:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,13 +61,14 @@ jobs:
       - name: Install project packages
         run: npm install
 
+      - name: Run Unit tests
+        run: npm run test
+        env:
+          DATABASE_URL: postgresql://postgres:example@localhost:5433/postgres
+          CI: "true"
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-
-      - name: Create test database
-        run: |
-          sudo apt-get install -y postgresql-client
-          PGPASSWORD=example psql -h localhost -p 5433 -U postgres -c "CREATE DATABASE media_cache_test"
 
       - name: Run Playwright tests
         run: npm run test:e2e
@@ -84,8 +85,8 @@ jobs:
       attestations: write
       id-token: write
     needs:
-      - check
-      - test-e2e
+      - lint
+      - test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
