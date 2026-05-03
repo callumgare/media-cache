@@ -19,6 +19,7 @@ logs
 .idea
 .stylelintcache
 .local
+.test-results
 
 # Local env files
 .env

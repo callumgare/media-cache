@@ -14,10 +14,8 @@ export async function setup() {
 
   const adminClient = postgres(withDatabase(baseUrl, 'postgres'), { max: 1 })
   try {
+    await adminClient`DROP DATABASE IF EXISTS media_cache_test`
     await adminClient`CREATE DATABASE media_cache_test`
-  }
-  catch (e: unknown) {
-    if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
   }
   finally {
     await adminClient.end()

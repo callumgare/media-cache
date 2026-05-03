@@ -1,6 +1,7 @@
 import { resolve } from 'path'
 import { defineConfig, devices } from '@playwright/test'
 import { config as loadEnv } from 'dotenv'
+import setup from './tests/setup/global-setup'
 
 loadEnv()
 
@@ -13,9 +14,12 @@ function toTestDbUrl(url: string): string {
 const testDbUrl = toTestDbUrl(process.env.DATABASE_URL ?? 'postgresql://postgres:example@localhost:5432/postgres')
 const testPluginPath = resolve('./tests/fixtures/test-plugin.ts')
 
+process.env.DATABASE_URL = testDbUrl
+process.env.MEDIA_FINDER_PLUGINS = testPluginPath
+setup()
+
 export default defineConfig({
   testDir: './tests/e2e',
-  globalSetup: './tests/setup/global-setup.ts',
   use: {
     baseURL: 'http://localhost:3001',
   },
