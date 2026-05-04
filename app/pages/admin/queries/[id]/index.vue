@@ -19,7 +19,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const route = useRoute()
-const id = typeof route.params.id === 'string' ? route.params.id : route.params.id[0]
+const idParam = route.params.id
+const id = typeof idParam === 'string' ? idParam : idParam?.[0]
+
+if (!id) {
+  throw createError({ statusCode: 404, message: 'not found', fatal: true })
+}
 
 let mediaQuery: MediaQueryFormData | undefined
 

@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -40,7 +41,7 @@
     "serialize-javascript": "^7.0.5",
     "tasuku": "^2.3.0",
     "vue": "latest",
-    "zod-to-json-schema": "^3.25.2"
+    "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.4.0",
@@ -59,7 +60,9 @@
     "stylelint-config-recommended-vue": "^1.6.1",
     "stylelint-config-standard": "^40.0.0",
     "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.5",
-    "zod": "^4.4.2"
+    "vue-tsc": "^3.2.8",
+    "zod": "^3.25.76"
   }
 }

@@ -57,7 +57,8 @@ export class PhotoSwipeCustomZoomPlugin {
       if (!pswp) return
       pswp.on('zoomPanUpdate', (event) => {
         const slide = event.slide
-        const canZoomInMore = this.getNextZoomLevel(slide) > slide.currZoomLevel
+        const nextZoomLevel = this.getNextZoomLevel(slide)
+        const canZoomInMore = nextZoomLevel !== undefined && nextZoomLevel > slide.currZoomLevel
         pswp.template?.classList.toggle('pswp--zoomed-in', !canZoomInMore)
         return event
       })
@@ -77,6 +78,7 @@ export class PhotoSwipeCustomZoomPlugin {
       }
 
       const nextZoomLevel = this.getNextZoomLevel(slide)
+      if (nextZoomLevel === undefined) return
       slide.zoomTo(
         nextZoomLevel,
         centerPoint,

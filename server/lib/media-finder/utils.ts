@@ -160,8 +160,9 @@ export async function mergeFinderMedia({ finderMedias }: { finderMedias: Generic
     return files.reduce<GenericFile[]>(
       (acc, file) => {
         const idx = acc.findIndex(f => f.type === file.type)
-        if (idx === -1) acc.push(file)
-        else acc[idx] = deepmerge(acc[idx], file)
+        const existing = acc[idx]
+        if (idx === -1 || existing === undefined) acc.push(file)
+        else acc[idx] = deepmerge(existing, file)
         return acc
       },
       [],
@@ -264,6 +265,7 @@ export async function createCacheMedia({
   const [cacheMedia] = await dbTx.insert(dbSchema.cacheMedia)
     .values(buildCacheMediaValues(finderMedias))
     .returning()
+  if (!cacheMedia) throw new Error('Failed to create cache media record')
   return cacheMedia
 }
 

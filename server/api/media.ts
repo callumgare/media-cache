@@ -24,7 +24,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
 
   const whereClause = calculateWhereValue(body) ?? undefined
 
-  const totalCount = await db.select({ count: sql<number>`count(*)::int` }).from(dbSchema.cacheMedia).where(whereClause).then(res => res[0].count)
+  const totalCount = await db.select({ count: sql<number>`count(*)::int` }).from(dbSchema.cacheMedia).where(whereClause).then(res => res[0]?.count ?? 0)
 
   const resultIds = await db.select({
     mediaId: dbSchema.cacheMedia.id,

@@ -3,8 +3,8 @@ import type { GenericMedia } from 'media-finder'
 import { queryExecutionTaskSystem } from '@@/server/lib/media-finder/execution-tasks'
 
 declare global {
-
   var __testPluginQueue: Array<GenericMedia[]>
+  var __testPluginDelayMs: number
 }
 
 /**

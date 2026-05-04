@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { z } from 'zod'
-import type { APIMedia } from '../types/api-media'
+import type { APIMedia } from '@@/types/api-media'
 
 defineProps<{
   medias: z.infer<typeof APIMedia>[]

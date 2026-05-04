@@ -47,16 +47,19 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
       // Shot will think it has entirely new slides each time and clear
       // all existing slides then render all the slides again, wether they're
       // actually new or not. This causes a flash which we want to try and avoid
-      if (!cachedSlideData[media.id]) {
-        cachedSlideData[media.id] = {
-          id: media.id,
-          type: displayElement.value,
-          src: getSrc(file),
-          videoSrc: getSrc(file),
-          msrc: getSrc(file) !== posterSrc.value ? posterSrc.value : undefined,
-        }
+      const existingSlide = cachedSlideData[media.id]
+      if (existingSlide) {
+        return existingSlide
       }
-      return cachedSlideData[media.id]
+      const newSlide: PhotoSwipeSlide = {
+        id: media.id,
+        type: displayElement.value,
+        src: getSrc(file),
+        videoSrc: getSrc(file),
+        msrc: getSrc(file) !== posterSrc.value ? posterSrc.value : undefined,
+      }
+      cachedSlideData[media.id] = newSlide
+      return newSlide
     }
     else {
       return null

@@ -41,10 +41,12 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
     }))
     const pathSegments = route.path.replace(/(?:^\/+)|(?:\/+$)/, '').split('/')
     if (pathSegments.length === items.length) {
-      for (let i = 0; i < pathSegments.length; i++) {
-        const path = '/' + pathSegments.slice(0, i + 1).join('/')
-        items[i].route = path
-      }
+      pathSegments.forEach((_, i) => {
+        const item = items[i]
+        if (item) {
+          item.route = '/' + pathSegments.slice(0, i + 1).join('/')
+        }
+      })
     }
     const lastBreadcrumb = items.at(-1)
     if (lastBreadcrumb) {

@@ -14,8 +14,9 @@ export async function getPosterOfFile(fileUrl: URL, fileId: number, maxHeight: n
   catch {
     // It's okay if poster file doesn't exist, it just means it's not been create yet
   }
-  if (key in transcodesInProgress) {
-    return transcodesInProgress[key]
+  const inProgress = transcodesInProgress[key]
+  if (inProgress !== undefined) {
+    return inProgress
   }
   transcodesInProgress[key] = new Promise((resolve, reject) => {
     let ffCommand: FfmpegCommand = Ffmpeg()
