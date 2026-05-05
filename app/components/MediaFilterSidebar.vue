@@ -25,6 +25,14 @@ mediaQuery.$subscribe(() => {
   mediaQueryCondition.value = mediaQuery.condition
 })
 
+const selectedTagIds = computed<number[]>(() => {
+  const tagsNode = mediaQuery.conditionNodes.find(node => node.type === 'field' && node.field === 'tags')
+  if (!tagsNode || tagsNode.type !== 'field') return []
+  const value = tagsNode.value
+  if (!Array.isArray(value)) return []
+  return value.filter((id): id is number => typeof id === 'number')
+})
+
 const { data: facets } = useQuery({
   queryKey: ['media-facets', mediaQueryCondition],
   queryFn: () => $fetch<APIMediaFacetsResponse>('/api/media-facets', { method: 'POST', body: mediaQueryCondition.value }),
@@ -38,7 +46,9 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       type: 'text',
       availableOptions: sources.map(s => ({
         ...s,
-        count: (findFieldCounts(facets.value, 'source') as SourceFacetCount[]).find(f => f.finderSourceId === s.id)?.count ?? null,
+        count: facets.value
+          ? ((findFieldCounts(facets.value, 'source') as SourceFacetCount[]).find(f => f.finderSourceId === s.id)?.count ?? 0)
+          : null,
       })),
     },
     {
@@ -54,7 +64,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
         }
       })
         // .sort((a, b) => (b.count ? 1 : 0) - (a.count ? 1 : 0))
-        .filter(option => option.count)
+        .filter(option => option.count || selectedTagIds.value.includes(option.id))
         .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
     },
     {
