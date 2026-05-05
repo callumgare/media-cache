@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { GenericMedia } from 'media-finder'
-import type { PhotoSwipe } from 'photoswipe'
+import type PhotoSwipe from 'photoswipe'
 
 // window.pswp is set by the PhotoSwipeDebugPlugin when debug mode is on,
 // and by registerMediaSwipe in MediaSwipe.vue.

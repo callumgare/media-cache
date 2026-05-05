@@ -1,6 +1,6 @@
 import { ne, desc, eq } from 'drizzle-orm'
 import { db, dbSchema } from '@@/server/utils/drizzle'
-import type { TaskProvider } from '@@/server/utils/task-provider'
+import type { TaskEvent, TaskProvider } from '@@/server/utils/task-provider'
 import EventEmitter from 'node:events'
 
 export interface QueryExecutionTask {

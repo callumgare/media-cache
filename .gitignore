@@ -20,6 +20,7 @@ logs
 .stylelintcache
 .local
 test-results/
+*.tsbuildinfo
 
 
 # Local env files

@@ -65,7 +65,7 @@ jobs:
         run: npm install
 
       - name: Run Unit tests
-        run: npm run test
+        run: npm run test:unit
         env:
           DATABASE_URL: postgresql://postgres:example@localhost:5433/postgres
           CI: "true"

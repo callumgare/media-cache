@@ -13,10 +13,11 @@ function toTestDbUrl(url: string): string {
 export default defineConfig({
   test: {
     exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
+    include: ['tests/unit/**/*.test.ts'],
     globalSetup: ['./tests/setup/global-setup.ts'],
     env: {
       DATABASE_URL: toTestDbUrl(process.env.DATABASE_URL ?? ''),
-      MEDIA_FINDER_PLUGINS: resolve('./tests/fixtures/test-plugin.ts'),
+      MEDIA_FINDER_PLUGINS: resolve('./tests/unit/fixtures/test-plugin.ts'),
     },
     pool: 'forks',
     fileParallelism: false,

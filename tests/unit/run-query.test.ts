@@ -11,7 +11,7 @@ import {
   getDeletedCacheMediaAll,
   getFinderQueryExecutionAll,
   getFinderQueryMediaAll,
-} from '@@/tests/fixtures/helpers'
+} from '@@/tests/unit/fixtures/helpers'
 
 beforeEach(truncateAll)
 
@@ -238,7 +238,7 @@ describe('runMediaFinderQuery — tags', () => {
     expect(betaGroup).toBeDefined()
     const alphaGroup = await db.query.group.findFirst({ where: (g, { eq }) => eq(g.name, 'alpha') })
     // alpha group still exists in the DB but no cache_media should reference it
-    const isLinked = all[0].groupIds.some(pair => pair[0] === alphaGroup?.id)
+    const isLinked = alphaGroup != null && all[0].groupIds.includes(String(alphaGroup.id))
     expect(isLinked).toBe(false)
   })
 
