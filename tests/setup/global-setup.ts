@@ -1,6 +1,9 @@
+import { resolve } from 'path'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
+
+const migrationsFolder = resolve(import.meta.dirname, '../../server/database/migrations')
 
 function withDatabase(url: string, dbName: string): string {
   const parsed = new URL(url)
@@ -24,7 +27,7 @@ export async function setup() {
   const migrateClient = postgres(withDatabase(baseUrl, 'media_cache_test'), { max: 1 })
   try {
     const db = drizzle(migrateClient)
-    await migrate(db, { migrationsFolder: './server/database/migrations' })
+    await migrate(db, { migrationsFolder })
   }
   finally {
     await migrateClient.end()

@@ -73,6 +73,26 @@ onMounted(() => {
 })
 
 const videoRef = ref<HTMLVideoElement | null>(null)
+const imgRef = ref<HTMLImageElement | null>(null)
+const naturalSizeLoaded = ref(false)
+
+function onMediaLoaded() {
+  naturalSizeLoaded.value = true
+}
+
+onMounted(() => {
+  // @load / @loadedmetadata won't fire for already-cached media
+  if (imgRef.value?.complete) naturalSizeLoaded.value = true
+  if (videoRef.value && videoRef.value.readyState >= 1) naturalSizeLoaded.value = true
+
+  // Treat the video poster as a proxy for "something visible has loaded"
+  if (videoRef.value && posterSrc.value) {
+    const posterImg = new Image()
+    posterImg.onload = onMediaLoaded
+    posterImg.src = posterSrc.value
+    if (posterImg.complete) naturalSizeLoaded.value = true
+  }
+})
 
 function playHlsVideo() {
   const file = videoFile.value
@@ -98,6 +118,7 @@ function handleMouseLeave() {
   <div
     v-if="videoFile || imageFile"
     class="item"
+    :class="{ 'size-placeholder': !naturalSizeLoaded }"
   >
     <details v-if="uiState.debugMode">
       <summary>Details</summary>
@@ -116,6 +137,7 @@ function handleMouseLeave() {
       preload="none"
       playsinline="true"
       muted="true"
+      @loadedmetadata="onMediaLoaded"
       @play="playHlsVideo"
       @click.prevent="(event: Event) => { handleMouseLeave(); emits('mediaClick', media) }"
       @mouseenter="handleMouseEnter"
@@ -123,7 +145,9 @@ function handleMouseLeave() {
     />
     <img
       v-else-if="displayElement === 'image'"
+      ref="imgRef"
       :src="imageFile ? getSrc(imageFile) : ''"
+      @load="onMediaLoaded"
       @click.prevent="emits('mediaClick', media)"
     >
     <div v-else>
@@ -141,6 +165,11 @@ function handleMouseLeave() {
     position: relative;
 
     --play-button-size: 70px;
+  }
+
+  .size-placeholder {
+    width: 300px;
+    height: 300px;
   }
 
   img, video {

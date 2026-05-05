@@ -10,15 +10,7 @@
       @media-click="openMediaInSlideShow"
     />
     <div class="load-info">
-      <button
-        v-if="(medias.length && hasNextPage) || isPending"
-        :disabled="isPending"
-        class="load-more"
-        @click="() => fetchNextPage()"
-      >
-        <span v-if="isPending">Loading more...</span>
-        <span v-else>Load More</span>
-      </button>
+      <span v-if="isPending || isFetchingNextPage">Loading...</span>
       <div v-if="mediaError">
         <span class="pi pi-exclamation-triangle" />
         An error occurred while loading media.
@@ -45,7 +37,7 @@
 
 <script setup lang="ts">
 import 'primeicons/primeicons.css'
-import { useElementSize, useMounted } from '@vueuse/core'
+import { useElementSize, useInfiniteScroll, useMounted } from '@vueuse/core'
 import type z from 'zod'
 import useSlideData from '~/lib/useSlideData'
 import type { APIMedia, APIMediaResponse } from '@@/types/api-media'
@@ -72,7 +64,7 @@ mediaQuery.$subscribe(() => {
   mediaQueryCondition.value = mediaQuery.condition
 })
 const { randomSeed } = storeToRefs(uiState)
-const { data, fetchNextPage, isPending, hasNextPage, error: mediaError } = useInfiniteQuery({
+const { data, fetchNextPage, isPending, isFetchingNextPage, hasNextPage, error: mediaError } = useInfiniteQuery({
   queryKey: ['media', mediaQueryCondition, randomSeed],
   queryFn: ({ pageParam }) => $fetch<z.infer<typeof APIMediaResponse>>(
     '/api/media',
@@ -82,6 +74,24 @@ const { data, fetchNextPage, isPending, hasNextPage, error: mediaError } = useIn
   getNextPageParam: page => page.media.length ? page.page + 1 : null,
   getPreviousPageParam: page => page.page - 1,
 })
+
+const scrollContainer = ref<HTMLElement | null>(null)
+
+onMounted(() => {
+  scrollContainer.value = document.querySelector('.page')
+})
+
+useInfiniteScroll(
+  scrollContainer,
+  async () => {
+    await fetchNextPage()
+    await nextTick()
+  },
+  {
+    distance: 200,
+    canLoadMore: () => hasNextPage.value && !isFetchingNextPage.value,
+  },
+)
 
 const medias = computed(() => data.value?.pages.map(page => page.media).flat() || [])
 const totalMedias = computed(() => data.value?.pages[0]?.totalCount ?? 0)
@@ -110,11 +120,6 @@ function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
     flex-direction: column;
     align-items: center;
     margin: 1.5em 0;
-  }
-
-  .load-more {
-    margin: 1em auto;
-    display: block;
   }
 
   .pi {

@@ -61,7 +61,112 @@ async function createAndRunQuery(
 // Tests
 // ---------------------------------------------------------------------------
 
-test.describe('Media browsing', () => {
+test.describe('Browsing via media page grid', () => {
+  test.beforeEach(async ({ request }) => {
+    await setup({ request }, {
+      media: [[
+        makeImageMedia({ id: 'browse-1' }),
+        makeImageMedia({ id: 'browse-2' }),
+        makeImageMedia({ id: 'browse-3' }),
+      ]],
+    })
+    await createAndRunQuery({ request })
+  })
+
+  test('use filters to filter media', async ({ page }) => {
+    await page.goto('/')
+
+    // Wait for media items to appear (all 3 from test-source)
+    const items = page.locator('[data-media-id]')
+    await expect(items.first()).toBeVisible({ timeout: 15_000 })
+    await expect(items).toHaveCount(3, { timeout: 15_000 })
+
+    // The sidebar source dropdown is populated from /api/admin/finder-details.
+    // Target it via the QueryBuilderInputBase label text so we don't confuse it
+    // with the tags or type dropdowns.
+    const sidebar = page.locator('#page-sidebar')
+    const sourceSelect = sidebar.locator('.root').filter({ has: page.locator('label', { hasText: 'Source' }) }).locator('.p-select')
+    await expect(sourceSelect).toBeVisible({ timeout: 5_000 })
+    await sourceSelect.click()
+
+    // The overlay is teleported to <body> by PrimeVue.
+    // Verify "Test Source" is present — this confirms finder-details returned sources.
+    const overlay = page.locator('.p-select-overlay')
+    await expect(overlay).toBeVisible({ timeout: 5_000 })
+    const testSourceOption = overlay.locator('.p-select-option', { hasText: 'Test Source' })
+    await expect(testSourceOption).toBeVisible({ timeout: 5_000 })
+
+    // Select the source to apply the filter
+    await testSourceOption.click()
+
+    // All 3 items are from test-source so the count should remain 3 after filtering
+    await expect(items).toHaveCount(3, { timeout: 10_000 })
+  })
+
+  test.describe('Infinite scroll', () => {
+    // Page size is 10; seed 50 items (5 full pages) so we can test both
+    // auto-fill and scroll-triggered loading.
+    const allMedia = Array.from({ length: 50 }, (_, i) => makeImageMedia({ id: `scroll-${i + 1}` }))
+
+    // Fix viewport so results are consistent regardless of the runner's screen size.
+    // 800×600 fits roughly one page (10 items) without overflow.
+    test.use({ viewport: { width: 800, height: 600 } })
+
+    test.beforeEach(async ({ request }) => {
+      await setup({ request }, { media: [allMedia] })
+      await createAndRunQuery({ request })
+    })
+
+    test('does not continuously load all pages without scrolling', async ({ page }) => {
+      await page.goto('/')
+
+      const items = page.locator('[data-media-id]')
+      await expect(items.first()).toBeVisible({ timeout: 15_000 })
+
+      // Wait for loading to settle: wait until the loading indicator disappears,
+      // then pause briefly in case a follow-up auto-fill fetch starts, and confirm
+      // it disappears again. This is more reliable than a fixed timeout.
+      const loadingIndicator = page.getByText('Loading...')
+      await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 })
+      await page.waitForTimeout(500)
+      await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 })
+
+      const count = await items.count()
+
+      // Should have loaded at least 1 item but not all 50 — the auto-fill
+      // should stop once the viewport is full.
+      expect(count).toBeGreaterThan(0)
+      expect(count).toBeLessThan(40)
+    })
+
+    test('scrolling to the bottom of the list loads the next page', async ({ page }) => {
+      await page.goto('/')
+
+      const items = page.locator('[data-media-id]')
+      await expect(items.first()).toBeVisible({ timeout: 5_000 })
+
+      // Wait for initial auto-fill to settle
+      const loadingIndicator = page.getByText('Loading...')
+      await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 })
+
+      expect(await items.count()).toBe(10)
+
+      // Scroll to the bottom of the scroll container
+      await page.evaluate(() => {
+        const el = document.querySelector('.page') ?? document.querySelector('.container')
+        if (el) el.scrollTop = el.scrollHeight
+      })
+
+      // Wait for the next page to load and settle
+      await expect(loadingIndicator).toBeVisible({ timeout: 5_000 })
+      await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 })
+
+      expect(await items.count()).toBe(20)
+    })
+  })
+})
+
+test.describe('Lightbox view', () => {
   test.beforeEach(async ({ request }) => {
     await setup({ request }, {
       media: [[
@@ -170,35 +275,5 @@ test.describe('Media browsing', () => {
     // bounding-rect issues that arise from PhotoSwipe's CSS-transform-based positioning.
     await page.mouse.click(640, 360)
     await expect(pswp).toHaveClass(/pswp--zoomed-in/, { timeout: 3_000 })
-  })
-
-  test('use filters to filter media', async ({ page }) => {
-    await page.goto('/')
-
-    // Wait for media items to appear (all 3 from test-source)
-    const items = page.locator('[data-media-id]')
-    await expect(items.first()).toBeVisible({ timeout: 15_000 })
-    await expect(items).toHaveCount(3, { timeout: 15_000 })
-
-    // The sidebar source dropdown is populated from /api/admin/finder-details.
-    // Target it via the QueryBuilderInputBase label text so we don't confuse it
-    // with the tags or type dropdowns.
-    const sidebar = page.locator('#page-sidebar')
-    const sourceSelect = sidebar.locator('.root').filter({ has: page.locator('label', { hasText: 'Source' }) }).locator('.p-select')
-    await expect(sourceSelect).toBeVisible({ timeout: 5_000 })
-    await sourceSelect.click()
-
-    // The overlay is teleported to <body> by PrimeVue.
-    // Verify "Test Source" is present — this confirms finder-details returned sources.
-    const overlay = page.locator('.p-select-overlay')
-    await expect(overlay).toBeVisible({ timeout: 5_000 })
-    const testSourceOption = overlay.locator('.p-select-option', { hasText: 'Test Source' })
-    await expect(testSourceOption).toBeVisible({ timeout: 5_000 })
-
-    // Select the source to apply the filter
-    await testSourceOption.click()
-
-    // All 3 items are from test-source so the count should remain 3 after filtering
-    await expect(items).toHaveCount(3, { timeout: 10_000 })
   })
 })
