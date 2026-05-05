@@ -18,8 +18,9 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event) as { media?: GenericMedia[][], delay?: number }
 
-  // Truncate all test-relevant tables
-  await db.execute(sql`
+  // Truncate all test-relevant tables. Retry on lock conflicts caused by
+  // in-flight server-side queries from a previous test.
+  const truncate = () => db.execute(sql`
     TRUNCATE TABLE
       finder_query_media,
       finder_query_media_content,
@@ -32,6 +33,17 @@ export default defineEventHandler(async (event) => {
       source
     CASCADE
   `)
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await truncate()
+      break
+    }
+    catch (err) {
+      if (attempt >= 9) throw err
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
 
   // Clear any in-memory running states from previous tests
   queryExecutionTaskSystem.clearRunningStates()

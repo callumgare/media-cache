@@ -54,6 +54,20 @@ async function createAndRunQuery(
   const runRes = await request.post(`/api/admin/queries/${id}/run`)
   if (!runRes.ok()) throw new Error(`Failed to run query: ${runRes.status()} ${await runRes.text()}`)
 
+  // Wait for the query execution to finish before returning
+  await Promise.race([
+    (async () => {
+      while (true) {
+        const tasksRes = await request.get('/api/tasks')
+        if (!tasksRes.ok()) throw new Error(`Failed to get tasks: ${tasksRes.status()}`)
+        const tasks = await tasksRes.json() as Array<{ status: string }>
+        if (tasks.every(t => t.status !== 'running')) return
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    })(),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for query execution')), 30_000)),
+  ])
+
   return { queryId: id }
 }
 
@@ -117,19 +131,43 @@ test.describe('Browsing via media page grid', () => {
       await createAndRunQuery({ request })
     })
 
+    /**
+     * Intercepts /api/media so the next matching request is held until the
+     * returned `release()` function is called. Subsequent requests are passed
+     * through normally.
+     */
+    async function holdNextMediaRequest(page: import('@playwright/test').Page) {
+      let release!: () => void
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+
+      await page.route('**/api/media', async (route) => {
+        // Wait until released, then forward the request
+        await released
+        await route.continue()
+        // Unroute so future requests pass through
+        await page.unroute('**/api/media')
+      })
+
+      return release
+    }
+
     test('does not continuously load all pages without scrolling', async ({ page }) => {
+      const release = await holdNextMediaRequest(page)
       await page.goto('/')
 
       const items = page.locator('[data-media-id]')
-      await expect(items.first()).toBeVisible({ timeout: 15_000 })
+      const loadingIndicator = page.locator('.page').getByText('Loading...')
 
-      // Wait for loading to settle: wait until the loading indicator disappears,
-      // then pause briefly in case a follow-up auto-fill fetch starts, and confirm
-      // it disappears again. This is more reliable than a fixed timeout.
-      const loadingIndicator = page.getByText('Loading...')
+      // Request is held — confirm the loading indicator is visible
+      await expect(loadingIndicator).toBeVisible({ timeout: 15_000 })
+
+      // Release the request and wait for loading to settle
+      release()
       await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 })
       await page.waitForTimeout(500)
-      await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 })
+      await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 })
 
       const count = await items.count()
 
@@ -140,28 +178,31 @@ test.describe('Browsing via media page grid', () => {
     })
 
     test('scrolling to the bottom of the list loads the next page', async ({ page }) => {
+      const releaseFirst = await holdNextMediaRequest(page)
       await page.goto('/')
 
       const items = page.locator('[data-media-id]')
-      await expect(items.first()).toBeVisible({ timeout: 5_000 })
+      const loadingIndicator = page.locator('.page').getByText('Loading...')
 
-      // Wait for initial auto-fill to settle
-      const loadingIndicator = page.getByText('Loading...')
+      // First request is held — confirm loading indicator is visible then release
+      await expect(loadingIndicator).toBeVisible({ timeout: 15_000 })
+      releaseFirst()
+      await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 })
+      await page.waitForTimeout(500)
       await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 })
 
-      expect(await items.count()).toBe(10)
+      await expect(items).toHaveCount(10, { timeout: 5_000 })
 
-      // Scroll to the bottom of the scroll container
+      // Scroll to the bottom to trigger loading the next page
       await page.evaluate(() => {
-        const el = document.querySelector('.page') ?? document.querySelector('.container')
-        if (el) el.scrollTop = el.scrollHeight
+        const el = document.querySelector('.page')
+        if (!el) throw new Error('.page element not found')
+        el.scrollTop = el.scrollHeight
+        el.dispatchEvent(new Event('scroll', { bubbles: true }))
       })
 
-      // Wait for the next page to load and settle
-      await expect(loadingIndicator).toBeVisible({ timeout: 5_000 })
-      await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 })
-
-      expect(await items.count()).toBe(20)
+      // Second page should load and render
+      await expect(items).toHaveCount(20, { timeout: 15_000 })
     })
   })
 })
