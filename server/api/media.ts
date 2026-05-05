@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { sql, count, inArray } from 'drizzle-orm'
+import { sql, count, inArray, and, eq } from 'drizzle-orm'
 import type { APIMediaResponse, APIMedia } from '../../types/api-media'
 import { calculateWhereValue } from '../utils/query-builder'
 import type { QueryGroupCondition } from '@@/types/query-condition'
@@ -44,11 +44,37 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
       .orderBy(sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`)
   }
 
+  const allGroupIds = [...new Set(dbMedias.flatMap(m => (m.groupIds ?? []).map(Number)))]
+  const groupNameById = allGroupIds.length
+    ? await db.select({ id: dbSchema.group.id, name: dbSchema.group.name })
+        .from(dbSchema.group)
+        .where(inArray(dbSchema.group.id, allGroupIds))
+        .then(rows => new Map(rows.map(r => [r.id, r.name])))
+    : new Map<number, string>()
+
+  const rootTagsGroup = await db.query.group.findFirst({
+    where: (g, { isNull, eq }) => and(eq(g.name, 'tags'), isNull(g.parentId)),
+    columns: { id: true },
+  })
+  const tagGroupIds = rootTagsGroup
+    ? new Set(
+        await db.select({ id: dbSchema.group.id })
+          .from(dbSchema.group)
+          .where(eq(dbSchema.group.parentId, rootTagsGroup.id))
+          .then(rows => rows.map(r => r.id)),
+      )
+    : new Set<number>()
+
   const apiMedias = dbMedias.map(
     media => ({
       id: media.id,
       title: media.title,
       description: media.description,
+      tags: (media.groupIds ?? [])
+        .map(Number)
+        .filter(id => tagGroupIds.has(id))
+        .map(id => groupNameById.get(id))
+        .filter((name): name is string => name !== undefined),
       sourceDetails: (media.sources ?? []).map(src => ({
         sourceName: src.finderSourceId,
         title: src.title,

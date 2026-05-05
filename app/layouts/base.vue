@@ -51,7 +51,7 @@ const uiState = useUiState()
 
     .site-header {
       /* Ensure any header menus are placed on-top of the sidebar */
-      z-index: 2;
+      z-index: 5;
     }
 
     .base-layout-contents {

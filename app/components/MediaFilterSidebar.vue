@@ -49,7 +49,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
         count: facets.value
           ? ((findFieldCounts(facets.value, 'source') as SourceFacetCount[]).find(f => f.finderSourceId === s.id)?.count ?? 0)
           : null,
-      })),
+      })).sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.name.localeCompare(b.name)),
     },
     {
       id: 'tags',

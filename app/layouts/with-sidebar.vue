@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import 'primeicons/primeicons.css'
 import { useDrag } from '@vueuse/gesture'
-import { useMounted, useWindowSize } from '@vueuse/core'
-import { useMotion } from '@vueuse/motion'
+import { useWindowSize } from '@vueuse/core'
 import type MediaFilterSidebar from '~/components/MediaFilterSidebar.vue'
-import { clamp, closestNumber } from '~/lib/general'
+import { clamp } from '~/lib/general'
 import { useUiState } from '@@/stores/ui'
 
 const uiState = useUiState()
@@ -13,28 +12,41 @@ const sidebarElm = computed(() => sidebarRef.value?.$el || null)
 const containerElm = ref<HTMLDivElement | null>(null)
 const sidebarExpandButtonElm = ref<HTMLButtonElement | null>(null)
 
-const isMounted = useMounted()
-const windowSize = useWindowSize()
-const windowWidth = computed(() => isMounted ? windowSize.width.value : 1000)
+const windowSize = useWindowSize({ initialWidth: 1000 })
+const windowWidth = computed(() => windowSize.width.value)
 
-const sidebarWidth = computed(() => windowWidth.value * 0.9)
-const sidebarXPos = ref(0)
-const minSidebarXPos = computed(() => -sidebarWidth.value)
-const maxSidebarXPos = computed(() => 0)
+// Pixel transform applied during drag. null = CSS class handles open/closed position.
+// CSS uses translateX(-100%) for closed (= sidebar's own width, always correct without JS).
+const dragTranslateX = ref<number | null>(null)
+// When true, a CSS transition is active on the drag inline style (drag-release snap animation)
+const isDragAnimating = ref(false)
+let animatingTimer: ReturnType<typeof setTimeout> | null = null
 
-// Move sidebar to sidebarXPos
-const sidebarMotion = useMotion(sidebarElm, {
-  initial: { x: sidebarXPos.value },
+// Inline style for the sidebar element
+const sidebarStyle = computed(() => {
+  if (dragTranslateX.value !== null) {
+    return {
+      transform: `translateX(${dragTranslateX.value}px)`,
+      transition: isDragAnimating.value ? 'transform 0.3s ease-out' : 'none',
+    }
+  }
+  return {}
 })
-watchEffect(() => {
-  void sidebarMotion.apply({
-    x: sidebarXPos.value,
-    transition: { type: 'spring', stiffness: 200, damping: 20 },
-  })
-})
+
+function getSidebarWidth(): number {
+  return (sidebarElm.value as HTMLElement | null)?.offsetWidth ?? 0
+}
+
+function syncDragOffset(collapsed: boolean) {
+  const w = getSidebarWidth()
+  dragController.state.drag.offset = [collapsed ? -w : 0, 0]
+}
 
 // Disable Safari iOS back gesture so it doesn't interfere with sidebar gesture
 onMounted(() => {
+  // Sync drag controller's internal offset with the real sidebar pixel width
+  syncDragOffset(uiState.sidebarMobileCollapsed)
+
   // @ts-expect-error Types in vue don't seem to cover all the events yet
   document.querySelector('body > *')?.addEventListener('touchstart', (event: Event & { target: HTMLElement, pageX: number }) => {
     // The only way to disable back gesture is to call preventDefault() on a touchstart event. Unfortunately this
@@ -53,57 +65,80 @@ onMounted(() => {
   }, { passive: false })
 })
 
-// Update sidebarXPos when container is dragged. We use the container rather than the sidebar itself so that it
-// can be dragged out from it's closed state off the edge of the page
+// Update sidebar position when container is dragged. We use the container rather than the sidebar
+// itself so that it can be dragged out from its closed state off the edge of the page.
 const dragController = useDrag(
   ({ offset: [dx], last, swipe }) => {
-    // Stay within bounds
+    const w = getSidebarWidth()
+    if (w === 0) return // not mounted yet
     if (last) {
+      // Drag released: animate to nearest snap point.
+      // First mark as animating (adds transition to inline style), then change value in the next
+      // frame so the browser sees the transition before the transform value changes.
       const xAxisSwipeDirection = swipe[0]
-      if (xAxisSwipeDirection) {
-        if (xAxisSwipeDirection > 0) {
-          sidebarXPos.value = maxSidebarXPos.value
-        }
-        else {
-          sidebarXPos.value = minSidebarXPos.value
-        }
-      }
-      else {
-        sidebarXPos.value = closestNumber(dx, minSidebarXPos.value, maxSidebarXPos.value)
-      }
+      const shouldOpen = xAxisSwipeDirection ? xAxisSwipeDirection > 0 : dx > -(w / 2)
+      isDragAnimating.value = true
+      requestAnimationFrame(() => {
+        dragTranslateX.value = shouldOpen ? 0 : -w
+        uiState.sidebarMobileCollapsed = !shouldOpen
+        syncDragOffset(!shouldOpen)
+        if (animatingTimer) clearTimeout(animatingTimer)
+        animatingTimer = setTimeout(() => {
+          // Animation done: hand control back to CSS. The CSS translateX(-100%) / translateX(0)
+          // exactly matches where the inline px animation ended, so there's no snap.
+          dragTranslateX.value = null
+          isDragAnimating.value = false
+        }, 300)
+      })
     }
     else {
-      sidebarXPos.value = clamp(minSidebarXPos.value, dx, maxSidebarXPos.value)
+      // Mid-drag: follow finger instantly with no transition
+      dragTranslateX.value = clamp(-w, dx, 0)
     }
   },
   {
     domTarget: containerElm,
     axis: 'x',
-    bounds: { left: minSidebarXPos.value, right: maxSidebarXPos.value },
   },
 )
 
-// Enable dragging of sidebar only when window width is small enough for collapsable
-// sidebar functionality to be supported
-watch(windowWidth, () => {
+// Enable dragging only when window is narrow enough for collapsible sidebar.
+// Also collapse sidebar when crossing the threshold.
+watch(windowWidth, (newWidth, oldWidth) => {
   if (!dragController.config.drag) return
-  dragController.config.drag.enabled = windowWidth.value <= 500
-}, { immediate: true })
-
-// Change sidebar position if sidebarMobileCollapsed is changed
-watch(() => uiState.sidebarMobileCollapsed, () => {
-  sidebarXPos.value = uiState.sidebarMobileCollapsed ? minSidebarXPos.value : maxSidebarXPos.value
-  // Update useDrag()'s internal offset
-  dragController.state.drag.offset = [sidebarXPos.value, 0]
-}, { immediate: true })
-
-// If sidebarXPos is updated to an open or closed position then update sidebarMobileCollapsed
-// to reflect that
-watch(sidebarXPos, () => {
-  if (sidebarXPos.value === minSidebarXPos.value || sidebarXPos.value === maxSidebarXPos.value) {
-    uiState.sidebarMobileCollapsed = !(sidebarXPos.value > minSidebarXPos.value / 2)
+  dragController.config.drag.enabled = newWidth <= 500
+  if (newWidth > 500) {
+    dragTranslateX.value = null
+    isDragAnimating.value = false
+  }
+  if (oldWidth !== undefined && oldWidth > 500 && newWidth <= 500) {
+    uiState.sidebarMobileCollapsed = true
+    syncDragOffset(true)
   }
 }, { immediate: true })
+
+// When sidebarMobileCollapsed changes programmatically (not via toggle button), clear any
+// drag state and re-sync the drag controller offset.
+watch(() => uiState.sidebarMobileCollapsed, (collapsed) => {
+  dragTranslateX.value = null
+  syncDragOffset(collapsed)
+})
+
+// Animated toggle for user-initiated open/close (buttons & shadow tap).
+// Uses await nextTick() so the CSS transition is applied before the transform changes.
+async function toggleSidebar() {
+  isDragAnimating.value = true
+  dragTranslateX.value = uiState.sidebarMobileCollapsed ? -getSidebarWidth() : 0
+  await nextTick()
+  uiState.sidebarMobileCollapsed = !uiState.sidebarMobileCollapsed
+  dragTranslateX.value = uiState.sidebarMobileCollapsed ? -getSidebarWidth() : 0
+  syncDragOffset(uiState.sidebarMobileCollapsed)
+  if (animatingTimer) clearTimeout(animatingTimer)
+  animatingTimer = setTimeout(() => {
+    dragTranslateX.value = null
+    isDragAnimating.value = false
+  }, 300)
+}
 </script>
 
 <template>
@@ -111,7 +146,7 @@ watch(sidebarXPos, () => {
     <template #header-buttons>
       <button
         class="toggle-sidebar"
-        @click="uiState.toggleSidebarMobileCollapsed"
+        @click="toggleSidebar"
       >
         Sidebar
       </button>
@@ -125,17 +160,18 @@ watch(sidebarXPos, () => {
         id="page-sidebar"
         ref="sidebar"
         class="sidebar"
+        :style="sidebarStyle"
       />
       <button
         ref="sidebarExpandButtonElm"
         class="toggle-sidebar"
-        @click="uiState.toggleSidebarMobileCollapsed"
+        @click="toggleSidebar"
       >
         <i class="pi pi-angle-right" />
       </button>
       <div
         class="sidebar-shadow"
-        @click="uiState.toggleSidebarMobileCollapsed"
+        @click="toggleSidebar"
       />
       <div class="page">
         <NuxtPage />
@@ -171,7 +207,7 @@ watch(sidebarXPos, () => {
     .sidebar {
       width: var(--default-sidebar-width);
       height: 100%;
-      z-index: 1;
+      z-index: 3;
       transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out;
       overflow: hidden auto;
       background: var(--primary-background);
@@ -209,13 +245,36 @@ watch(sidebarXPos, () => {
     }
 
     .container {
+      /* Use overflow:hidden so the sidebar can slide in from off-screen without being clipped
+         by an overflow:auto scroll container (which breaks position:fixed on iOS Safari).
+         The .page div handles its own scrolling via its own overflow:auto. */
+      overflow: hidden;
+      position: relative;
+      grid-template-columns: 1fr;
+
       .page {
         padding: 1em 0;
+        overflow: auto;
+      }
+
+      /* Sidebar overlays the page. Width is pure CSS (90vw), so it's always correct
+         without JS. Closed position uses translateX(-100%) = exactly the element's
+         own width, so it stays perfectly off-screen on any resize without JS updates. */
+      .sidebar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 90vw;
+        transform: translateX(-100%); /* closed by default */
+      }
+
+      /* Open state */
+      &:not(.sidebar-collapsed-on-mobile) .sidebar {
+        transform: translateX(0);
       }
 
       &.sidebar-collapsed-on-mobile {
-        grid-template-columns: 0 1fr;
-
         .sidebar {
           padding-left: 0;
           padding-right: 0;
@@ -223,13 +282,6 @@ watch(sidebarXPos, () => {
       }
 
       &:not(.sidebar-collapsed-on-mobile) {
-        grid-template-columns: calc( 100vw - 200px ) 200px;
-        overflow-x: hidden;
-
-        .sidebar {
-          width: 90vw;
-        }
-
         .sidebar-shadow {
           content: '';
           display: block;
@@ -241,17 +293,14 @@ watch(sidebarXPos, () => {
           left: 0;
           z-index: 1;
         }
-
-        .page {
-          overflow-x: hidden;
-        }
       }
     }
   }
 
   @media (width > 500px) {
     .sidebar {
-      transform: initial !important; /* override inline css set by @vueuse/motion */
+      transform: initial !important; /* override any inline drag transform */
+      transition: none !important;
     }
   }
 </style>

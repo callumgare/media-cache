@@ -23,35 +23,33 @@ const mediaQuery = useMediaQuery()
     :field-condition="fieldCondition"
     :schema-config="schemaConfig"
   >
-    <div class="control">
-      <MultiSelect
-        display="chip"
-        :options="fieldConfig.availableOptions"
-        option-label="name"
-        filter
-        :placeholder="`Select ${fieldConfig.displayName}`"
-        :model-value="(Array.isArray(fieldCondition.value) ? fieldCondition.value : []).map(
-          (id: string) => (fieldConfig.availableOptions ?? []).find(option => option.id === id),
-        )"
-        @update:model-value="(values: { id: string }[]) =>
-          mediaQuery.setFieldConditionValue(fieldCondition, values.map(value => value.id))
-        "
-      >
-        <template #option="{ option, selected }">
-          <span :class="['option-label', { dimmed: !selected && !option.count }]">
-            <span class="option-name">{{ option.name }}</span>
-            <span
-              v-if="selected && option.addedIfRemoved != null"
-              class="option-count added-if-removed"
-            >+{{ option.addedIfRemoved }}</span>
-            <span
-              v-else
-              class="option-count"
-            >{{ option.count ?? 0 }}</span>
-          </span>
-        </template>
-      </MultiSelect>
-    </div>
+    <MultiSelect
+      display="chip"
+      :options="fieldConfig.availableOptions"
+      option-label="name"
+      filter
+      :placeholder="`Select ${fieldConfig.displayName}`"
+      :model-value="(Array.isArray(fieldCondition.value) ? fieldCondition.value : []).map(
+        (id: string) => (fieldConfig.availableOptions ?? []).find(option => option.id === id),
+      )"
+      @update:model-value="(values: { id: string }[]) =>
+        mediaQuery.setFieldConditionValue(fieldCondition, values.map(value => value.id))
+      "
+    >
+      <template #option="{ option, selected }">
+        <span :class="['option-label', { dimmed: !selected && !option.count }]">
+          <span class="option-name">{{ option.name }}</span>
+          <span
+            v-if="selected && option.addedIfRemoved != null"
+            class="option-count added-if-removed"
+          >+{{ option.addedIfRemoved }}</span>
+          <span
+            v-else
+            class="option-count"
+          >{{ option.count ?? 0 }}</span>
+        </span>
+      </template>
+    </MultiSelect>
   </QueryBuilderInputBase>
 </template>
 
@@ -61,11 +59,7 @@ const mediaQuery = useMediaQuery()
   }
 
   .control {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-    flex-wrap: wrap;
-
+    width: 100%;
   }
 
   .p-inputwrapper {

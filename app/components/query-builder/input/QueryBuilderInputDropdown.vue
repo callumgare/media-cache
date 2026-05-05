@@ -23,24 +23,23 @@ const mediaQuery = useMediaQuery()
     :field-condition="fieldCondition"
     :schema-config="schemaConfig"
   >
-    <div class="control">
-      <Select
-        :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
-        :options="fieldConfig.availableOptions ?? []"
-        option-label="name"
-        :placeholder="`Select ${fieldConfig.displayName}`"
-        :show-clear="true"
-        @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
-      >
-        <template #option="{ option }">
-          <span class="option-name">{{ option.name }}</span>
-          <span
-            v-if="option.count != null"
-            class="option-count"
-          >{{ option.count }}</span>
-        </template>
-      </Select>
-    </div>
+    <Select
+      :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
+      :options="fieldConfig.availableOptions ?? []"
+      option-label="name"
+      class="control"
+      :placeholder="`Select ${fieldConfig.displayName}`"
+      :show-clear="true"
+      @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
+    >
+      <template #option="{ option }">
+        <span class="option-name">{{ option.name }}</span>
+        <span
+          v-if="option.count != null"
+          class="option-count"
+        >{{ option.count }}</span>
+      </template>
+    </Select>
   </QueryBuilderInputBase>
 </template>
 
@@ -50,10 +49,7 @@ const mediaQuery = useMediaQuery()
   }
 
   .control {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-    flex-wrap: wrap;
+    width: 100%;
 
     .p-inputwrapper {
       min-width: 200px;
