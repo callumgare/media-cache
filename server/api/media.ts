@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { sql } from 'drizzle-orm'
+import { sql, count, inArray } from 'drizzle-orm'
 import type { APIMediaResponse, APIMedia } from '../../types/api-media'
 import { calculateWhereValue } from '../utils/query-builder'
 import type { QueryGroupCondition } from '@@/types/query-condition'
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
 
   const whereClause = calculateWhereValue(body) ?? undefined
 
-  const totalCount = await db.select({ count: sql<number>`count(*)::int` }).from(dbSchema.cacheMedia).where(whereClause).then(res => res[0]?.count ?? 0)
+  const totalCount = await db.select({ count: count() }).from(dbSchema.cacheMedia).where(whereClause).then(res => res[0]?.count ?? 0)
 
   const resultIds = await db.select({
     mediaId: dbSchema.cacheMedia.id,
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
   if (resultIds.length) {
     dbMedias = await db.select()
       .from(dbSchema.cacheMedia)
-      .where(sql`${dbSchema.cacheMedia.id} in (${sql.join(resultIds.map(res => sql`${res.mediaId}`), sql`,`)})`)
+      .where(inArray(dbSchema.cacheMedia.id, resultIds.map(res => res.mediaId)))
       .orderBy(sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`)
   }
 

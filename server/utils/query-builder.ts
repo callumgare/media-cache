@@ -1,4 +1,4 @@
-import { sql, type SQL } from 'drizzle-orm'
+import { sql, and, or, eq, type SQL } from 'drizzle-orm'
 import { dbSchema } from './drizzle'
 import type { QueryCondition } from '@@/types/query-condition'
 
@@ -15,22 +15,13 @@ export function calculateWhereValue(condition: QueryCondition): SQL | null {
     if (!childConditions.length) {
       return null
     }
-    let sqlOperator: SQL
-    if (condition.operator === 'AND') {
-      sqlOperator = sql` AND `
-    }
-    else if (condition.operator === 'OR') {
-      sqlOperator = sql` OR `
-    }
-    else {
-      throw Error(`Unknown operator: ${condition.operator}`)
-    }
-    const sqlChildConditions = childConditions
+    const childSqls = childConditions
       .map(calculateWhereValue)
-      .filter(sql => sql !== null)
-      .map(sqlChunk => sql`(${sqlChunk})`)
-    if (!sqlChildConditions.length) return null
-    return sql.join(sqlChildConditions, sqlOperator)
+      .filter((s): s is SQL => s !== null)
+    if (!childSqls.length) return null
+    if (condition.operator === 'AND') return and(...childSqls) ?? null
+    if (condition.operator === 'OR') return or(...childSqls) ?? null
+    throw Error(`Unknown operator: ${condition.operator}`)
   }
   else {
     const { field, value, operator } = condition
@@ -51,16 +42,16 @@ export function calculateWhereValue(condition: QueryCondition): SQL | null {
     }
     else if (field === 'type') {
       if (value === 'video') {
-        return sql`(${dbSchema.cacheMedia.hasVideo} = TRUE) AND (${dbSchema.cacheMedia.hasImage} = FALSE)`
+        return and(eq(dbSchema.cacheMedia.hasVideo, true), eq(dbSchema.cacheMedia.hasImage, false)) ?? null
       }
       else if (value === 'video-with-audio') {
-        return sql`(${dbSchema.cacheMedia.hasVideo} = TRUE) AND (${dbSchema.cacheMedia.hasImage} = FALSE) AND (${dbSchema.cacheMedia.hasAudio} = TRUE)`
+        return and(eq(dbSchema.cacheMedia.hasVideo, true), eq(dbSchema.cacheMedia.hasImage, false), eq(dbSchema.cacheMedia.hasAudio, true)) ?? null
       }
       else if (value === 'video-without-audio') {
-        return sql`(${dbSchema.cacheMedia.hasVideo} = TRUE) AND (${dbSchema.cacheMedia.hasImage} = FALSE) AND (${dbSchema.cacheMedia.hasAudio} = FALSE)`
+        return and(eq(dbSchema.cacheMedia.hasVideo, true), eq(dbSchema.cacheMedia.hasImage, false), eq(dbSchema.cacheMedia.hasAudio, false)) ?? null
       }
       else if (value === 'image') {
-        return sql`(${dbSchema.cacheMedia.hasImage} = TRUE) AND (${dbSchema.cacheMedia.hasVideo} = FALSE)`
+        return and(eq(dbSchema.cacheMedia.hasImage, true), eq(dbSchema.cacheMedia.hasVideo, false)) ?? null
       }
       else {
         throw Error(`Unknown value for field "type": ${value}`)

@@ -1,4 +1,4 @@
-import { sql, type SQL } from 'drizzle-orm'
+import { sql, count, sum, type SQL } from 'drizzle-orm'
 import { calculateWhereValue } from '../utils/query-builder'
 import { db, dbSchema } from '../utils/drizzle'
 import type { FacetCount, SourceFacetCount, TagFacetCount, TypeFacetCount } from '@@/types/api-media-facets'
@@ -19,9 +19,8 @@ export function replaceConditionValue(condition: QueryCondition, id: number, new
 }
 
 export async function countWhere(where: SQL | null): Promise<number> {
-  const whereSql = where ? sql`WHERE ${where}` : sql``
-  const [row] = await db.execute<{ count: number }>(sql`SELECT COUNT(*)::int AS count FROM cache_media ${whereSql}`)
-  return row?.count ?? 0
+  const result = await db.select({ count: count() }).from(dbSchema.cacheMedia).where(where ?? undefined)
+  return result[0]?.count ?? 0
 }
 
 export function fetchFieldCounts(condition: QueryFieldCondition & { field: 'source' }, body: QueryGroupCondition): Promise<SourceFacetCount[]>
@@ -91,26 +90,18 @@ export async function fetchFieldCounts(condition: QueryFieldCondition, body: Que
   }
 
   if (condition.field === 'type') {
-    const [row] = await db.execute<{
-      video: number
-      video_with_audio: number
-      video_without_audio: number
-      image: number
-    }>(sql`
-      SELECT
-        SUM(CASE WHEN has_video = TRUE AND has_image = FALSE THEN 1 ELSE 0 END)::int AS video,
-        SUM(CASE WHEN has_video = TRUE AND has_image = FALSE AND has_audio = TRUE THEN 1 ELSE 0 END)::int AS video_with_audio,
-        SUM(CASE WHEN has_video = TRUE AND has_image = FALSE AND has_audio = FALSE THEN 1 ELSE 0 END)::int AS video_without_audio,
-        SUM(CASE WHEN has_image = TRUE AND has_video = FALSE THEN 1 ELSE 0 END)::int AS image
-      FROM cache_media
-      ${whereSql}
-    `)
-    const r = row ?? { video: 0, video_with_audio: 0, video_without_audio: 0, image: 0 }
+    const { hasVideo, hasImage, hasAudio } = dbSchema.cacheMedia
+    const [row] = await db.select({
+      video: sum(sql`CASE WHEN ${hasVideo} AND NOT ${hasImage} THEN 1 ELSE 0 END`).mapWith(Number),
+      videoWithAudio: sum(sql`CASE WHEN ${hasVideo} AND NOT ${hasImage} AND ${hasAudio} THEN 1 ELSE 0 END`).mapWith(Number),
+      videoWithoutAudio: sum(sql`CASE WHEN ${hasVideo} AND NOT ${hasImage} AND NOT ${hasAudio} THEN 1 ELSE 0 END`).mapWith(Number),
+      image: sum(sql`CASE WHEN ${hasImage} AND NOT ${hasVideo} THEN 1 ELSE 0 END`).mapWith(Number),
+    }).from(dbSchema.cacheMedia).where(baseWhere ?? undefined)
     return [
-      { value: 'video', count: r.video ?? 0 },
-      { value: 'video-with-audio', count: r.video_with_audio ?? 0 },
-      { value: 'video-without-audio', count: r.video_without_audio ?? 0 },
-      { value: 'image', count: r.image ?? 0 },
+      { value: 'video', count: row?.video ?? 0 },
+      { value: 'video-with-audio', count: row?.videoWithAudio ?? 0 },
+      { value: 'video-without-audio', count: row?.videoWithoutAudio ?? 0 },
+      { value: 'image', count: row?.image ?? 0 },
     ] satisfies TypeFacetCount[]
   }
 

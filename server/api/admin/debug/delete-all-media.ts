@@ -1,4 +1,4 @@
-import { count, sql } from 'drizzle-orm'
+import { count, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async () => {
   ;(async () => {
@@ -10,9 +10,14 @@ export default defineEventHandler(async () => {
     console.log('Deleting finderQueryMediaContent')
     let isRowsRemaining = true
     while (isRowsRemaining) {
-      await db.delete(dbSchema.finderQueryMediaContent).where(sql`content_hash IN (
-        select content_hash from ${dbSchema.finderQueryMediaContent} LIMIT 500
-      )`)
+      await db.delete(dbSchema.finderQueryMediaContent).where(
+        inArray(
+          dbSchema.finderQueryMediaContent.contentHash,
+          db.select({ contentHash: dbSchema.finderQueryMediaContent.contentHash })
+            .from(dbSchema.finderQueryMediaContent)
+            .limit(500),
+        ),
+      )
       const rowsRemaining = await db.select({ count: count() }).from(dbSchema.finderQueryMediaContent).then(res => res[0]?.count ?? 0)
       console.log(`  Rows remaining: ${rowsRemaining}`)
       isRowsRemaining = Boolean(rowsRemaining)
