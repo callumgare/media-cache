@@ -1,4 +1,4 @@
-import { sql, count, sum, type SQL } from 'drizzle-orm'
+import { sql, count, sum, inArray, type SQL } from 'drizzle-orm'
 import { calculateWhereValue } from '../utils/query-builder'
 import { db, dbSchema } from '../utils/drizzle'
 import type { FacetCount, SourceFacetCount, TagFacetCount, TypeFacetCount } from '@@/types/api-media-facets'
@@ -28,49 +28,45 @@ export function fetchFieldCounts(condition: QueryFieldCondition & { field: 'tags
 export function fetchFieldCounts(condition: QueryFieldCondition & { field: 'type' }, body: QueryGroupCondition): Promise<TypeFacetCount[]>
 export function fetchFieldCounts(condition: QueryFieldCondition, body: QueryGroupCondition): Promise<FacetCount[]>
 export async function fetchFieldCounts(condition: QueryFieldCondition, body: QueryGroupCondition): Promise<FacetCount[]> {
-  const baseWhere = condition.operator === 'includes all'
-    ? calculateWhereValue(body)
-    : calculateWhereValue(blankConditionById(body, condition.id))
-  const whereSql: SQL = baseWhere ? sql`WHERE ${baseWhere}` : sql``
+  const baseCondition = condition.operator === 'includes all'
+    ? body
+    : blankConditionById(body, condition.id)
+  const where = calculateWhereValue(baseCondition)
 
   if (condition.field === 'source') {
-    const col = dbSchema.cacheMedia.finderSourceIds
-    const rows = await db.execute<{ finder_source_id: string, count: number }>(sql`
-      SELECT sub.src_id AS finder_source_id, COUNT(*)::int AS count
+    const [row] = await db.execute<{ agg: { buckets: Array<{ key: string, doc_count: number }> } }>(sql`
+      SELECT pdb.agg('{"terms": {"field": "finder_source_ids", "size": 500}}') AS agg
       FROM cache_media
-      CROSS JOIN LATERAL (
-        SELECT k AS src_id FROM unnest(${col}) k
-      ) sub
-      ${whereSql}
-      GROUP BY sub.src_id
-      ORDER BY count DESC
+      WHERE ${where}
     `)
-    return rows.map((r): SourceFacetCount => ({ finderSourceId: r.finder_source_id, count: r.count }))
+    return (row?.agg?.buckets ?? []).map((b): SourceFacetCount => ({ finderSourceId: b.key, count: b.doc_count }))
   }
 
   if (condition.field === 'tags') {
-    const col = dbSchema.cacheMedia.groupIds
-    const rows = await db.execute<{ id: number, name: string, count: number }>(sql`
-      SELECT g.id, g.name, counts.count
-      FROM (
-        SELECT k::int AS group_id, COUNT(*)::int AS count
-        FROM cache_media
-        CROSS JOIN LATERAL (
-          SELECT k FROM unnest(${col}) k
-        ) sub
-        ${whereSql}
-        GROUP BY 1
-      ) counts
-      JOIN "group" g ON g.id = counts.group_id
-      ORDER BY counts.count DESC
+    const [tagRow] = await db.execute<{ agg: { buckets: Array<{ key: string, doc_count: number }>, sum_other_doc_count: number } }>(sql`
+      SELECT pdb.agg('{"terms": {"field": "group_ids", "size": 5000}}') AS agg
+      FROM cache_media
+      WHERE ${where}
     `)
+    const allBuckets = tagRow?.agg?.buckets ?? []
+    // ParadeDB emits a "__PDB_NULL__" sentinel (with invisible Unicode prefix chars) for rows
+    // with empty arrays. Filter to only numeric keys since group IDs are always integers.
+    const buckets = allBuckets.filter(b => !Number.isNaN(Number(b.key)))
+
+    if (!buckets.length) return []
+
+    const groupIds = buckets.map(b => Number(b.key))
+    const groups = await db.select({ id: dbSchema.group.id, name: dbSchema.group.name })
+      .from(dbSchema.group)
+      .where(inArray(dbSchema.group.id, groupIds))
+    const groupNameById = new Map(groups.map(g => [g.id, g.name]))
 
     const currentValues = new Set(
       Array.isArray(condition.value) ? condition.value.map(Number) : [],
     )
     const addedIfRemovedByTagId = new Map<number, number>()
     if (currentValues.size > 0) {
-      const currentTotal = await countWhere(baseWhere)
+      const currentTotal = await countWhere(where)
       await Promise.all(
         [...currentValues].map(async (selectedId) => {
           const newValues = [...currentValues].filter(v => v !== selectedId)
@@ -81,12 +77,19 @@ export async function fetchFieldCounts(condition: QueryFieldCondition, body: Que
       )
     }
 
-    return rows.map((r): TagFacetCount => ({
-      id: r.id,
-      name: r.name,
-      count: r.count,
-      addedIfRemoved: addedIfRemovedByTagId.get(r.id) ?? null,
-    }))
+    return buckets
+      .map((b): TagFacetCount | null => {
+        const id = Number(b.key)
+        const name = groupNameById.get(id)
+        if (name === undefined) return null
+        return {
+          id,
+          name,
+          count: b.doc_count,
+          addedIfRemoved: addedIfRemovedByTagId.get(id) ?? null,
+        }
+      })
+      .filter((r): r is TagFacetCount => r !== null)
   }
 
   if (condition.field === 'type') {
@@ -96,7 +99,7 @@ export async function fetchFieldCounts(condition: QueryFieldCondition, body: Que
       videoWithAudio: sum(sql`CASE WHEN ${hasVideo} AND NOT ${hasImage} AND ${hasAudio} THEN 1 ELSE 0 END`).mapWith(Number),
       videoWithoutAudio: sum(sql`CASE WHEN ${hasVideo} AND NOT ${hasImage} AND NOT ${hasAudio} THEN 1 ELSE 0 END`).mapWith(Number),
       image: sum(sql`CASE WHEN ${hasImage} AND NOT ${hasVideo} THEN 1 ELSE 0 END`).mapWith(Number),
-    }).from(dbSchema.cacheMedia).where(baseWhere ?? undefined)
+    }).from(dbSchema.cacheMedia).where(where)
     return [
       { value: 'video', count: row?.video ?? 0 },
       { value: 'video-with-audio', count: row?.videoWithAudio ?? 0 },

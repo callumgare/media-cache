@@ -22,7 +22,7 @@ export default defineEventHandler(async (event): Promise<z.infer<typeof APIMedia
     (query.seed * 10000) + (new Date().getMonth() * 100) + new Date().getDate(),
   ) * 10000000)
 
-  const whereClause = calculateWhereValue(body) ?? undefined
+  const whereClause = calculateWhereValue(body)
 
   const totalCount = await db.select({ count: count() }).from(dbSchema.cacheMedia).where(whereClause).then(res => res[0]?.count ?? 0)
 

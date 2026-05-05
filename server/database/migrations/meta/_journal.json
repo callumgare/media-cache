@@ -71,6 +71,13 @@
       "when": 1777958531362,
       "tag": "0009_refactor_array_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777967909026,
+      "tag": "0010_bm25_facets_index",
+      "breakpoints": true
     }
   ]
 }
