@@ -33,9 +33,12 @@ export const APIMedia = z.object({
   id: z.number(),
   title: z.string().nullable(),
   description: z.string().nullable(),
+  tags: z.array(z.string()),
   sourceDetails: z.array(APISourceMediaDetails),
   files: z.array(APIMediaFile),
 })
+
+export type APIMediaData = z.infer<typeof APIMedia>
 
 export const APIMediaResponse = z.object({
   totalCount: z.number(),

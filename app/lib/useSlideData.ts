@@ -57,6 +57,7 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
         src: getSrc(file),
         videoSrc: getSrc(file),
         msrc: getSrc(file) !== posterSrc.value ? posterSrc.value : undefined,
+        mediaData: media,
       }
       cachedSlideData[media.id] = newSlide
       return newSlide

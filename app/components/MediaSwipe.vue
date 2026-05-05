@@ -6,6 +6,7 @@ import { PhotoSwipeSizeOnLoadPlugin } from '~/lib/photo-swipe/plugins/size-on-lo
 import { PhotoSwipeDebugPlugin } from '~/lib/photo-swipe/plugins/debug'
 import { PhotoSwipeCustomZoomPlugin } from '~/lib/photo-swipe/plugins/custom-zoom'
 import { PhotoSwipeCustomVideoPlugin } from '~/lib/photo-swipe/plugins/custom-video'
+import { PhotoSwipeInfoPanelPlugin } from '~/lib/photo-swipe/plugins/info-panel'
 import { useUiState } from '@@/stores/ui'
 
 export type PhotoSwipeSlide = {
@@ -14,6 +15,7 @@ export type PhotoSwipeSlide = {
   src: string
   videoSrc?: string
   msrc?: string
+  mediaData?: import('@@/types/api-media').APIMediaData
   [key: string]: unknown
 }
 
@@ -60,6 +62,7 @@ onMounted(() => {
     new PhotoSwipeDebugPlugin(photoSwipe.value)
   }
   new PhotoSwipeCustomZoomPlugin(photoSwipe.value)
+  new PhotoSwipeInfoPanelPlugin(photoSwipe.value)
 
   photoSwipe.value.addFilter('numItems', (numItems) => {
     return (typeof props.total === 'number') ? props.total : numItems
@@ -104,5 +107,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div />
+  <div>
+    <MediaInfo />
+  </div>
 </template>
