@@ -24,7 +24,7 @@
         An error occurred while loading media.
       </div>
       <div v-else>
-        <span v-if="!medias.length">
+        <span v-if="!medias.length && !isPending">
           No results. Try
           <Button
             v-if="!pageSidebarWidth"
@@ -37,7 +37,7 @@
           <template v-else>modifying the search</template><!--
           -->.
         </span>
-        <span v-else>Nothing more to load</span>
+        <span v-else-if="medias.length && !hasNextPage && !isPending">Nothing more to load</span>
       </div>
     </div>
   </div>
