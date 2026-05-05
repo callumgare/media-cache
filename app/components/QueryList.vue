@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import type { QueryExecutionTask } from '@/composables/useExecutionEvents'
+import type { QueryExecutionTask } from '@@/server/lib/media-finder/execution-tasks'
 
 const toast = useToast()
 const route = useRoute()

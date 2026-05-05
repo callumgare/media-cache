@@ -16,25 +16,32 @@ import type { dbSchema } from '@@/server/utils/drizzle'
 
 type MediaFinderQueryOptions = Parameters<typeof getMediaQuery>[0]['queryOptions']
 
-export async function runDbMediaFinderQuery(dbFinderQuery: dbSchema.FinderQuery) {
+export async function startFinderQueryExecution(
+  dbFinderQuery: dbSchema.FinderQuery,
+): Promise<dbSchema.FinderQueryExecution> {
+  const execution = await createFinderQueryExecution({ dbFinderQuery })
   const mediaFinderRequest = deserialize(dbFinderQuery.requestOptions) as GenericRequest
   const mediaFinderQueryOptions: MediaFinderQueryOptions = {}
   if (dbFinderQuery.fetchCountLimit !== null) {
     mediaFinderQueryOptions.fetchCountLimit = dbFinderQuery.fetchCountLimit
   }
-  return await runMediaFinderQuery({ mediaFinderRequest, mediaFinderQueryOptions, dbFinderQuery })
+  // Run the actual execution in the background without blocking the caller
+  runMediaFinderQuery({ mediaFinderRequest, mediaFinderQueryOptions, dbFinderQuery, existingExecution: execution })
+  return execution
 }
 
 export async function runMediaFinderQuery({
   mediaFinderRequest,
   mediaFinderQueryOptions = {},
   dbFinderQuery,
+  existingExecution,
 }: {
   mediaFinderRequest: GenericRequest
   mediaFinderQueryOptions?: MediaFinderQueryOptions
   dbFinderQuery?: dbSchema.FinderQuery
-}) {
-  const finderQueryExecution = await createFinderQueryExecution({ dbFinderQuery })
+  existingExecution?: dbSchema.FinderQueryExecution
+}): Promise<void> {
+  const finderQueryExecution = existingExecution ?? await createFinderQueryExecution({ dbFinderQuery })
   const executionId = finderQueryExecution.id
   const queryId = dbFinderQuery?.id ?? null
 

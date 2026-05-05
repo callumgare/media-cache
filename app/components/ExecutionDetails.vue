@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import type { QueryExecutionTask } from '@/composables/useExecutionEvents'
+import type { QueryExecutionTask } from '@@/server/lib/media-finder/execution-tasks'
 
 const props = defineProps<{
   fetchCountLimit: number | null

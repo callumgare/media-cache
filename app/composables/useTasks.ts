@@ -110,6 +110,3 @@ export function useTasks() {
     runningExecutionList,
   }
 }
-
-/** @deprecated Use useTasks() instead */
-export const useExecutionEvents = useTasks

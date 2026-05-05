@@ -1,4 +1,4 @@
-import { runDbMediaFinderQuery } from '@@/server/lib/media-finder/run-query'
+import { startFinderQueryExecution } from '@@/server/lib/media-finder/run-query'
 
 export default defineEventHandler(async (event) => {
   const idParam = getRouterParam(event, 'id')
@@ -12,7 +12,5 @@ export default defineEventHandler(async (event) => {
   if (!mediaFinderQuery) {
     throw Error(`Could not get query for "${idParam}" id`)
   }
-  // Run without awaiting — execution proceeds in background
-  runDbMediaFinderQuery(mediaFinderQuery)
-  return { queryId: id }
+  return await startFinderQueryExecution(mediaFinderQuery)
 })
