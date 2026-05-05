@@ -171,4 +171,34 @@ test.describe('Media browsing', () => {
     await page.mouse.click(640, 360)
     await expect(pswp).toHaveClass(/pswp--zoomed-in/, { timeout: 3_000 })
   })
+
+  test('use filters to filter media', async ({ page }) => {
+    await page.goto('/')
+
+    // Wait for media items to appear (all 3 from test-source)
+    const items = page.locator('[data-media-id]')
+    await expect(items.first()).toBeVisible({ timeout: 15_000 })
+    await expect(items).toHaveCount(3, { timeout: 15_000 })
+
+    // The sidebar source dropdown is populated from /api/admin/finder-details.
+    // Target it via the QueryBuilderInputBase label text so we don't confuse it
+    // with the tags or type dropdowns.
+    const sidebar = page.locator('#page-sidebar')
+    const sourceSelect = sidebar.locator('.root').filter({ has: page.locator('label', { hasText: 'Source' }) }).locator('.p-select')
+    await expect(sourceSelect).toBeVisible({ timeout: 5_000 })
+    await sourceSelect.click()
+
+    // The overlay is teleported to <body> by PrimeVue.
+    // Verify "Test Source" is present — this confirms finder-details returned sources.
+    const overlay = page.locator('.p-select-overlay')
+    await expect(overlay).toBeVisible({ timeout: 5_000 })
+    const testSourceOption = overlay.locator('.p-select-option', { hasText: 'Test Source' })
+    await expect(testSourceOption).toBeVisible({ timeout: 5_000 })
+
+    // Select the source to apply the filter
+    await testSourceOption.click()
+
+    // All 3 items are from test-source so the count should remain 3 after filtering
+    await expect(items).toHaveCount(3, { timeout: 10_000 })
+  })
 })
