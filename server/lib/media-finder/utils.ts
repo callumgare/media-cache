@@ -129,12 +129,7 @@ export async function getCacheMedia({
   const [result] = await db
     .select()
     .from(dbSchema.cacheMedia)
-    .where(sql`EXISTS (
-      SELECT 1
-      FROM generate_subscripts(${dbSchema.cacheMedia.finderSourceMediaIds}, 1) AS i
-      WHERE ${dbSchema.cacheMedia.finderSourceMediaIds}[i][1] = ${finderSourceId}
-      AND ${dbSchema.cacheMedia.finderSourceMediaIds}[i][2] = ${finderMediaId}
-    )`)
+    .where(sql`${dbSchema.cacheMedia.finderSourceMediaIds} @> ARRAY[${`${finderSourceId}\t${finderMediaId}`}]::text[]`)
     .limit(1)
   return result ?? null
 }
@@ -238,7 +233,12 @@ function buildCacheMediaValues(finderMedias: GenericMedia[]) {
     views: finderMedias.reduce<number | null>((sum, fm) => fm.views != null ? (sum ?? 0) + fm.views : sum, null),
     likes: finderMedias.reduce<number | null>((sum, fm) => fm.numberOfLikes != null ? (sum ?? 0) + fm.numberOfLikes : sum, null),
     dislikes: finderMedias.reduce<number | null>((sum, fm) => fm.numberOfDislikes != null ? (sum ?? 0) + fm.numberOfDislikes : sum, null),
-    finderSourceMediaIds: finderMedias.map(fm => [fm.mediaFinderSource, String(fm.id)]),
+    // finderSourceIds stores plain source names for source-only GIN filtering
+    finderSourceIds: [...new Set(finderMedias.map(fm => fm.mediaFinderSource))],
+    // finderSourceMediaIds stores only 'sourceId<TAB>mediaId' composites for exact lookups
+    finderSourceMediaIds: [...new Set(
+      finderMedias.map(fm => `${fm.mediaFinderSource}\t${String(fm.id)}`),
+    )],
     hasVideo: mainFile?.hasVideo ?? null,
     hasAudio: mainFile?.hasAudio ?? null,
     hasImage: mainFile?.hasImage ?? null,
@@ -294,7 +294,7 @@ export async function createOrUpdateCacheMediaGroups({
   finderMedias: GenericMedia[]
   cacheMedia: dbSchema.CacheMedia
   dbTx: DbTransaction
-}): Promise<number[][]> {
+}): Promise<void> {
   let rootTagsGroup = await dbTx.query.group.findFirst({
     where: g => and(eq(g.name, 'tags'), isNull(g.parentId)),
   })
@@ -308,7 +308,10 @@ export async function createOrUpdateCacheMediaGroups({
 
   const allTags = [...new Set(finderMedias.flatMap(fm => fm.tags || []))]
 
-  const groupIds: number[][] = []
+  const groupIds: string[] = []
+  // parentMap stores id → parentId for groups we've touched, so we can compute paths without extra queries
+  const parentMap = new Map<number, number | null>([[rootTagsGroup.id, rootTagsGroup.parentId]])
+
   for (const tag of allTags) {
     let group = await dbTx.query.group.findFirst({
       where: g => and(eq(g.name, tag), eq(g.parentId, rootTagsGroup.id)),
@@ -320,14 +323,28 @@ export async function createOrUpdateCacheMediaGroups({
         .then(r => r[0])
       if (!group) throw new Error(`Failed to create tag group: ${tag}`)
     }
-    groupIds.push([group.id, rootTagsGroup.id])
+    parentMap.set(group.id, group.parentId)
+    groupIds.push(String(group.id))
   }
 
-  await dbTx.update(dbSchema.cacheMedia)
-    .set({ groupIds, updatedAt: new Date() })
-    .where(eq(dbSchema.cacheMedia.id, cacheMedia.id))
+  // Build leaf→root paths using parentMap (e.g. '42\t15\t3\t')
+  const groupPaths = groupIds.map((idStr) => {
+    let path = ''
+    let current: number | null = Number(idStr)
+    while (current !== null) {
+      path += `${current}\t`
+      current = parentMap.has(current) ? (parentMap.get(current) ?? null) : null
+    }
+    return path
+  })
 
-  return groupIds
+  await dbTx.update(dbSchema.cacheMedia)
+    .set({
+      groupIds,
+      groupPaths,
+      updatedAt: new Date(),
+    })
+    .where(eq(dbSchema.cacheMedia.id, cacheMedia.id))
 }
 
 export async function getPreviousFinderQueryExecution({

@@ -104,8 +104,11 @@ export async function runMediaFinderQuery({
       const cacheMedia = await getCacheMedia({ finderSourceId: pair.finderSourceId, finderMediaId: pair.finderMediaId })
       if (cacheMedia) {
         const entry = affectedCacheMediaMap.get(cacheMedia.id) ?? { cacheMedia, pairKeys: new Set() }
-        for (const [src, mid] of cacheMedia.finderSourceMediaIds) {
-          entry.pairKeys.add(`${src}:${mid}`)
+        for (const key of cacheMedia.finderSourceMediaIds) {
+          if (key.includes('\t')) {
+            const [src, mid] = key.split('\t')
+            entry.pairKeys.add(`${src}:${mid}`)
+          }
         }
         affectedCacheMediaMap.set(cacheMedia.id, entry)
       }

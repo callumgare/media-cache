@@ -11,8 +11,8 @@ export default defineEventHandler(async () => {
       SELECT count(*) FROM cache_media
       WHERE EXISTS (
         SELECT 1
-        FROM generate_subscripts(cache_media.group_ids, 1) AS i
-        WHERE cache_media.group_ids[i][1] = ${dbSchema.group.id}
+        FROM unnest(cache_media.group_ids) AS k
+        WHERE k::int = ${dbSchema.group.id}
       )
     )`,
   })

@@ -33,15 +33,21 @@ export function calculateWhereValue(condition: QueryCondition): SQL | null {
     return sql.join(sqlChildConditions, sqlOperator)
   }
   else {
-    let sqlField
     const { field, value, operator } = condition
     if (field === 'source') {
-      const col = dbSchema.cacheMedia.finderSourceMediaIds
-      sqlField = sql`ANY(ARRAY(SELECT ${col}[i][1] FROM generate_subscripts(${col}, 1) AS i))`
+      if (operator === 'equals') {
+        return sql`${dbSchema.cacheMedia.finderSourceIds} @> ARRAY[${value}]::text[]`
+      }
+      throw Error(`Unknown operator for source field: ${operator}`)
     }
     else if (field === 'tags') {
-      const col = dbSchema.cacheMedia.groupIds
-      sqlField = sql`ANY(ARRAY(SELECT ${col}[i][1] FROM generate_subscripts(${col}, 1) AS i))`
+      if (operator === 'includes all') {
+        if (!Array.isArray(value) || !value.length) {
+          return null
+        }
+        return sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${sql.join(value.map(id => sql`${String(id)}`), sql`, `)}]::text[]`
+      }
+      throw Error(`Unknown operator for tags field: ${operator}`)
     }
     else if (field === 'type') {
       if (value === 'video') {
@@ -63,23 +69,5 @@ export function calculateWhereValue(condition: QueryCondition): SQL | null {
     else {
       throw Error(`Unknown field: ${field}`)
     }
-    let sqlOperator: SQL
-    if (operator === 'equals') {
-      sqlOperator = sql`=`
-    }
-    else if (operator === 'includes all') {
-      if (!Array.isArray(value) || !value.length) {
-        return null
-      }
-      // A having condition is also applied later on for fields with 'includes all'
-      return sql.join(
-        value.map(id => sql`${id} = ${sqlField}`),
-        sql` AND `,
-      )
-    }
-    else {
-      throw Error(`Unknown operator: ${operator}`)
-    }
-    return sql`${value} ${sqlOperator} ${sqlField}`
   }
 }

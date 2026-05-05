@@ -53,22 +53,38 @@ export const cacheMedia = pgTable('cache_media', {
   views: integer('views'),
   likes: integer('likes'),
   dislikes: integer('dislikes'),
+  // GIN-indexed array of plain source names (e.g. 'chan-browser') for source-only filters.
+  finderSourceIds: text('finder_source_ids')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
+  // GIN-indexed array of 'sourceId<TAB>mediaId' composites for exact source+media lookups.
   finderSourceMediaIds: text('finder_source_media_ids')
-    .array(2)
     .array()
     .notNull()
-    .default(sql`ARRAY[]::text[][]`),
-  // These are 2d arrays because instead of just storing the group id we store a tuple of [group id, parent group id] to make it easier to query for only subgroups of a specific group without needing to join with the group table to check the parent group id
-  groupIds: integer('group_ids') // groups here are populated based on the media finder results
-    .array(2)
+    .default(sql`ARRAY[]::text[]`),
+  // GIN-indexed array of group IDs (as text) the media belongs to,
+  // populated from media finder results.
+  groupIds: text('group_ids')
     .array()
     .notNull()
-    .default(sql`ARRAY[]::int[][]`),
-  originalGroupIds: integer('original_group_ids') // groups here are not from media finder results
-    .array(2)
+    .default(sql`ARRAY[]::text[]`),
+  // GIN-indexed array of group IDs for manually-assigned groups.
+  originalGroupIds: text('original_group_ids')
     .array()
     .notNull()
-    .default(sql`ARRAY[]::int[][]`),
+    .default(sql`ARRAY[]::text[]`),
+  // GIN-indexed array of tab-separated group hierarchy paths (leaf<TAB>parent<TAB>...<TAB>root<TAB>)
+  // for each group in groupIds. Enables ancestor-aware filtering.
+  groupPaths: text('group_paths')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
+  // Same as groupPaths but for originalGroupIds.
+  originalGroupPaths: text('original_group_paths')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
   hasVideo: boolean('has_video'),
   hasAudio: boolean('has_audio'),
   hasImage: boolean('has_image'),
@@ -121,9 +137,12 @@ export const cacheMedia = pgTable('cache_media', {
   hasImageIndex: index('cache_media__has_image_idx').on(cacheMedia.hasImage),
   hasAudioIndex: index('cache_media__has_audio_idx').on(cacheMedia.hasAudio),
   durationIndex: index('cache_media__duration_idx').on(cacheMedia.duration),
-  finderSourceMediaIds: index('cache_media__finder_source_media_ids_idx').on(cacheMedia.finderSourceMediaIds),
-  groupIdsIndex: index('cache_media__group_ids_idx').on(cacheMedia.groupIds),
-  originalGroupIdsIndex: index('cache_media__original_group_ids_idx').on(cacheMedia.originalGroupIds),
+  finderSourceIdsGinIndex: index('cache_media__finder_source_ids_gin_idx').using('gin', cacheMedia.finderSourceIds),
+  finderSourceMediaIdsGinIndex: index('cache_media__finder_source_media_ids_gin_idx').using('gin', cacheMedia.finderSourceMediaIds),
+  groupIdsGinIndex: index('cache_media__group_ids_gin_idx').using('gin', cacheMedia.groupIds),
+  originalGroupIdsGinIndex: index('cache_media__original_group_ids_gin_idx').using('gin', cacheMedia.originalGroupIds),
+  groupPathsGinIndex: index('cache_media__group_paths_gin_idx').using('gin', cacheMedia.groupPaths),
+  originalGroupPathsGinIndex: index('cache_media__original_group_paths_gin_idx').using('gin', cacheMedia.originalGroupPaths),
   fileSizeIndex: index('cache_media__file_size_idx').on(cacheMedia.fileSize),
   heightIndex: index('cache_media__height_idx').on(cacheMedia.height),
   widthIndex: index('cache_media__width_idx').on(cacheMedia.width),

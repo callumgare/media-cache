@@ -35,17 +35,15 @@ export async function fetchFieldCounts(condition: QueryFieldCondition, body: Que
   const whereSql: SQL = baseWhere ? sql`WHERE ${baseWhere}` : sql``
 
   if (condition.field === 'source') {
-    const col = dbSchema.cacheMedia.finderSourceMediaIds
+    const col = dbSchema.cacheMedia.finderSourceIds
     const rows = await db.execute<{ finder_source_id: string, count: number }>(sql`
-      SELECT s.finder_source_id, COUNT(DISTINCT cache_media.id)::int AS count
+      SELECT sub.src_id AS finder_source_id, COUNT(*)::int AS count
       FROM cache_media
       CROSS JOIN LATERAL (
-        SELECT ${col}[i][1] AS src_id
-        FROM generate_subscripts(${col}, 1) AS i
+        SELECT k AS src_id FROM unnest(${col}) k
       ) sub
-      JOIN source s ON s.finder_source_id = sub.src_id
       ${whereSql}
-      GROUP BY s.finder_source_id
+      GROUP BY sub.src_id
       ORDER BY count DESC
     `)
     return rows.map((r): SourceFacetCount => ({ finderSourceId: r.finder_source_id, count: r.count }))
@@ -54,17 +52,18 @@ export async function fetchFieldCounts(condition: QueryFieldCondition, body: Que
   if (condition.field === 'tags') {
     const col = dbSchema.cacheMedia.groupIds
     const rows = await db.execute<{ id: number, name: string, count: number }>(sql`
-      SELECT g.id, g.name, COUNT(DISTINCT cache_media.id)::int AS count
-      FROM cache_media
-      CROSS JOIN LATERAL (
-        SELECT ${col}[i][1] AS group_id
-        FROM generate_subscripts(${col}, 1) AS i
-        WHERE ${col}[i][2] = (SELECT id FROM "group" WHERE name = 'tags' AND parent_id IS NULL)
-      ) sub
-      JOIN "group" g ON g.id = sub.group_id
-      ${whereSql}
-      GROUP BY g.id, g.name
-      ORDER BY count DESC
+      SELECT g.id, g.name, counts.count
+      FROM (
+        SELECT k::int AS group_id, COUNT(*)::int AS count
+        FROM cache_media
+        CROSS JOIN LATERAL (
+          SELECT k FROM unnest(${col}) k
+        ) sub
+        ${whereSql}
+        GROUP BY 1
+      ) counts
+      JOIN "group" g ON g.id = counts.group_id
+      ORDER BY counts.count DESC
     `)
 
     const currentValues = new Set(

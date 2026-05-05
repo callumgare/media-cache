@@ -25,7 +25,8 @@ describe('runMediaFinderQuery — basic lifecycle', () => {
     const all = await getCacheMediaAll()
     expect(all).toHaveLength(1)
     expect(all[0].title).toBe('Hello World')
-    expect(all[0].finderSourceMediaIds).toEqual([['test-source', 'media-1']])
+    expect(all[0].finderSourceIds).toEqual(['test-source'])
+    expect(all[0].finderSourceMediaIds).toEqual(['test-source\tmedia-1'])
   })
 
   it('creates multiple cache_media entries for multiple media', async () => {
@@ -57,8 +58,8 @@ describe('runMediaFinderQuery — basic lifecycle', () => {
     await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST })
 
     const all = await getCacheMediaAll()
-    const vidRow = all.find(r => r.finderSourceMediaIds[0]?.[1] === 'vid')!
-    const imgRow = all.find(r => r.finderSourceMediaIds[0]?.[1] === 'img')!
+    const vidRow = all.find(r => r.finderSourceMediaIds.includes('test-source\tvid'))!
+    const imgRow = all.find(r => r.finderSourceMediaIds.includes('test-source\timg'))!
 
     expect(vidRow.hasVideo).toBe(true)
     expect(vidRow.hasImage).toBe(false)
