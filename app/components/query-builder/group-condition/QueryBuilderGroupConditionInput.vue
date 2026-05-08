@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { QueryGroupCondition } from '@@/types/query-condition'
-import type { QuerySchemaConfig } from '@@/types/query-schema-config.js'
+import type { QueryGroupCondition } from "@@/types/query-condition";
+import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
 
 defineProps<{
-  groupCondition: QueryGroupCondition
-  schemaConfig: QuerySchemaConfig
-}>()
+  groupCondition: QueryGroupCondition;
+  schemaConfig: QuerySchemaConfig;
+}>();
 </script>
 
 <template>

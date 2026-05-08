@@ -1,10 +1,10 @@
-import type PhotoSwipeLightbox from 'photoswipe/lightbox'
+import type PhotoSwipeLightbox from "photoswipe/lightbox";
 
-let _photoSwipe: PhotoSwipeLightbox
+let _photoSwipe: PhotoSwipeLightbox;
 export function registerMediaSwipe(photoSwipe: PhotoSwipeLightbox) {
-  _photoSwipe = photoSwipe
+  _photoSwipe = photoSwipe;
 }
 
 export function useMediaSwipeOpen() {
-  return (slideIndex: number) => _photoSwipe?.loadAndOpen(slideIndex)
+  return (slideIndex: number) => _photoSwipe?.loadAndOpen(slideIndex);
 }

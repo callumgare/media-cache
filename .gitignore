@@ -4,6 +4,7 @@
 .nuxt
 .nitro
 .cache
+.biomecache
 dist
 
 # Node dependencies

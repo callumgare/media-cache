@@ -1,17 +1,20 @@
-import { sql } from 'drizzle-orm'
-import type { GenericMedia } from 'media-finder'
-import { db, dbSchema } from '@@/server/utils/drizzle'
+import { db, dbSchema } from "@@/server/utils/drizzle";
+import { sql } from "drizzle-orm";
+import type { GenericMedia } from "media-finder";
 
-export const TEST_REQUEST = { source: 'test-source' as const, queryType: 'test-handler' as const }
+export const TEST_REQUEST = {
+  source: "test-source" as const,
+  queryType: "test-handler" as const,
+};
 
 export function makeMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
-  const id = overrides.id ?? Math.random().toString(36).slice(2)
+  const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {
-    mediaFinderSource: 'test-source',
+    mediaFinderSource: "test-source",
     id,
     files: [
       {
-        type: 'main',
+        type: "main",
         url: `https://example.com/media-${id}.mp4`,
         video: true,
         audio: false,
@@ -19,17 +22,19 @@ export function makeMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
       },
     ],
     ...overrides,
-  }
+  };
 }
 
-export function makeImageMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
-  const id = overrides.id ?? Math.random().toString(36).slice(2)
+export function makeImageMedia(
+  overrides: Partial<GenericMedia> = {},
+): GenericMedia {
+  const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {
-    mediaFinderSource: 'test-source',
+    mediaFinderSource: "test-source",
     id,
     files: [
       {
-        type: 'main',
+        type: "main",
         url: `https://example.com/image-${id}.jpg`,
         video: false,
         audio: false,
@@ -37,12 +42,12 @@ export function makeImageMedia(overrides: Partial<GenericMedia> = {}): GenericMe
       },
     ],
     ...overrides,
-  }
+  };
 }
 
 export function enqueueMedia(medias: GenericMedia[]) {
-  if (!globalThis.__testPluginQueue) globalThis.__testPluginQueue = []
-  globalThis.__testPluginQueue.push(medias)
+  if (!globalThis.__testPluginQueue) globalThis.__testPluginQueue = [];
+  globalThis.__testPluginQueue.push(medias);
 }
 
 export async function truncateAll() {
@@ -58,31 +63,31 @@ export async function truncateAll() {
       "group",
       source
     RESTART IDENTITY CASCADE
-  `)
+  `);
   // Reset the test plugin queue so stale enqueued items don't bleed into the next test
-  globalThis.__testPluginQueue = []
+  globalThis.__testPluginQueue = [];
 }
 
 export async function getCacheMediaAll() {
-  return db.select().from(dbSchema.cacheMedia)
+  return db.select().from(dbSchema.cacheMedia);
 }
 
 export async function getDeletedCacheMediaAll() {
-  return db.select().from(dbSchema.deletedCacheMedia)
+  return db.select().from(dbSchema.deletedCacheMedia);
 }
 
 export async function getCacheMediaById(id: number) {
-  return db.query.cacheMedia.findFirst({ where: (m, { eq }) => eq(m.id, id) })
+  return db.query.cacheMedia.findFirst({ where: (m, { eq }) => eq(m.id, id) });
 }
 
 export async function getGroupByName(name: string) {
-  return db.query.group.findFirst({ where: (g, { eq }) => eq(g.name, name) })
+  return db.query.group.findFirst({ where: (g, { eq }) => eq(g.name, name) });
 }
 
 export async function getFinderQueryExecutionAll() {
-  return db.select().from(dbSchema.finderQueryExecution)
+  return db.select().from(dbSchema.finderQueryExecution);
 }
 
 export async function getFinderQueryMediaAll() {
-  return db.select().from(dbSchema.finderQueryMedia)
+  return db.select().from(dbSchema.finderQueryMedia);
 }

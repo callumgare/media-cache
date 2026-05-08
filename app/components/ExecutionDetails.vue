@@ -61,38 +61,41 @@
 </template>
 
 <script setup lang="ts">
-import type { QueryExecutionTask } from '@@/server/lib/media-finder/execution-tasks'
+import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
 
 const props = defineProps<{
-  fetchCountLimit: number | null
-  activeTask: QueryExecutionTask | null
-  lastTask: QueryExecutionTask | null
-}>()
+  fetchCountLimit: number | null;
+  activeTask: QueryExecutionTask | null;
+  lastTask: QueryExecutionTask | null;
+}>();
 
-const renderMode = computed<'live' | 'completed' | 'never-run'>(() => {
-  if (props.activeTask) return 'live'
-  if (props.lastTask) return 'completed'
-  return 'never-run'
-})
+const renderMode = computed<"live" | "completed" | "never-run">(() => {
+  if (props.activeTask) return "live";
+  if (props.lastTask) return "completed";
+  return "never-run";
+});
 
 // Denominator for the progress bar when a query is running.
 // Use the last run's pageCount, but fall back to fetchCountLimit if the current run
 // substantially exceeds it (>1.5x), and fall back to 0 (indeterminate) if neither is available.
 const expectedPages = computed(() => {
-  if (!props.activeTask) return 0
-  const prev = props.lastTask?.pageCount ?? -1
-  const limit = props.fetchCountLimit ?? 0
+  if (!props.activeTask) return 0;
+  const prev = props.lastTask?.pageCount ?? -1;
+  const limit = props.fetchCountLimit ?? 0;
   if (prev > 0) {
-    if (props.activeTask.pageCount <= prev * 1.5) return prev
-    return limit > 0 ? limit : 0
+    if (props.activeTask.pageCount <= prev * 1.5) return prev;
+    return limit > 0 ? limit : 0;
   }
-  return limit > 0 ? limit : 0
-})
+  return limit > 0 ? limit : 0;
+});
 
 const progressPercent = computed(() => {
-  if (!props.activeTask || expectedPages.value <= 0) return 0
-  return Math.min(100, Math.round((props.activeTask.pageCount / expectedPages.value) * 100))
-})
+  if (!props.activeTask || expectedPages.value <= 0) return 0;
+  return Math.min(
+    100,
+    Math.round((props.activeTask.pageCount / expectedPages.value) * 100),
+  );
+});
 </script>
 
 <style scoped>

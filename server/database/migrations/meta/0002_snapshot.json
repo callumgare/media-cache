@@ -173,12 +173,8 @@
           "name": "File_mediaId_Media_id_fk",
           "tableFrom": "File",
           "tableTo": "Media",
-          "columnsFrom": [
-            "mediaId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mediaId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -330,12 +326,8 @@
           "name": "GroupEntry_parentId_GroupEntry_id_fk",
           "tableFrom": "GroupEntry",
           "tableTo": "GroupEntry",
-          "columnsFrom": [
-            "parentId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parentId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -343,12 +335,8 @@
           "name": "GroupEntry_groupId_Group_id_fk",
           "tableFrom": "GroupEntry",
           "tableTo": "Group",
-          "columnsFrom": [
-            "groupId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["groupId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -356,12 +344,8 @@
           "name": "GroupEntry_mediaId_Media_id_fk",
           "tableFrom": "GroupEntry",
           "tableTo": "Media",
-          "columnsFrom": [
-            "mediaId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mediaId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -524,12 +508,8 @@
           "name": "MediaFinderHistory_queryId_MediaFinderQuery_id_fk",
           "tableFrom": "MediaFinderHistory",
           "tableTo": "MediaFinderQuery",
-          "columnsFrom": [
-            "queryId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["queryId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -651,16 +631,12 @@
         "MediaFinderResponseItemContent_content_unique": {
           "name": "MediaFinderResponseItemContent_content_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "content"
-          ]
+          "columns": ["content"]
         },
         "MediaFinderResponseItemContent_contentHash_unique": {
           "name": "MediaFinderResponseItemContent_contentHash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "contentHash"
-          ]
+          "columns": ["contentHash"]
         }
       }
     },
@@ -724,12 +700,8 @@
           "name": "MediaFinderResponseItemMap_contentHash_MediaFinderResponseItemContent_contentHash_fk",
           "tableFrom": "MediaFinderResponseItemMap",
           "tableTo": "MediaFinderResponseItemContent",
-          "columnsFrom": [
-            "contentHash"
-          ],
-          "columnsTo": [
-            "contentHash"
-          ],
+          "columnsFrom": ["contentHash"],
+          "columnsTo": ["contentHash"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -737,12 +709,8 @@
           "name": "MediaFinderResponseItemMap_queryHistoryId_MediaFinderHistory_id_fk",
           "tableFrom": "MediaFinderResponseItemMap",
           "tableTo": "MediaFinderHistory",
-          "columnsFrom": [
-            "queryHistoryId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["queryHistoryId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -828,9 +796,7 @@
         "MergedMediaIndex_originalMediaId_unique": {
           "name": "MergedMediaIndex_originalMediaId_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "originalMediaId"
-          ]
+          "columns": ["originalMediaId"]
         }
       }
     },
@@ -871,9 +837,7 @@
         "Source_finderSourceId_unique": {
           "name": "Source_finderSourceId_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "finderSourceId"
-          ]
+          "columns": ["finderSourceId"]
         }
       }
     },
@@ -1043,12 +1007,8 @@
           "name": "SourceMediaDetails_finderSourceId_Source_finderSourceId_fk",
           "tableFrom": "SourceMediaDetails",
           "tableTo": "Source",
-          "columnsFrom": [
-            "finderSourceId"
-          ],
-          "columnsTo": [
-            "finderSourceId"
-          ],
+          "columnsFrom": ["finderSourceId"],
+          "columnsTo": ["finderSourceId"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1056,12 +1016,8 @@
           "name": "SourceMediaDetails_mediaId_Media_id_fk",
           "tableFrom": "SourceMediaDetails",
           "tableTo": "Media",
-          "columnsFrom": [
-            "mediaId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mediaId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

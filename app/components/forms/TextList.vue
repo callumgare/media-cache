@@ -1,13 +1,13 @@
 <script setup lang="ts">
-const modelValue = defineModel<string[]>()
+const modelValue = defineModel<string[]>();
 
-const newItem = ref('')
+const newItem = ref("");
 function addItem() {
   if (!modelValue.value) {
-    modelValue.value = []
+    modelValue.value = [];
   }
-  modelValue.value.push(newItem.value)
-  newItem.value = ''
+  modelValue.value.push(newItem.value);
+  newItem.value = "";
 }
 </script>
 

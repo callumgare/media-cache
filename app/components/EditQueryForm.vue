@@ -151,159 +151,188 @@
 </template>
 
 <script setup lang="ts">
-import JsonInput from './forms/JsonInput.vue'
-import TextList from './forms/TextList.vue'
-import type { FinderQuery } from '@@/server/database/schema'
-import { useUiState } from '@@/stores/ui'
+import type { FinderQuery } from "@@/server/database/schema";
+import { useUiState } from "@@/stores/ui";
+import JsonInput from "./forms/JsonInput.vue";
+import TextList from "./forms/TextList.vue";
 
-type JsonSchemaWithProperties = { properties: Record<string, Record<string, unknown>> }
+type JsonSchemaWithProperties = {
+  properties: Record<string, Record<string, unknown>>;
+};
 
 type SchemaOption = {
-  name: string
-  type?: string
-  enum?: unknown[]
-  items?: { type?: string }
-  [key: string]: unknown
-}
+  name: string;
+  type?: string;
+  enum?: unknown[];
+  items?: { type?: string };
+  [key: string]: unknown;
+};
 
-type FormData = Partial<Omit<FinderQuery, 'requestOptions' | 'createdAt' | 'updatedAt'>> & {
-  requestOptions: Record<string, unknown>
-  id?: number
-  createdAt?: Date | string
-  updatedAt?: Date | string
-}
+type FormData = Partial<
+  Omit<FinderQuery, "requestOptions" | "createdAt" | "updatedAt">
+> & {
+  requestOptions: Record<string, unknown>;
+  id?: number;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+};
 
 const props = defineProps<{
-  mediaQuery?: Omit<FinderQuery, 'requestOptions' | 'createdAt' | 'updatedAt'> & {
-    requestOptions: Record<string, unknown>
-    createdAt?: Date | string
-    updatedAt?: Date | string
-  }
-}>()
+  mediaQuery?: Omit<
+    FinderQuery,
+    "requestOptions" | "createdAt" | "updatedAt"
+  > & {
+    requestOptions: Record<string, unknown>;
+    createdAt?: Date | string;
+    updatedAt?: Date | string;
+  };
+}>();
 
-const toast = useToast()
+const toast = useToast();
 
-const uiState = useUiState()
+const uiState = useUiState();
 
-const { data: finderDetails, error: finderDetailsError } = await useFetch('/api/admin/finder-details')
+const { data: finderDetails, error: finderDetailsError } = await useFetch(
+  "/api/admin/finder-details",
+);
 
 if (finderDetailsError.value) {
-  throw finderDetailsError.value
+  throw finderDetailsError.value;
 }
 
-const sources = Object.values(finderDetails.value?.sources || {})
+const sources = Object.values(finderDetails.value?.sources || {});
 
-const formValue = ref<FormData>(props.mediaQuery ?? {
-  requestOptions: {
-    source: null,
-    queryType: null,
+const formValue = ref<FormData>(
+  props.mediaQuery ?? {
+    requestOptions: {
+      source: null,
+      queryType: null,
+    },
+    fetchCountLimit: null,
   },
-  fetchCountLimit: null,
-})
+);
 
 const selectedSourceId = computed(() => {
-  const source = formValue.value.requestOptions.source
-  return typeof source === 'string' ? source : ''
-})
+  const source = formValue.value.requestOptions.source;
+  return typeof source === "string" ? source : "";
+});
 
 const requestHandlers = computed(() => {
-  return finderDetails.value?.sources[selectedSourceId.value]?.requestHandlers
-})
+  return finderDetails.value?.sources[selectedSourceId.value]?.requestHandlers;
+});
 
 const requestOptions = computed<SchemaOption[]>(() => {
-  const schema = finderDetails.value?.sources[selectedSourceId.value]
-    ?.requestHandlers.find(handler => handler.id === formValue.value.requestOptions.queryType)
-    ?.schema
+  const schema = finderDetails.value?.sources[
+    selectedSourceId.value
+  ]?.requestHandlers.find(
+    (handler) => handler.id === formValue.value.requestOptions.queryType,
+  )?.schema;
 
-  return schema && isJsonSchemaWithProperties(schema) ? convertJSONSchemaToListOfOptions(schema) : []
-})
+  return schema && isJsonSchemaWithProperties(schema)
+    ? convertJSONSchemaToListOfOptions(schema)
+    : [];
+});
 
 const formattedFormValue = computed(() => ({
   ...formValue.value,
   requestOptions: Object.fromEntries(
-    Object.entries(formValue.value.requestOptions).filter(([, value]) => value !== null),
+    Object.entries(formValue.value.requestOptions).filter(
+      ([, value]) => value !== null,
+    ),
   ),
-}))
+}));
 
 function getStringOption(name: string): string | null | undefined {
-  const val = formValue.value.requestOptions[name]
-  if (typeof val === 'string' || val === null || val === undefined) return val
-  return undefined
+  const val = formValue.value.requestOptions[name];
+  if (typeof val === "string" || val === null || val === undefined) return val;
+  return undefined;
 }
 
 function getNumberOption(name: string): number | null | undefined {
-  const val = formValue.value.requestOptions[name]
-  if (typeof val === 'number' || val === null || val === undefined) return val
-  return undefined
+  const val = formValue.value.requestOptions[name];
+  if (typeof val === "number" || val === null || val === undefined) return val;
+  return undefined;
 }
 
 function getJsonOption(name: string): string | undefined {
-  const val = formValue.value.requestOptions[name]
-  if (typeof val === 'string' || val === undefined) return val
-  if (val === null) return undefined
-  return JSON.stringify(val)
+  const val = formValue.value.requestOptions[name];
+  if (typeof val === "string" || val === undefined) return val;
+  if (val === null) return undefined;
+  return JSON.stringify(val);
 }
 
 function getArrayOption(name: string): string[] | undefined {
-  const val = formValue.value.requestOptions[name]
-  if (!Array.isArray(val)) return undefined
-  return val.filter((item): item is string => typeof item === 'string')
+  const val = formValue.value.requestOptions[name];
+  if (!Array.isArray(val)) return undefined;
+  return val.filter((item): item is string => typeof item === "string");
 }
 
 function setOption(name: string, value: unknown): void {
-  formValue.value.requestOptions[name] = value
+  formValue.value.requestOptions[name] = value;
 }
 
-function isJsonSchemaWithProperties(schema: unknown): schema is JsonSchemaWithProperties {
-  return typeof schema === 'object' && schema !== null && 'properties' in schema
+function isJsonSchemaWithProperties(
+  schema: unknown,
+): schema is JsonSchemaWithProperties {
+  return (
+    typeof schema === "object" && schema !== null && "properties" in schema
+  );
 }
 
-function convertJSONSchemaToListOfOptions(schema: JsonSchemaWithProperties): SchemaOption[] {
-  const { source, queryType, ...otherOptions } = schema.properties
-  return Object.entries(otherOptions).map(([name, value]) => ({ name, ...value }))
+function convertJSONSchemaToListOfOptions(
+  schema: JsonSchemaWithProperties,
+): SchemaOption[] {
+  const { source, queryType, ...otherOptions } = schema.properties;
+  return Object.entries(otherOptions).map(([name, value]) => ({
+    name,
+    ...value,
+  }));
 }
 
 function camelCaseToTitleCase(s: string) {
-  const result = s.replace(/([A-Z])/g, ' $1')
-  return result.charAt(0).toUpperCase() + result.slice(1)
+  const result = s.replace(/([A-Z])/g, " $1");
+  return result.charAt(0).toUpperCase() + result.slice(1);
 }
 
 async function handleValidateClick() {
   try {
     if (!formattedFormValue.value.id) {
-      const mediaQuery = await $fetch('/api/admin/queries', {
-        method: 'POST',
+      const mediaQuery = await $fetch("/api/admin/queries", {
+        method: "POST",
         body: {
-          title: 'fake title',
+          title: "fake title",
           schedule: 0,
           ...formattedFormValue.value,
         },
-      })
-      toast.add({ severity: 'success', summary: 'Created', life: 3000 })
-      await navigateTo(`/admin/queries`)
+      });
+      toast.add({ severity: "success", summary: "Created", life: 3000 });
+      await navigateTo("/admin/queries");
       setTimeout(() => {
-        location.hash = `#query-${mediaQuery?.id}`
-      }, 200)
-    }
-    else {
+        location.hash = `#query-${mediaQuery?.id}`;
+      }, 200);
+    } else {
       await $fetch(`/api/admin/queries/${formattedFormValue.value.id}`, {
-        method: 'POST',
+        method: "POST",
         body: {
-          title: 'fake title',
+          title: "fake title",
           schedule: 0,
           ...formattedFormValue.value,
         },
-      })
-      toast.add({ severity: 'success', summary: 'Updated', life: 6000 })
-      await navigateTo(`/admin/queries`)
+      });
+      toast.add({ severity: "success", summary: "Updated", life: 6000 });
+      await navigateTo("/admin/queries");
       setTimeout(() => {
-        location.hash = `#query-${formattedFormValue.value.id}`
-      }, 200)
+        location.hash = `#query-${formattedFormValue.value.id}`;
+      }, 200);
     }
-  }
-  catch (error) {
-    console.error(error)
-    toast.add({ severity: 'error', summary: 'Failed', detail: error instanceof Error ? error.message : String(error), life: 3000 })
+  } catch (error) {
+    console.error(error);
+    toast.add({
+      severity: "error",
+      summary: "Failed",
+      detail: error instanceof Error ? error.message : String(error),
+      life: 3000,
+    });
   }
 }
 </script>

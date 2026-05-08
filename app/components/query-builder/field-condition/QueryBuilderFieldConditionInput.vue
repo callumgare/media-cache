@@ -1,26 +1,32 @@
 <script setup lang="ts">
-import type { QueryFieldCondition } from '@@/types/query-condition'
-import type { QuerySchemaConfig } from '@@/types/query-schema-config.js'
+import type { QueryFieldCondition } from "@@/types/query-condition";
+import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
 
 const props = defineProps<{
-  fieldCondition: QueryFieldCondition
-  schemaConfig: QuerySchemaConfig
-}>()
+  fieldCondition: QueryFieldCondition;
+  schemaConfig: QuerySchemaConfig;
+}>();
 
 const fieldType = computed(() => {
-  const fieldSchema = props.schemaConfig.availableFields
-    .find(fieldSchema => fieldSchema.id === props.fieldCondition.field)
+  const fieldSchema = props.schemaConfig.availableFields.find(
+    (fieldSchema) => fieldSchema.id === props.fieldCondition.field,
+  );
   if (!fieldSchema) {
-    throw Error(`Could not get field schema for field: "${props.fieldCondition.field}"`)
+    throw Error(
+      `Could not get field schema for field: "${props.fieldCondition.field}"`,
+    );
   }
-  const fieldType = props.schemaConfig.fieldTypes
-    .find(fieldType => fieldType.name === fieldSchema.type)
+  const fieldType = props.schemaConfig.fieldTypes.find(
+    (fieldType) => fieldType.name === fieldSchema.type,
+  );
 
   if (!fieldType) {
-    throw Error(`Could not get field type info for field "${props.fieldCondition.id}" of type "${props.fieldCondition.field}"`)
+    throw Error(
+      `Could not get field type info for field "${props.fieldCondition.id}" of type "${props.fieldCondition.field}"`,
+    );
   }
-  return fieldType
-})
+  return fieldType;
+});
 </script>
 
 <template>

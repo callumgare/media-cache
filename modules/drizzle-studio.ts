@@ -1,34 +1,34 @@
-import { defineNuxtModule } from 'nuxt/kit'
-import { addCustomTab, startSubprocess } from '@nuxt/devtools-kit'
+import { addCustomTab, startSubprocess } from "@nuxt/devtools-kit";
+import { defineNuxtModule } from "nuxt/kit";
 
 export default defineNuxtModule({
   meta: {
-    name: 'drizzle-studio',
+    name: "drizzle-studio",
   },
   setup(_options, nuxt) {
     if (!nuxt.options.dev) {
-      return
+      return;
     }
 
     startSubprocess(
       {
-        command: 'npx',
-        args: ['drizzle-kit', 'studio'],
+        command: "npx",
+        args: ["drizzle-kit", "studio"],
       },
       {
-        id: 'nuxt-drizzle-kit--studio',
-        name: 'Drizzle Studio',
+        id: "nuxt-drizzle-kit--studio",
+        name: "Drizzle Studio",
       },
-    )
+    );
 
     addCustomTab({
-      name: 'dizzle-studio',
-      title: 'Drizzle Studio',
-      icon: 'simple-icons:drizzle',
+      name: "dizzle-studio",
+      title: "Drizzle Studio",
+      icon: "simple-icons:drizzle",
       view: {
-        type: 'iframe',
-        src: 'https://local.drizzle.studio',
+        type: "iframe",
+        src: "https://local.drizzle.studio",
       },
-    })
+    });
   },
-})
+});

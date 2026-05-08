@@ -76,88 +76,100 @@
 </template>
 
 <script setup lang="ts">
-import type { QueryExecutionTask } from '@@/server/lib/media-finder/execution-tasks'
+import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
 
-const toast = useToast()
-const route = useRoute()
+const toast = useToast();
+const route = useRoute();
 
-const { data: queryList, error: finderDetailsError, refresh: refreshQueryList } = await useFetch('/api/admin/queries')
+const {
+  data: queryList,
+  error: finderDetailsError,
+  refresh: refreshQueryList,
+} = await useFetch("/api/admin/queries");
 
 if (finderDetailsError.value) {
-  throw finderDetailsError.value
+  throw finderDetailsError.value;
 }
 
-type QueryRow = NonNullable<typeof queryList.value>[number]
+type QueryRow = NonNullable<typeof queryList.value>[number];
 
-const { tasks, tasksLoaded } = useTasks()
+const { tasks, tasksLoaded } = useTasks();
 
 function activeTaskForQuery(queryId: number): QueryExecutionTask | null {
   for (const task of tasks.value.values()) {
-    if (task.type !== 'query_execution') continue
-    const qet = task as QueryExecutionTask
-    if (qet.queryId === queryId && qet.finishedAt === null) return qet
+    if (task.type !== "query_execution") continue;
+    const qet = task as QueryExecutionTask;
+    if (qet.queryId === queryId && qet.finishedAt === null) return qet;
   }
-  return null
+  return null;
 }
 
 function lastTaskForQuery(queryId: number): QueryExecutionTask | null {
-  let best: QueryExecutionTask | null = null
+  let best: QueryExecutionTask | null = null;
   for (const task of tasks.value.values()) {
-    if (task.type !== 'query_execution') continue
-    const qet = task as QueryExecutionTask
-    if (qet.queryId !== queryId || qet.finishedAt === null) continue
-    if (!best || qet.startedAt > best.startedAt) best = qet
+    if (task.type !== "query_execution") continue;
+    const qet = task as QueryExecutionTask;
+    if (qet.queryId !== queryId || qet.finishedAt === null) continue;
+    if (!best || qet.startedAt > best.startedAt) best = qet;
   }
-  return best
+  return best;
 }
 
 function statusLabel(query: QueryRow): string {
-  if (activeTaskForQuery(query.id)) return 'Running…'
-  const last = lastTaskForQuery(query.id)
-  if (!last) return 'Never run'
-  if (last.error || last.status === 'failed') return 'Failed'
-  return 'Completed'
+  if (activeTaskForQuery(query.id)) return "Running…";
+  const last = lastTaskForQuery(query.id);
+  if (!last) return "Never run";
+  if (last.error || last.status === "failed") return "Failed";
+  return "Completed";
 }
 
 function statusClass(query: QueryRow): string {
-  if (activeTaskForQuery(query.id)) return 'running'
-  const last = lastTaskForQuery(query.id)
-  if (!last) return 'never'
-  if (last.error || last.status === 'failed') return 'failed'
-  return 'completed'
+  if (activeTaskForQuery(query.id)) return "running";
+  const last = lastTaskForQuery(query.id);
+  if (!last) return "never";
+  if (last.error || last.status === "failed") return "failed";
+  return "completed";
 }
-const expandedRows = ref<Record<string, boolean>>({})
+const expandedRows = ref<Record<string, boolean>>({});
 
 onMounted(() => {
-  const expandId = route.query.expandQuery
+  const expandId = route.query.expandQuery;
   if (expandId) {
-    expandedRows.value = { [String(expandId)]: true }
-    const el = document.getElementById(`query-${expandId}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    expandedRows.value = { [String(expandId)]: true };
+    const el = document.getElementById(`query-${expandId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
-})
+});
 
 async function runQuery(query: QueryRow) {
   try {
-    await $fetch(`/api/admin/queries/${query.id}/run`)
-    toast.add({ severity: 'success', summary: 'Started', life: 3000 })
-    expandedRows.value = { ...expandedRows.value, [String(query.id)]: true }
-  }
-  catch (error) {
-    console.error(error)
-    toast.add({ severity: 'error', summary: 'Failed', detail: (error as Error).message, life: 3000 })
+    await $fetch(`/api/admin/queries/${query.id}/run`);
+    toast.add({ severity: "success", summary: "Started", life: 3000 });
+    expandedRows.value = { ...expandedRows.value, [String(query.id)]: true };
+  } catch (error) {
+    console.error(error);
+    toast.add({
+      severity: "error",
+      summary: "Failed",
+      detail: (error as Error).message,
+      life: 3000,
+    });
   }
 }
 
 async function deleteQuery(query: QueryRow) {
   try {
-    await $fetch(`/api/admin/queries/${query.id}`, { method: 'DELETE' })
-    await refreshQueryList()
-    toast.add({ severity: 'success', summary: 'Deleted', life: 3000 })
-  }
-  catch (error) {
-    console.error(error)
-    toast.add({ severity: 'error', summary: 'Failed', detail: (error as Error).message, life: 3000 })
+    await $fetch(`/api/admin/queries/${query.id}`, { method: "DELETE" });
+    await refreshQueryList();
+    toast.add({ severity: "success", summary: "Deleted", life: 3000 });
+  } catch (error) {
+    console.error(error);
+    toast.add({
+      severity: "error",
+      summary: "Failed",
+      detail: (error as Error).message,
+      life: 3000,
+    });
   }
 }
 </script>

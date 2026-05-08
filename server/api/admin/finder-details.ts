@@ -1,13 +1,14 @@
-import { sql } from 'drizzle-orm'
-import { zodToJsonSchema } from 'zod-to-json-schema'
-import { getMediaFinder } from '@@/server/lib/media-finder'
+import { getMediaFinder } from "@@/server/lib/media-finder";
+import { sql } from "drizzle-orm";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 export default defineEventHandler(async () => {
-  const mediaFinder = await getMediaFinder()
-  const tags = await db.select({
-    id: dbSchema.group.id,
-    name: dbSchema.group.name,
-    count: sql<number>`(
+  const mediaFinder = await getMediaFinder();
+  const tags = await db
+    .select({
+      id: dbSchema.group.id,
+      name: dbSchema.group.name,
+      count: sql<number>`(
       SELECT count(*) FROM cache_media
       WHERE EXISTS (
         SELECT 1
@@ -15,23 +16,25 @@ export default defineEventHandler(async () => {
         WHERE k::int = ${dbSchema.group.id}
       )
     )`,
-  })
+    })
     .from(dbSchema.group)
     .orderBy(dbSchema.group.name)
-    .groupBy(dbSchema.group.id)
+    .groupBy(dbSchema.group.id);
   return {
     sources: Object.fromEntries(
-      Object.values(mediaFinder.sources)
-        .map(source => [source.id, {
+      Object.values(mediaFinder.sources).map((source) => [
+        source.id,
+        {
           id: source.id,
           name: source.displayName,
-          requestHandlers: source.requestHandlers.map(handler => ({
+          requestHandlers: source.requestHandlers.map((handler) => ({
             id: handler.id,
             name: handler.displayName,
             schema: zodToJsonSchema(handler.requestSchema),
           })),
-        }]),
+        },
+      ]),
     ),
     tags: tags,
-  }
-})
+  };
+});

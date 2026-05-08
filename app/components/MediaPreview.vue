@@ -1,116 +1,128 @@
 <script setup lang="ts">
-import type { z } from 'zod'
-import Hls from 'hls.js'
-import { useUiState } from '@@/stores/ui'
+import { useUiState } from "@@/stores/ui";
+import Hls from "hls.js";
+import type { z } from "zod";
 
-import type { APIMedia, APIMediaFile } from '@@/types/api-media'
+import type { APIMedia, APIMediaFile } from "@@/types/api-media";
 
-type File = z.infer<typeof APIMediaFile>
+type File = z.infer<typeof APIMediaFile>;
 
 const props = defineProps<{
-  media: z.infer<typeof APIMedia>
-}>()
+  media: z.infer<typeof APIMedia>;
+}>();
 
-const emits = defineEmits<{
-  (e: 'mediaClick', value: z.infer<typeof APIMedia>): void
-}>()
+const emits =
+  defineEmits<(e: "mediaClick", value: z.infer<typeof APIMedia>) => void>();
 
-const maxHeight = computed(() => Math.max(...props.media.files.map(file => file.height || 0)))
+const maxHeight = computed(() =>
+  Math.max(...props.media.files.map((file) => file.height || 0)),
+);
 
-const thumbnailDisplayHeight = 300
+const thumbnailDisplayHeight = 300;
 const fileSortWeight = (file: File) => {
   // Bias towards media that is closest to display height
-  let weight = file.height ? (Math.abs(file.height - thumbnailDisplayHeight) / Math.max(maxHeight.value, thumbnailDisplayHeight)) : 1
-  if (!file.hasVideo) weight += 1
-  return weight
-}
-const uiState = useUiState()
+  let weight = file.height
+    ? Math.abs(file.height - thumbnailDisplayHeight) /
+      Math.max(maxHeight.value, thumbnailDisplayHeight)
+    : 1;
+  if (!file.hasVideo) weight += 1;
+  return weight;
+};
+const uiState = useUiState();
 
-const files = computed(() => props.media.files.toSorted((a, b) => fileSortWeight(a) - fileSortWeight(b)))
+const files = computed(() =>
+  props.media.files.toSorted((a, b) => fileSortWeight(a) - fileSortWeight(b)),
+);
 
-const displayElement = computed(() => files.value.some(file => file.hasVideo && file.ext !== 'gif') ? 'video' : 'image')
-const videoFile = computed(() => files.value.find(file => file.hasVideo && file.ext !== 'gif'))
-const imageFile = computed(() => files.value.find(file => file.hasImage || file.ext === 'gif'))
+const displayElement = computed(() =>
+  files.value.some((file) => file.hasVideo && file.ext !== "gif")
+    ? "video"
+    : "image",
+);
+const videoFile = computed(() =>
+  files.value.find((file) => file.hasVideo && file.ext !== "gif"),
+);
+const imageFile = computed(() =>
+  files.value.find((file) => file.hasImage || file.ext === "gif"),
+);
 
-const getSrc = (file: File) => `${document.location.origin}/file/${props.media.id}/${file?.type}/${file.filename}`
+const getSrc = (file: File) =>
+  `${document.location.origin}/file/${props.media.id}/${file?.type}/${file.filename}`;
 
 const posterSrc = computed(() => {
   if (imageFile.value) {
-    return getSrc(imageFile.value)
+    return getSrc(imageFile.value);
   }
-  else if (videoFile.value) {
-    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.type}/${thumbnailDisplayHeight}`
+  if (videoFile.value) {
+    return `${document.location.origin}/file/poster/${props.media.id}/${videoFile.value?.type}/${thumbnailDisplayHeight}`;
   }
-  else {
-    return ''
-  }
-})
 
-const hls = ref<Hls | null>(null)
+  return "";
+});
+
+const hls = ref<Hls | null>(null);
 
 onMounted(() => {
-  const file = videoFile.value
+  const file = videoFile.value;
 
   if (!file || videoRef.value === null) {
-    return
+    return;
   }
 
-  const videoSrc = getSrc(file)
-  if (file.ext === 'm3u8') {
-    if (videoRef.value.canPlayType('application/vnd.apple.mpegurl')) {
-      videoRef.value.src = videoSrc
+  const videoSrc = getSrc(file);
+  if (file.ext === "m3u8") {
+    if (videoRef.value.canPlayType("application/vnd.apple.mpegurl")) {
+      videoRef.value.src = videoSrc;
+    } else if (Hls.isSupported()) {
+      hls.value = new Hls();
+    } else {
+      throw Error("Browser can't play HLS");
     }
-    else if (Hls.isSupported()) {
-      hls.value = new Hls()
-    }
-    else {
-      throw Error('Browser can\'t play HLS')
-    }
+  } else {
+    videoRef.value.src = videoSrc;
   }
-  else {
-    videoRef.value.src = videoSrc
-  }
-})
+});
 
-const videoRef = ref<HTMLVideoElement | null>(null)
-const imgRef = ref<HTMLImageElement | null>(null)
-const naturalSizeLoaded = ref(false)
+const videoRef = ref<HTMLVideoElement | null>(null);
+const imgRef = ref<HTMLImageElement | null>(null);
+const naturalSizeLoaded = ref(false);
 
 function onMediaLoaded() {
-  naturalSizeLoaded.value = true
+  naturalSizeLoaded.value = true;
 }
 
 onMounted(() => {
   // @load / @loadedmetadata won't fire for already-cached media
-  if (imgRef.value?.complete) naturalSizeLoaded.value = true
-  if (videoRef.value && videoRef.value.readyState >= 1) naturalSizeLoaded.value = true
+  if (imgRef.value?.complete) naturalSizeLoaded.value = true;
+  if (videoRef.value && videoRef.value.readyState >= 1)
+    naturalSizeLoaded.value = true;
 
   // Treat the video poster as a proxy for "something visible has loaded"
   if (videoRef.value && posterSrc.value) {
-    const posterImg = new Image()
-    posterImg.onload = onMediaLoaded
-    posterImg.src = posterSrc.value
-    if (posterImg.complete) naturalSizeLoaded.value = true
+    const posterImg = new Image();
+    posterImg.onload = onMediaLoaded;
+    posterImg.src = posterSrc.value;
+    if (posterImg.complete) naturalSizeLoaded.value = true;
   }
-})
+});
 
 function playHlsVideo() {
-  const file = videoFile.value
+  const file = videoFile.value;
   if (!file || videoRef.value === null || !hls.value) {
-    return
+    return;
   }
 
-  const videoSrc = getSrc(file)
-  hls.value.loadSource(videoSrc)
-  hls.value?.attachMedia(videoRef.value)
+  const videoSrc = getSrc(file);
+  hls.value.loadSource(videoSrc);
+  hls.value?.attachMedia(videoRef.value);
 }
-const hoverOverPlayCountdown = ref<NodeJS.Timeout | null>(null)
+const hoverOverPlayCountdown = ref<NodeJS.Timeout | null>(null);
 function handleMouseEnter() {
-  hoverOverPlayCountdown.value = setTimeout(() => videoRef.value?.play(), 500)
+  hoverOverPlayCountdown.value = setTimeout(() => videoRef.value?.play(), 500);
 }
 function handleMouseLeave() {
-  if (hoverOverPlayCountdown.value) clearTimeout(hoverOverPlayCountdown.value)
-  videoRef.value?.pause()
+  if (hoverOverPlayCountdown.value) clearTimeout(hoverOverPlayCountdown.value);
+  videoRef.value?.pause();
 }
 </script>
 

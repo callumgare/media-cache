@@ -1,143 +1,164 @@
 <script setup lang="ts">
-import 'primeicons/primeicons.css'
-import { useDrag } from '@vueuse/gesture'
-import { useWindowSize } from '@vueuse/core'
-import type MediaFilterSidebar from '~/components/MediaFilterSidebar.vue'
-import { clamp } from '~/lib/general'
-import { useUiState } from '@@/stores/ui'
+import "primeicons/primeicons.css";
+import { useUiState } from "@@/stores/ui";
+import { useWindowSize } from "@vueuse/core";
+import { useDrag } from "@vueuse/gesture";
+import type MediaFilterSidebar from "~/components/MediaFilterSidebar.vue";
+import { clamp } from "~/lib/general";
 
-const uiState = useUiState()
-const sidebarRef = useTemplateRef<InstanceType<typeof MediaFilterSidebar>>('sidebar')
-const sidebarElm = computed(() => sidebarRef.value?.$el || null)
-const containerElm = ref<HTMLDivElement | null>(null)
-const sidebarExpandButtonElm = ref<HTMLButtonElement | null>(null)
+const uiState = useUiState();
+const sidebarRef =
+  useTemplateRef<InstanceType<typeof MediaFilterSidebar>>("sidebar");
+const sidebarElm = computed(() => sidebarRef.value?.$el || null);
+const containerElm = ref<HTMLDivElement | null>(null);
+const sidebarExpandButtonElm = ref<HTMLButtonElement | null>(null);
 
-const windowSize = useWindowSize({ initialWidth: 1000 })
-const windowWidth = computed(() => windowSize.width.value)
+const windowSize = useWindowSize({ initialWidth: 1000 });
+const windowWidth = computed(() => windowSize.width.value);
 
 // Pixel transform applied during drag. null = CSS class handles open/closed position.
 // CSS uses translateX(-100%) for closed (= sidebar's own width, always correct without JS).
-const dragTranslateX = ref<number | null>(null)
+const dragTranslateX = ref<number | null>(null);
 // When true, a CSS transition is active on the drag inline style (drag-release snap animation)
-const isDragAnimating = ref(false)
-let animatingTimer: ReturnType<typeof setTimeout> | null = null
+const isDragAnimating = ref(false);
+let animatingTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Inline style for the sidebar element
 const sidebarStyle = computed(() => {
   if (dragTranslateX.value !== null) {
     return {
       transform: `translateX(${dragTranslateX.value}px)`,
-      transition: isDragAnimating.value ? 'transform 0.3s ease-out' : 'none',
-    }
+      transition: isDragAnimating.value ? "transform 0.3s ease-out" : "none",
+    };
   }
-  return {}
-})
+  return {};
+});
 
 function getSidebarWidth(): number {
-  return (sidebarElm.value as HTMLElement | null)?.offsetWidth ?? 0
+  return (sidebarElm.value as HTMLElement | null)?.offsetWidth ?? 0;
 }
 
 function syncDragOffset(collapsed: boolean) {
-  const w = getSidebarWidth()
-  dragController.state.drag.offset = [collapsed ? -w : 0, 0]
+  const w = getSidebarWidth();
+  dragController.state.drag.offset = [collapsed ? -w : 0, 0];
 }
 
 // Disable Safari iOS back gesture so it doesn't interfere with sidebar gesture
 onMounted(() => {
   // Sync drag controller's internal offset with the real sidebar pixel width
-  syncDragOffset(uiState.sidebarMobileCollapsed)
+  syncDragOffset(uiState.sidebarMobileCollapsed);
 
   // @ts-expect-error Types in vue don't seem to cover all the events yet
-  document.querySelector('body > *')?.addEventListener('touchstart', (event: Event & { target: HTMLElement, pageX: number }) => {
-    // The only way to disable back gesture is to call preventDefault() on a touchstart event. Unfortunately this
-    // breaks a bunch of things like tapping on buttons. To avoid this we try only preventDefault() on touches
-    // at the edge of the screen. We don't want to prevent the tapping of important navigational elements that
-    // happen to be close to the edge however so we specifically exclude touchstart events that occur on those elements.
-    const targetElementsToAllowSwipesFor = [
-      sidebarExpandButtonElm.value,
-      document.querySelector('.p-menubar-button'),
-    ].filter(element => element !== null)
-    const targetIsAllowedElement = event.target && targetElementsToAllowSwipesFor.some(element => element.contains(event.target))
-    const touchNotOnLeftEdge = event.pageX > 30
-    if (targetIsAllowedElement || touchNotOnLeftEdge) return
-    // prevent swipe to navigate gesture
-    event.preventDefault()
-  }, { passive: false })
-})
+  document.querySelector("body > *")?.addEventListener(
+    "touchstart",
+    (event: Event & { target: HTMLElement; pageX: number }) => {
+      // The only way to disable back gesture is to call preventDefault() on a touchstart event. Unfortunately this
+      // breaks a bunch of things like tapping on buttons. To avoid this we try only preventDefault() on touches
+      // at the edge of the screen. We don't want to prevent the tapping of important navigational elements that
+      // happen to be close to the edge however so we specifically exclude touchstart events that occur on those elements.
+      const targetElementsToAllowSwipesFor = [
+        sidebarExpandButtonElm.value,
+        document.querySelector(".p-menubar-button"),
+      ].filter((element) => element !== null);
+      const targetIsAllowedElement =
+        event.target &&
+        targetElementsToAllowSwipesFor.some((element) =>
+          element.contains(event.target),
+        );
+      const touchNotOnLeftEdge = event.pageX > 30;
+      if (targetIsAllowedElement || touchNotOnLeftEdge) return;
+      // prevent swipe to navigate gesture
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+});
 
 // Update sidebar position when container is dragged. We use the container rather than the sidebar
 // itself so that it can be dragged out from its closed state off the edge of the page.
 const dragController = useDrag(
   ({ offset: [dx], last, swipe }) => {
-    const w = getSidebarWidth()
-    if (w === 0) return // not mounted yet
+    const w = getSidebarWidth();
+    if (w === 0) return; // not mounted yet
     if (last) {
       // Drag released: animate to nearest snap point.
       // First mark as animating (adds transition to inline style), then change value in the next
       // frame so the browser sees the transition before the transform value changes.
-      const xAxisSwipeDirection = swipe[0]
-      const shouldOpen = xAxisSwipeDirection ? xAxisSwipeDirection > 0 : dx > -(w / 2)
-      isDragAnimating.value = true
+      const xAxisSwipeDirection = swipe[0];
+      const shouldOpen = xAxisSwipeDirection
+        ? xAxisSwipeDirection > 0
+        : dx > -(w / 2);
+      isDragAnimating.value = true;
       requestAnimationFrame(() => {
-        dragTranslateX.value = shouldOpen ? 0 : -w
-        uiState.sidebarMobileCollapsed = !shouldOpen
-        syncDragOffset(!shouldOpen)
-        if (animatingTimer) clearTimeout(animatingTimer)
+        dragTranslateX.value = shouldOpen ? 0 : -w;
+        uiState.sidebarMobileCollapsed = !shouldOpen;
+        syncDragOffset(!shouldOpen);
+        if (animatingTimer) clearTimeout(animatingTimer);
         animatingTimer = setTimeout(() => {
           // Animation done: hand control back to CSS. The CSS translateX(-100%) / translateX(0)
           // exactly matches where the inline px animation ended, so there's no snap.
-          dragTranslateX.value = null
-          isDragAnimating.value = false
-        }, 300)
-      })
-    }
-    else {
+          dragTranslateX.value = null;
+          isDragAnimating.value = false;
+        }, 300);
+      });
+    } else {
       // Mid-drag: follow finger instantly with no transition
-      dragTranslateX.value = clamp(-w, dx, 0)
+      dragTranslateX.value = clamp(-w, dx, 0);
     }
   },
   {
     domTarget: containerElm,
-    axis: 'x',
+    axis: "x",
   },
-)
+);
 
 // Enable dragging only when window is narrow enough for collapsible sidebar.
 // Also collapse sidebar when crossing the threshold.
-watch(windowWidth, (newWidth, oldWidth) => {
-  if (!dragController.config.drag) return
-  dragController.config.drag.enabled = newWidth <= 500
-  if (newWidth > 500) {
-    dragTranslateX.value = null
-    isDragAnimating.value = false
-  }
-  if (oldWidth !== undefined && oldWidth > 500 && newWidth <= 500) {
-    uiState.sidebarMobileCollapsed = true
-    syncDragOffset(true)
-  }
-}, { immediate: true })
+watch(
+  windowWidth,
+  (newWidth, oldWidth) => {
+    if (!dragController.config.drag) return;
+    dragController.config.drag.enabled = newWidth <= 500;
+    if (newWidth > 500) {
+      dragTranslateX.value = null;
+      isDragAnimating.value = false;
+    }
+    if (oldWidth !== undefined && oldWidth > 500 && newWidth <= 500) {
+      uiState.sidebarMobileCollapsed = true;
+      syncDragOffset(true);
+    }
+  },
+  { immediate: true },
+);
 
 // When sidebarMobileCollapsed changes programmatically (not via toggle button), clear any
 // drag state and re-sync the drag controller offset.
-watch(() => uiState.sidebarMobileCollapsed, (collapsed) => {
-  dragTranslateX.value = null
-  syncDragOffset(collapsed)
-})
+watch(
+  () => uiState.sidebarMobileCollapsed,
+  (collapsed) => {
+    dragTranslateX.value = null;
+    syncDragOffset(collapsed);
+  },
+);
 
 // Animated toggle for user-initiated open/close (buttons & shadow tap).
 // Uses await nextTick() so the CSS transition is applied before the transform changes.
 async function toggleSidebar() {
-  isDragAnimating.value = true
-  dragTranslateX.value = uiState.sidebarMobileCollapsed ? -getSidebarWidth() : 0
-  await nextTick()
-  uiState.sidebarMobileCollapsed = !uiState.sidebarMobileCollapsed
-  dragTranslateX.value = uiState.sidebarMobileCollapsed ? -getSidebarWidth() : 0
-  syncDragOffset(uiState.sidebarMobileCollapsed)
-  if (animatingTimer) clearTimeout(animatingTimer)
+  isDragAnimating.value = true;
+  dragTranslateX.value = uiState.sidebarMobileCollapsed
+    ? -getSidebarWidth()
+    : 0;
+  await nextTick();
+  uiState.sidebarMobileCollapsed = !uiState.sidebarMobileCollapsed;
+  dragTranslateX.value = uiState.sidebarMobileCollapsed
+    ? -getSidebarWidth()
+    : 0;
+  syncDragOffset(uiState.sidebarMobileCollapsed);
+  if (animatingTimer) clearTimeout(animatingTimer);
   animatingTimer = setTimeout(() => {
-    dragTranslateX.value = null
-    isDragAnimating.value = false
-  }, 300)
+    dragTranslateX.value = null;
+    isDragAnimating.value = false;
+  }, 300);
 }
 </script>
 

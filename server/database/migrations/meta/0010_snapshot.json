@@ -425,13 +425,9 @@
         "deleted_cache_media_merged_into_cache_media_id_cache_media_id_fk": {
           "name": "deleted_cache_media_merged_into_cache_media_id_cache_media_id_fk",
           "tableFrom": "deleted_cache_media",
-          "columnsFrom": [
-            "merged_into_cache_media_id"
-          ],
+          "columnsFrom": ["merged_into_cache_media_id"],
           "tableTo": "cache_media",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -440,9 +436,7 @@
       "uniqueConstraints": {
         "deleted_cache_media_cache_media_id_unique": {
           "name": "deleted_cache_media_cache_media_id_unique",
-          "columns": [
-            "cache_media_id"
-          ],
+          "columns": ["cache_media_id"],
           "nullsNotDistinct": false
         }
       },
@@ -624,13 +618,9 @@
         "finder_query_execution_query_id_finder_query_id_fk": {
           "name": "finder_query_execution_query_id_finder_query_id_fk",
           "tableFrom": "finder_query_execution",
-          "columnsFrom": [
-            "query_id"
-          ],
+          "columnsFrom": ["query_id"],
           "tableTo": "finder_query",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -688,13 +678,9 @@
         "finder_query_execution_log_execution_id_finder_query_execution_id_fk": {
           "name": "finder_query_execution_log_execution_id_finder_query_execution_id_fk",
           "tableFrom": "finder_query_execution_log",
-          "columnsFrom": [
-            "execution_id"
-          ],
+          "columnsFrom": ["execution_id"],
           "tableTo": "finder_query_execution",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -758,26 +744,18 @@
         "finder_query_media_content_hash_finder_query_media_content_content_hash_fk": {
           "name": "finder_query_media_content_hash_finder_query_media_content_content_hash_fk",
           "tableFrom": "finder_query_media",
-          "columnsFrom": [
-            "content_hash"
-          ],
+          "columnsFrom": ["content_hash"],
           "tableTo": "finder_query_media_content",
-          "columnsTo": [
-            "content_hash"
-          ],
+          "columnsTo": ["content_hash"],
           "onUpdate": "no action",
           "onDelete": "no action"
         },
         "finder_query_media_query_execution_id_finder_query_execution_id_fk": {
           "name": "finder_query_media_query_execution_id_finder_query_execution_id_fk",
           "tableFrom": "finder_query_media",
-          "columnsFrom": [
-            "query_execution_id"
-          ],
+          "columnsFrom": ["query_execution_id"],
           "tableTo": "finder_query_execution",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -901,13 +879,9 @@
         "group_parent_id_group_id_fk": {
           "name": "group_parent_id_group_id_fk",
           "tableFrom": "group",
-          "columnsFrom": [
-            "parent_id"
-          ],
+          "columnsFrom": ["parent_id"],
           "tableTo": "group",
-          "columnsTo": [
-            "id"
-          ],
+          "columnsTo": ["id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -954,9 +928,7 @@
       "uniqueConstraints": {
         "source_finder_source_id_unique": {
           "name": "source_finder_source_id_unique",
-          "columns": [
-            "finder_source_id"
-          ],
+          "columns": ["finder_source_id"],
           "nullsNotDistinct": false
         }
       },

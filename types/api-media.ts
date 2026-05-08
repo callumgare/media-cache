@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from "zod";
 
 export const APISourceMediaDetails = z.object({
   sourceName: z.string(),
@@ -8,13 +8,13 @@ export const APISourceMediaDetails = z.object({
   views: z.number().nullable(),
   likes: z.number().nullable(),
   likesPercentage: z.number().nullable(),
-})
+});
 
 export const APIUserMediaDetails = z.object({
   lastViewedOn: z.date().nullable(),
   viewCount: z.number(),
   favourited: z.boolean(),
-})
+});
 
 export const APIMediaFile = z.object({
   type: z.string(),
@@ -27,7 +27,7 @@ export const APIMediaFile = z.object({
   ext: z.string().nullable(),
   filename: z.string(),
   sourceUrl: z.string(),
-})
+});
 
 export const APIMedia = z.object({
   id: z.number(),
@@ -36,9 +36,9 @@ export const APIMedia = z.object({
   tags: z.array(z.string()),
   sourceDetails: z.array(APISourceMediaDetails),
   files: z.array(APIMediaFile),
-})
+});
 
-export type APIMediaData = z.infer<typeof APIMedia>
+export type APIMediaData = z.infer<typeof APIMedia>;
 
 export const APIMediaResponse = z.object({
   totalCount: z.number(),
@@ -46,4 +46,4 @@ export const APIMediaResponse = z.object({
   page: z.number(),
   media: z.array(APIMedia),
   date: z.coerce.date(),
-})
+});

@@ -1,28 +1,34 @@
-import { z } from 'zod'
+import { z } from "zod";
 
 export const querySchemaConfigSchema = z.object({
   availableFields: z.array(
-    z.object({
-      id: z.string(),
-      displayName: z.string(),
-      type: z.string(),
-      availableOptions: z.array(
-        z.object({
-          id: z.union([z.string(), z.number()]),
-          name: z.string(),
-          count: z.number().nullable().optional(),
-          addedIfRemoved: z.number().nullable().optional(),
-        }),
-      ).optional(),
-    }).strict(),
+    z
+      .object({
+        id: z.string(),
+        displayName: z.string(),
+        type: z.string(),
+        availableOptions: z
+          .array(
+            z.object({
+              id: z.union([z.string(), z.number()]),
+              name: z.string(),
+              count: z.number().nullable().optional(),
+              addedIfRemoved: z.number().nullable().optional(),
+            }),
+          )
+          .optional(),
+      })
+      .strict(),
   ),
   fieldTypes: z.array(
-    z.object({
-      name: z.string(),
-      operators: z.string().array(),
-      getInputType: z.function(),
-    }).strict(),
+    z
+      .object({
+        name: z.string(),
+        operators: z.string().array(),
+        getInputType: z.function(),
+      })
+      .strict(),
   ),
-})
+});
 
-export type QuerySchemaConfig = z.infer<typeof querySchemaConfigSchema>
+export type QuerySchemaConfig = z.infer<typeof querySchemaConfigSchema>;

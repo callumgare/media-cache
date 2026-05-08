@@ -8,6 +8,6 @@
 
 <script setup lang="ts">
 definePageMeta({
-  breadcrumbs: ['Settings'],
-})
+  breadcrumbs: ["Settings"],
+});
 </script>

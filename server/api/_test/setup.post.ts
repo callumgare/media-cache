@@ -1,10 +1,10 @@
-import { sql } from 'drizzle-orm'
-import type { GenericMedia } from 'media-finder'
-import { queryExecutionTaskSystem } from '@@/server/lib/media-finder/execution-tasks'
+import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
+import { sql } from "drizzle-orm";
+import type { GenericMedia } from "media-finder";
 
 declare global {
-  var __testPluginQueue: Array<GenericMedia[]>
-  var __testPluginDelayMs: number
+  var __testPluginQueue: Array<GenericMedia[]>;
+  var __testPluginDelayMs: number;
 }
 
 /**
@@ -13,14 +13,18 @@ declare global {
  */
 export default defineEventHandler(async (event) => {
   if (!process.env.ENABLE_TEST_API) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+    throw createError({ statusCode: 404, statusMessage: "Not Found" });
   }
 
-  const body = await readBody(event) as { media?: GenericMedia[][], delay?: number }
+  const body = (await readBody(event)) as {
+    media?: GenericMedia[][];
+    delay?: number;
+  };
 
   // Truncate all test-relevant tables. Retry on lock conflicts caused by
   // in-flight server-side queries from a previous test.
-  const truncate = () => db.execute(sql`
+  const truncate = () =>
+    db.execute(sql`
     TRUNCATE TABLE
       finder_query_media,
       finder_query_media_content,
@@ -32,25 +36,24 @@ export default defineEventHandler(async (event) => {
       "group",
       source
     CASCADE
-  `)
+  `);
 
   for (let attempt = 0; ; attempt++) {
     try {
-      await truncate()
-      break
-    }
-    catch (err) {
-      if (attempt >= 9) throw err
-      await new Promise(resolve => setTimeout(resolve, 200))
+      await truncate();
+      break;
+    } catch (err) {
+      if (attempt >= 9) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
   }
 
   // Clear any in-memory running states from previous tests
-  queryExecutionTaskSystem.clearRunningStates()
+  queryExecutionTaskSystem.clearRunningStates();
 
   // Seed the test plugin queue
-  globalThis.__testPluginQueue = body.media ?? []
-  globalThis.__testPluginDelayMs = body.delay ?? 0
+  globalThis.__testPluginQueue = body.media ?? [];
+  globalThis.__testPluginDelayMs = body.delay ?? 0;
 
-  return { ok: true }
-})
+  return { ok: true };
+});

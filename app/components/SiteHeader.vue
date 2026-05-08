@@ -1,63 +1,66 @@
 <script setup lang="ts">
-import type { MenuItem } from 'primevue/menuitem'
-import { useUiState } from '@@/stores/ui'
+import { useUiState } from "@@/stores/ui";
+import type { MenuItem } from "primevue/menuitem";
 
 const props = defineProps<{
-  breadcrumbs?: string[] | MenuItem[]
-}>()
+  breadcrumbs?: string[] | MenuItem[];
+}>();
 
-const { runningExecutionList } = useTasks()
-const activeExecution = computed(() => runningExecutionList.value[0] ?? null)
+const { runningExecutionList } = useTasks();
+const activeExecution = computed(() => runningExecutionList.value[0] ?? null);
 
 const items = ref([
   {
-    label: 'Media',
-    route: '/',
+    label: "Media",
+    route: "/",
   },
   {
-    label: 'Groups',
+    label: "Groups",
     items: [
       {
-        label: 'Tags',
+        label: "Tags",
       },
     ],
-    route: '/',
+    route: "/",
   },
   {
-    label: 'Settings',
-    route: '/admin',
+    label: "Settings",
+    route: "/admin",
   },
-])
+]);
 
-const route = useRoute()
+const route = useRoute();
 
-const uiState = useUiState()
+const uiState = useUiState();
 
 const breadcrumbItems = computed<MenuItem[]>(() => {
-  let items: MenuItem[] = []
-  if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'string')) {
-    items = props.breadcrumbs.map(label => ({
+  let items: MenuItem[] = [];
+  if (
+    props.breadcrumbs?.every((breadcrumb) => typeof breadcrumb === "string")
+  ) {
+    items = props.breadcrumbs.map((label) => ({
       label,
-    }))
-    const pathSegments = route.path.replace(/(?:^\/+)|(?:\/+$)/, '').split('/')
+    }));
+    const pathSegments = route.path.replace(/(?:^\/+)|(?:\/+$)/, "").split("/");
     if (pathSegments.length === items.length) {
       pathSegments.forEach((_, i) => {
-        const item = items[i]
+        const item = items[i];
         if (item) {
-          item.route = '/' + pathSegments.slice(0, i + 1).join('/')
+          item.route = `/${pathSegments.slice(0, i + 1).join("/")}`;
         }
-      })
+      });
     }
-    const lastBreadcrumb = items.at(-1)
+    const lastBreadcrumb = items.at(-1);
     if (lastBreadcrumb) {
-      lastBreadcrumb.visible = false
+      lastBreadcrumb.visible = false;
     }
+  } else if (
+    props.breadcrumbs?.every((breadcrumb) => typeof breadcrumb === "object")
+  ) {
+    items = props.breadcrumbs;
   }
-  else if (props.breadcrumbs?.every(breadcrumb => typeof breadcrumb === 'object')) {
-    items = props.breadcrumbs
-  }
-  return items
-})
+  return items;
+});
 </script>
 
 <template>

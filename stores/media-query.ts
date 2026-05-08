@@ -1,96 +1,111 @@
-import { defineStore } from 'pinia'
-import type { QueryCondition, QueryFieldCondition, QueryGroupCondition } from '@@/types/query-condition.js'
+import type {
+  QueryCondition,
+  QueryFieldCondition,
+  QueryGroupCondition,
+} from "@@/types/query-condition.js";
+import { defineStore } from "pinia";
 
-type QueryConditionFlatNode = (Omit<QueryGroupCondition, 'conditions'> | QueryFieldCondition) & { parent: number | null }
+type QueryConditionFlatNode = (
+  | Omit<QueryGroupCondition, "conditions">
+  | QueryFieldCondition
+) & { parent: number | null };
 
-export const useMediaQuery = defineStore('media-query', {
+export const useMediaQuery = defineStore("media-query", {
   state: (): { conditionNodes: QueryConditionFlatNode[] } => {
     return {
       conditionNodes: [
         {
           id: 1,
-          type: 'group',
-          operator: 'AND',
+          type: "group",
+          operator: "AND",
           parent: null,
         },
         {
           id: 2,
-          type: 'field',
-          field: 'source',
-          operator: 'equals',
-          value: '',
+          type: "field",
+          field: "source",
+          operator: "equals",
+          value: "",
           parent: 1,
         },
         {
           id: 3,
-          type: 'field',
-          field: 'tags',
-          operator: 'includes all',
-          value: '',
+          type: "field",
+          field: "tags",
+          operator: "includes all",
+          value: "",
           parent: 1,
         },
         {
           id: 4,
-          type: 'field',
-          field: 'type',
-          operator: 'equals',
-          value: '',
+          type: "field",
+          field: "type",
+          operator: "equals",
+          value: "",
           parent: 1,
         },
       ],
-    }
+    };
   },
   getters: {
     condition(): QueryGroupCondition {
-      const rootFlatNode = this.conditionNodes.find(node => node.parent === null)
+      const rootFlatNode = this.conditionNodes.find(
+        (node) => node.parent === null,
+      );
       if (!rootFlatNode) {
-        throw Error(`No root condition node found`)
+        throw Error("No root condition node found");
       }
-      if (rootFlatNode.type === 'field') {
-        throw Error(`Root condition node must be of type group`)
+      if (rootFlatNode.type === "field") {
+        throw Error("Root condition node must be of type group");
       }
-      const { parent, ...otherRootTreeNodeAttrs } = rootFlatNode
+      const { parent, ...otherRootTreeNodeAttrs } = rootFlatNode;
       const rootTreeNode = {
         ...otherRootTreeNodeAttrs,
         conditions: getChildTreeConditions(rootFlatNode, this.conditionNodes),
-      }
-      return rootTreeNode
+      };
+      return rootTreeNode;
     },
   },
   actions: {
     setFieldConditionValue(condition: QueryFieldCondition, newValue: unknown) {
-      const nodeIndex = this.conditionNodes.findIndex(node => node.id === condition.id)
-      const node = this.conditionNodes[nodeIndex]
-      if (!node || node.type !== 'field') {
-        throw Error(`Could not find correct node for condition: ${JSON.stringify(condition)}`)
+      const nodeIndex = this.conditionNodes.findIndex(
+        (node) => node.id === condition.id,
+      );
+      const node = this.conditionNodes[nodeIndex];
+      if (!node || node.type !== "field") {
+        throw Error(
+          `Could not find correct node for condition: ${JSON.stringify(condition)}`,
+        );
       }
       this.conditionNodes[nodeIndex] = {
         ...node,
         value: newValue,
-      }
+      };
     },
   },
   persist: {
     storage: piniaPluginPersistedstate.sessionStorage(),
   },
-})
+});
 
-function getChildTreeConditions(parentNode: QueryConditionFlatNode, nodes: QueryConditionFlatNode[]): QueryCondition[] {
-  const children = nodes.filter(node => node.parent === parentNode.id)
-  const childTreeNodes: QueryCondition[] = []
+function getChildTreeConditions(
+  parentNode: QueryConditionFlatNode,
+  nodes: QueryConditionFlatNode[],
+): QueryCondition[] {
+  const children = nodes.filter((node) => node.parent === parentNode.id);
+  const childTreeNodes: QueryCondition[] = [];
   for (const flatNode of children) {
-    const { parent, ...otherNodeAttrs } = flatNode
-    let treeNode: QueryCondition
-    if (otherNodeAttrs.type === 'group') {
+    const { parent, ...otherNodeAttrs } = flatNode;
+    let treeNode: QueryCondition;
+    if (otherNodeAttrs.type === "group") {
       treeNode = {
         ...otherNodeAttrs,
         conditions: getChildTreeConditions(flatNode, nodes),
-      } satisfies QueryGroupCondition
+      } satisfies QueryGroupCondition;
+    } else {
+      treeNode = otherNodeAttrs;
     }
-    else {
-      treeNode = otherNodeAttrs
-    }
-    childTreeNodes.push(treeNode)
+    childTreeNodes.push(treeNode);
   }
-  return childTreeNodes
+  return childTreeNodes;
 }

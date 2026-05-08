@@ -36,81 +36,94 @@
 </template>
 
 <script setup lang="ts">
-import 'primeicons/primeicons.css'
-import { useElementSize, useInfiniteScroll, useMounted } from '@vueuse/core'
-import type z from 'zod'
-import useSlideData from '~/lib/useSlideData'
-import type { APIMedia, APIMediaResponse } from '@@/types/api-media'
-import { useUiState } from '@@/stores/ui'
-import { useMediaQuery } from '@@/stores/media-query'
+import "primeicons/primeicons.css";
+import { useMediaQuery } from "@@/stores/media-query";
+import { useUiState } from "@@/stores/ui";
+import type { APIMedia, APIMediaResponse } from "@@/types/api-media";
+import { useElementSize, useInfiniteScroll, useMounted } from "@vueuse/core";
+import type z from "zod";
+import useSlideData from "~/lib/useSlideData";
 
-const isMounted = useMounted()
+const isMounted = useMounted();
 
-const pageSidebarElm = computed<null | HTMLElement>(() => isMounted.value ? document.querySelector('#page-sidebar') : null)
-const { width: pageSidebarWidth } = useElementSize(pageSidebarElm)
+const pageSidebarElm = computed<null | HTMLElement>(() =>
+  isMounted.value ? document.querySelector("#page-sidebar") : null,
+);
+const { width: pageSidebarWidth } = useElementSize(pageSidebarElm);
 
 definePageMeta({
-  layout: 'with-sidebar',
+  layout: "with-sidebar",
   breadcrumbs: [],
-})
-const mediaQuery = useMediaQuery()
-const mediaQueryCondition = ref(mediaQuery.condition)
+});
+const mediaQuery = useMediaQuery();
+const mediaQueryCondition = ref(mediaQuery.condition);
 
-const mediaSwipeOpen = useMediaSwipeOpen()
+const mediaSwipeOpen = useMediaSwipeOpen();
 
-const uiState = useUiState()
+const uiState = useUiState();
 
 mediaQuery.$subscribe(() => {
-  mediaQueryCondition.value = mediaQuery.condition
-})
-const { randomSeed } = storeToRefs(uiState)
-const { data, fetchNextPage, isPending, isFetchingNextPage, hasNextPage, error: mediaError } = useInfiniteQuery({
-  queryKey: ['media', mediaQueryCondition, randomSeed],
-  queryFn: ({ pageParam }) => $fetch<z.infer<typeof APIMediaResponse>>(
-    '/api/media',
-    { query: { page: pageParam, seed: uiState.randomSeed }, method: 'POST', body: mediaQueryCondition.value },
-  ),
+  mediaQueryCondition.value = mediaQuery.condition;
+});
+const { randomSeed } = storeToRefs(uiState);
+const {
+  data,
+  fetchNextPage,
+  isPending,
+  isFetchingNextPage,
+  hasNextPage,
+  error: mediaError,
+} = useInfiniteQuery({
+  queryKey: ["media", mediaQueryCondition, randomSeed],
+  queryFn: ({ pageParam }) =>
+    $fetch<z.infer<typeof APIMediaResponse>>("/api/media", {
+      query: { page: pageParam, seed: uiState.randomSeed },
+      method: "POST",
+      body: mediaQueryCondition.value,
+    }),
   initialPageParam: 1,
-  getNextPageParam: page => page.media.length ? page.page + 1 : null,
-  getPreviousPageParam: page => page.page - 1,
-})
+  getNextPageParam: (page) => (page.media.length ? page.page + 1 : null),
+  getPreviousPageParam: (page) => page.page - 1,
+});
 
-const scrollContainer = ref<HTMLElement | null>(null)
+const scrollContainer = ref<HTMLElement | null>(null);
 
 onMounted(() => {
-  scrollContainer.value = document.querySelector('.page')
-})
+  scrollContainer.value = document.querySelector(".page");
+});
 
 useInfiniteScroll(
   scrollContainer,
   async () => {
-    await fetchNextPage()
-    await nextTick()
+    await fetchNextPage();
+    await nextTick();
   },
   {
     distance: 200,
     canLoadMore: () => hasNextPage.value && !isFetchingNextPage.value,
   },
-)
+);
 
-const medias = computed(() => data.value?.pages.map(page => page.media).flat() || [])
-const totalMedias = computed(() => data.value?.pages[0]?.totalCount ?? 0)
+const medias = computed(
+  () => data.value?.pages.flatMap((page) => page.media) || [],
+);
+const totalMedias = computed(() => data.value?.pages[0]?.totalCount ?? 0);
 
-const slideData = useSlideData(medias)
+const slideData = useSlideData(medias);
 
 function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
-  if (newIndex > (medias.value.length - 5)) {
-    fetchNextPage()
+  if (newIndex > medias.value.length - 5) {
+    fetchNextPage();
   }
 }
 
 function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
-  const slideIndex = medias.value.findIndex(m => m === media)
+  const slideIndex = medias.value.findIndex((m) => m === media);
   if (slideIndex === -1) {
-    console.error(`Failed to get index for media: ${media.id}`)
-    return
+    console.error(`Failed to get index for media: ${media.id}`);
+    return;
   }
-  mediaSwipeOpen(slideIndex)
+  mediaSwipeOpen(slideIndex);
 }
 </script>
 

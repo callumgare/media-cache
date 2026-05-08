@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import type { z } from 'zod'
-import type { APIMedia } from '@@/types/api-media'
+import type { APIMedia } from "@@/types/api-media";
+import type { z } from "zod";
 
 defineProps<{
-  medias: z.infer<typeof APIMedia>[]
-}>()
+  medias: z.infer<typeof APIMedia>[];
+}>();
 
-const emit = defineEmits<{
-  (e: 'mediaClick', value: z.infer<typeof APIMedia>): void
-}>()
+const emit =
+  defineEmits<(e: "mediaClick", value: z.infer<typeof APIMedia>) => void>();
 </script>
 
 <template>

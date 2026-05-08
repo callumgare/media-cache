@@ -19,27 +19,28 @@
 </template>
 
 <script setup lang="ts">
-import type { MenuItem } from 'primevue/menuitem'
-import { useUiState } from '@@/stores/ui'
+import { useUiState } from "@@/stores/ui";
+import type { MenuItem } from "primevue/menuitem";
 
-const route = useRoute()
+const route = useRoute();
 
 function isBreadcrumbs(value: unknown): value is string[] | MenuItem[] {
-  if (!Array.isArray(value)) return false
-  if (value.every(item => typeof item === 'string')) return true
-  if (value.every(item => typeof item === 'object' && item !== null)) return true
-  return false
+  if (!Array.isArray(value)) return false;
+  if (value.every((item) => typeof item === "string")) return true;
+  if (value.every((item) => typeof item === "object" && item !== null))
+    return true;
+  return false;
 }
 
 const breadcrumbs = computed(() => {
-  let { breadcrumbs: meta } = route.meta
-  if (typeof meta === 'function') {
-    meta = meta({ route })
+  let { breadcrumbs: meta } = route.meta;
+  if (typeof meta === "function") {
+    meta = meta({ route });
   }
-  return isBreadcrumbs(meta) ? meta : undefined
-})
+  return isBreadcrumbs(meta) ? meta : undefined;
+});
 
-const uiState = useUiState()
+const uiState = useUiState();
 </script>
 
 <style scoped>
@@ -156,7 +157,6 @@ const uiState = useUiState()
     /*
       8. Create a root stacking context
     */
-    /* stylelint-disable-next-line selector-id-pattern -- #__nuxt is a third-party id */
     #app-root, #__nuxt {
       isolation: isolate;
     }

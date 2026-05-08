@@ -1,21 +1,25 @@
 <script setup lang="ts">
-import 'primeicons/primeicons.css'
-import type { QueryFieldCondition } from '@@/types/query-condition'
-import type { QuerySchemaConfig } from '@@/types/query-schema-config.js'
-import { useMediaQuery } from '@@/stores/media-query'
+import "primeicons/primeicons.css";
+import { useMediaQuery } from "@@/stores/media-query";
+import type { QueryFieldCondition } from "@@/types/query-condition";
+import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
 
 const props = defineProps<{
-  fieldCondition: QueryFieldCondition
-  schemaConfig: QuerySchemaConfig
-}>()
+  fieldCondition: QueryFieldCondition;
+  schemaConfig: QuerySchemaConfig;
+}>();
 const fieldConfig = computed(() => {
-  const fieldConfig = props.schemaConfig.availableFields.find(field => field.id === props.fieldCondition.field)
+  const fieldConfig = props.schemaConfig.availableFields.find(
+    (field) => field.id === props.fieldCondition.field,
+  );
   if (!fieldConfig) {
-    throw Error(`Got query field condition for undefined field: "${props.fieldCondition.field}"`)
+    throw Error(
+      `Got query field condition for undefined field: "${props.fieldCondition.field}"`,
+    );
   }
-  return fieldConfig
-})
-const mediaQuery = useMediaQuery()
+  return fieldConfig;
+});
+const mediaQuery = useMediaQuery();
 </script>
 
 <template>

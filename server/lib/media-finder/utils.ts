@@ -1,28 +1,41 @@
-import objectHash from 'object-hash'
-import type { GenericMedia, GenericFile } from 'media-finder'
-import deepmerge from 'deepmerge'
-import { and, eq, inArray, isNull, ne, sql, type ExtractTablesWithRelations } from 'drizzle-orm'
-import type { PgTransaction } from 'drizzle-orm/pg-core'
-import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js'
+import deepmerge from "deepmerge";
+import {
+  type ExtractTablesWithRelations,
+  and,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  sql,
+} from "drizzle-orm";
+import type { PgTransaction } from "drizzle-orm/pg-core";
+import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
+import type { GenericFile, GenericMedia } from "media-finder";
+import objectHash from "object-hash";
 
-import { finderFileToCacheFile } from './shared'
-import { deserialize, serialize } from '@@/server/lib/general'
-import { db, dbSchema } from '@@/server/utils/drizzle'
-import { queryExecutionTaskSystem } from '@@/server/lib/media-finder/execution-tasks'
+import { deserialize, serialize } from "@@/server/lib/general";
+import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
+import { db, dbSchema } from "@@/server/utils/drizzle";
+import { finderFileToCacheFile } from "./shared";
 
-type DbTransaction = PgTransaction<PostgresJsQueryResultHKT, typeof dbSchema, ExtractTablesWithRelations<typeof dbSchema>>
+type DbTransaction = PgTransaction<
+  PostgresJsQueryResultHKT,
+  typeof dbSchema,
+  ExtractTablesWithRelations<typeof dbSchema>
+>;
 
 export async function createFinderQueryExecution({
   dbFinderQuery,
 }: {
-  dbFinderQuery?: dbSchema.FinderQuery
+  dbFinderQuery?: dbSchema.FinderQuery;
 }) {
-  const execution = await db.insert(dbSchema.finderQueryExecution)
+  const execution = await db
+    .insert(dbSchema.finderQueryExecution)
     .values({
       updatedAt: new Date(),
       startedAt: new Date(),
       finishedAt: new Date(),
-      status: 'running',
+      status: "running",
       warningCount: 0,
       nonFatalErrorCount: 0,
       fatalErrorCount: 0,
@@ -30,12 +43,12 @@ export async function createFinderQueryExecution({
     })
     .returning()
     .then((result) => {
-      const row = result[0]
-      if (!row) throw new Error('Failed to create finder query execution')
-      return row
-    })
-  queryExecutionTaskSystem.create(execution)
-  return execution
+      const row = result[0];
+      if (!row) throw new Error("Failed to create finder query execution");
+      return row;
+    });
+  queryExecutionTaskSystem.create(execution);
+  return execution;
 }
 
 export async function createExecutionLogEntry({
@@ -45,35 +58,45 @@ export async function createExecutionLogEntry({
   message,
   context,
 }: {
-  executionId: number
-  queryId: number | null
-  level: 'warning' | 'non_fatal_error' | 'fatal_error'
-  message: string
-  context?: Record<string, unknown>
+  executionId: number;
+  queryId: number | null;
+  level: "warning" | "non_fatal_error" | "fatal_error";
+  message: string;
+  context?: Record<string, unknown>;
 }): Promise<dbSchema.FinderQueryExecutionLog> {
   const countColumn = {
     warning: dbSchema.finderQueryExecution.warningCount,
     non_fatal_error: dbSchema.finderQueryExecution.nonFatalErrorCount,
     fatal_error: dbSchema.finderQueryExecution.fatalErrorCount,
-  }[level]
+  }[level];
 
   const [log] = await db.transaction(async (tx) => {
-    const result = await tx.insert(dbSchema.finderQueryExecutionLog)
+    const result = await tx
+      .insert(dbSchema.finderQueryExecutionLog)
       .values({ executionId, level, message, context: context ?? null })
-      .returning()
-    await tx.update(dbSchema.finderQueryExecution)
-      .set({ [countColumn.name]: sql`${countColumn} + 1`, updatedAt: new Date() })
-      .where(eq(dbSchema.finderQueryExecution.id, executionId))
-    return result
-  })
-  if (!log) throw new Error('Failed to create execution log entry')
+      .returning();
+    await tx
+      .update(dbSchema.finderQueryExecution)
+      .set({
+        [countColumn.name]: sql`${countColumn} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(dbSchema.finderQueryExecution.id, executionId));
+    return result;
+  });
+  if (!log) throw new Error("Failed to create execution log entry");
 
   queryExecutionTaskSystem.addLog(
     executionId,
-    { id: log.id, level: log.level, message: log.message, createdAt: log.createdAt.toISOString() },
+    {
+      id: log.id,
+      level: log.level,
+      message: log.message,
+      createdAt: log.createdAt.toISOString(),
+    },
     level,
-  )
-  return log
+  );
+  return log;
 }
 
 export async function createFinderQueryMedia({
@@ -81,12 +104,13 @@ export async function createFinderQueryMedia({
   finderMedia,
   finderQueryExecution,
 }: {
-  finderMedia: GenericMedia
-  finderQueryExecution: dbSchema.FinderQueryExecution
-  dbTx: DbTransaction
+  finderMedia: GenericMedia;
+  finderQueryExecution: dbSchema.FinderQueryExecution;
+  dbTx: DbTransaction;
 }) {
-  const contentHash = objectHash(finderMedia)
-  return dbTx.insert(dbSchema.finderQueryMedia)
+  const contentHash = objectHash(finderMedia);
+  return dbTx
+    .insert(dbSchema.finderQueryMedia)
     .values({
       updatedAt: new Date(),
       finderSourceId: finderMedia.mediaFinderSource,
@@ -95,18 +119,19 @@ export async function createFinderQueryMedia({
       contentHash,
     })
     .returning()
-    .then(result => result[0])
+    .then((result) => result[0]);
 }
 
 export async function createFinderQueryMediaContent({
   dbTx,
   finderMedia,
 }: {
-  finderMedia: GenericMedia
-  dbTx: DbTransaction
+  finderMedia: GenericMedia;
+  dbTx: DbTransaction;
 }) {
-  const contentHash = objectHash(finderMedia)
-  return dbTx.insert(dbSchema.finderQueryMediaContent)
+  const contentHash = objectHash(finderMedia);
+  return dbTx
+    .insert(dbSchema.finderQueryMediaContent)
     .values({
       finderSourceId: finderMedia.mediaFinderSource,
       finderMediaId: String(finderMedia.id),
@@ -114,92 +139,106 @@ export async function createFinderQueryMediaContent({
       content: serialize(finderMedia),
       updatedAt: new Date(),
     })
-    .onConflictDoNothing({ target: dbSchema.finderQueryMediaContent.contentHash })
+    .onConflictDoNothing({
+      target: dbSchema.finderQueryMediaContent.contentHash,
+    })
     .returning()
-    .then(result => result[0])
+    .then((result) => result[0]);
 }
 
 export async function getCacheMedia({
   finderSourceId,
   finderMediaId,
 }: {
-  finderSourceId: string
-  finderMediaId: string
+  finderSourceId: string;
+  finderMediaId: string;
 }): Promise<dbSchema.CacheMedia | null> {
   const [result] = await db
     .select()
     .from(dbSchema.cacheMedia)
-    .where(sql`${dbSchema.cacheMedia.finderSourceMediaIds} @> ARRAY[${`${finderSourceId}\t${finderMediaId}`}]::text[]`)
-    .limit(1)
-  return result ?? null
+    .where(
+      sql`${dbSchema.cacheMedia.finderSourceMediaIds} @> ARRAY[${`${finderSourceId}\t${finderMediaId}`}]::text[]`,
+    )
+    .limit(1);
+  return result ?? null;
 }
 
 export async function getAllCopiesOfFinderMedia({
   finderSourceId,
   finderMediaId,
 }: {
-  finderSourceId: string
-  finderMediaId: string
+  finderSourceId: string;
+  finderMediaId: string;
 }): Promise<GenericMedia[]> {
-  return db.query.finderQueryMediaContent.findMany({
-    where: (content, { eq, and }) => and(
-      eq(content.finderSourceId, finderSourceId),
-      eq(content.finderMediaId, finderMediaId),
-    ),
-    orderBy: (content, { desc }) => [desc(content.createdAt)],
-  }).then(items => items.map(item => deserialize(item.content) as GenericMedia))
+  return db.query.finderQueryMediaContent
+    .findMany({
+      where: (content, { eq, and }) =>
+        and(
+          eq(content.finderSourceId, finderSourceId),
+          eq(content.finderMediaId, finderMediaId),
+        ),
+      orderBy: (content, { desc }) => [desc(content.createdAt)],
+    })
+    .then((items) =>
+      items.map((item) => deserialize(item.content) as GenericMedia),
+    );
 }
 
-export async function mergeFinderMedia({ finderMedias }: { finderMedias: GenericMedia[] }): Promise<GenericMedia> {
+export async function mergeFinderMedia({
+  finderMedias,
+}: { finderMedias: GenericMedia[] }): Promise<GenericMedia> {
   function combineFilesOfSameType(files: GenericFile[]) {
-    return files.reduce<GenericFile[]>(
-      (acc, file) => {
-        const idx = acc.findIndex(f => f.type === file.type)
-        const existing = acc[idx]
-        if (idx === -1 || existing === undefined) acc.push(file)
-        else acc[idx] = deepmerge(existing, file)
-        return acc
-      },
-      [],
-    )
+    return files.reduce<GenericFile[]>((acc, file) => {
+      const idx = acc.findIndex((f) => f.type === file.type);
+      const existing = acc[idx];
+      if (idx === -1 || existing === undefined) acc.push(file);
+      else acc[idx] = deepmerge(existing, file);
+      return acc;
+    }, []);
   }
 
   return deepmerge.all<GenericMedia>(finderMedias, {
-    customMerge: key => key === 'files'
-      ? (a: GenericFile[], b: GenericFile[]) => combineFilesOfSameType([...a, ...b])
-      : undefined,
-  })
+    customMerge: (key) =>
+      key === "files"
+        ? (a: GenericFile[], b: GenericFile[]) =>
+            combineFilesOfSameType([...a, ...b])
+        : undefined,
+  });
 }
 
-async function ensureSource(finderSourceId: string, dbTx: DbTransaction): Promise<dbSchema.Source> {
+async function ensureSource(
+  finderSourceId: string,
+  dbTx: DbTransaction,
+): Promise<dbSchema.Source> {
   let source = await dbTx.query.source.findFirst({
     where: (s, { eq }) => eq(s.finderSourceId, finderSourceId),
-  })
+  });
   if (!source) {
-    source = await dbTx.insert(dbSchema.source)
+    source = await dbTx
+      .insert(dbSchema.source)
       .values({ finderSourceId, updatedAt: new Date() })
       .returning()
-      .then(r => r[0])
-    if (!source) throw new Error('Failed to create source')
+      .then((r) => r[0]);
+    if (!source) throw new Error("Failed to create source");
   }
-  return source
+  return source;
 }
 
 function buildCacheMediaValues(finderMedias: GenericMedia[]) {
-  const now = new Date()
+  const now = new Date();
 
-  const files = finderMedias.flatMap(fm =>
-    (fm.files || []).map(file => ({
+  const files = finderMedias.flatMap((fm) =>
+    (fm.files || []).map((file) => ({
       createdAt: now,
       updatedAt: now,
       finderSourceId: fm.mediaFinderSource,
       finderMediaId: String(fm.id),
       ...finderFileToCacheFile(file),
     })),
-  )
+  );
 
   const sources = finderMedias.map((fm) => {
-    const total = (fm.numberOfLikes ?? 0) + (fm.numberOfDislikes ?? 0)
+    const total = (fm.numberOfLikes ?? 0) + (fm.numberOfDislikes ?? 0);
     return {
       createdAt: now,
       updatedAt: now,
@@ -210,35 +249,70 @@ function buildCacheMediaValues(finderMedias: GenericMedia[]) {
       description: fm.description ?? null,
       url: fm.url ?? null,
       creator: fm.usernameOfCreator ?? null,
-      uploader: (fm.usernameOfUploader ?? fm.nameOfUploader) ?? null,
+      uploader: fm.usernameOfUploader ?? fm.nameOfUploader ?? null,
       views: fm.views ?? null,
       likes: fm.numberOfLikes ?? null,
-      likesPercentage: total > 0 ? ((fm.numberOfLikes ?? 0) / total) * 100 : null,
+      likesPercentage:
+        total > 0 ? ((fm.numberOfLikes ?? 0) / total) * 100 : null,
       dislikes: fm.numberOfDislikes ?? null,
-    }
-  })
+    };
+  });
 
   const uploadDates = finderMedias
-    .map(fm => fm.dateUploaded ? new Date(fm.dateUploaded) : null)
-    .filter((d): d is Date => d !== null)
+    .map((fm) => (fm.dateUploaded ? new Date(fm.dateUploaded) : null))
+    .filter((d): d is Date => d !== null);
 
-  const mainFile = files.find(f => f.type === 'full') ?? files.find(f => f.type === 'main') ?? files[0]
+  const mainFile =
+    files.find((f) => f.type === "full") ??
+    files.find((f) => f.type === "main") ??
+    files[0];
 
   return {
-    title: finderMedias.map(fm => fm.title).find(t => !!t) ?? null,
-    description: finderMedias.map(fm => fm.description).find(d => !!d) ?? null,
-    earliestUploadedAt: uploadDates.length > 0 ? new Date(Math.min(...uploadDates.map(d => d.getTime()))) : null,
-    creators: [...new Set(finderMedias.map(fm => fm.usernameOfCreator).filter((c): c is string => !!c))],
-    uploaders: [...new Set(finderMedias.map(fm => fm.usernameOfUploader ?? fm.nameOfUploader).filter((u): u is string => !!u))],
-    views: finderMedias.reduce<number | null>((sum, fm) => fm.views != null ? (sum ?? 0) + fm.views : sum, null),
-    likes: finderMedias.reduce<number | null>((sum, fm) => fm.numberOfLikes != null ? (sum ?? 0) + fm.numberOfLikes : sum, null),
-    dislikes: finderMedias.reduce<number | null>((sum, fm) => fm.numberOfDislikes != null ? (sum ?? 0) + fm.numberOfDislikes : sum, null),
+    title: finderMedias.map((fm) => fm.title).find((t) => !!t) ?? null,
+    description:
+      finderMedias.map((fm) => fm.description).find((d) => !!d) ?? null,
+    earliestUploadedAt:
+      uploadDates.length > 0
+        ? new Date(Math.min(...uploadDates.map((d) => d.getTime())))
+        : null,
+    creators: [
+      ...new Set(
+        finderMedias
+          .map((fm) => fm.usernameOfCreator)
+          .filter((c): c is string => !!c),
+      ),
+    ],
+    uploaders: [
+      ...new Set(
+        finderMedias
+          .map((fm) => fm.usernameOfUploader ?? fm.nameOfUploader)
+          .filter((u): u is string => !!u),
+      ),
+    ],
+    views: finderMedias.reduce<number | null>(
+      (sum, fm) => (fm.views != null ? (sum ?? 0) + fm.views : sum),
+      null,
+    ),
+    likes: finderMedias.reduce<number | null>(
+      (sum, fm) =>
+        fm.numberOfLikes != null ? (sum ?? 0) + fm.numberOfLikes : sum,
+      null,
+    ),
+    dislikes: finderMedias.reduce<number | null>(
+      (sum, fm) =>
+        fm.numberOfDislikes != null ? (sum ?? 0) + fm.numberOfDislikes : sum,
+      null,
+    ),
     // finderSourceIds stores plain source names for source-only GIN filtering
-    finderSourceIds: [...new Set(finderMedias.map(fm => fm.mediaFinderSource))],
+    finderSourceIds: [
+      ...new Set(finderMedias.map((fm) => fm.mediaFinderSource)),
+    ],
     // finderSourceMediaIds stores only 'sourceId<TAB>mediaId' composites for exact lookups
-    finderSourceMediaIds: [...new Set(
-      finderMedias.map(fm => `${fm.mediaFinderSource}\t${String(fm.id)}`),
-    )],
+    finderSourceMediaIds: [
+      ...new Set(
+        finderMedias.map((fm) => `${fm.mediaFinderSource}\t${String(fm.id)}`),
+      ),
+    ],
     hasVideo: mainFile?.hasVideo ?? null,
     hasAudio: mainFile?.hasAudio ?? null,
     hasImage: mainFile?.hasImage ?? null,
@@ -249,24 +323,25 @@ function buildCacheMediaValues(finderMedias: GenericMedia[]) {
     files,
     sources,
     updatedAt: now,
-  }
+  };
 }
 
 export async function createCacheMedia({
   finderMedias,
   dbTx,
 }: {
-  finderMedias: GenericMedia[]
-  dbTx: DbTransaction
+  finderMedias: GenericMedia[];
+  dbTx: DbTransaction;
 }): Promise<dbSchema.CacheMedia> {
   for (const fm of finderMedias) {
-    await ensureSource(fm.mediaFinderSource, dbTx)
+    await ensureSource(fm.mediaFinderSource, dbTx);
   }
-  const [cacheMedia] = await dbTx.insert(dbSchema.cacheMedia)
+  const [cacheMedia] = await dbTx
+    .insert(dbSchema.cacheMedia)
     .values(buildCacheMediaValues(finderMedias))
-    .returning()
-  if (!cacheMedia) throw new Error('Failed to create cache media record')
-  return cacheMedia
+    .returning();
+  if (!cacheMedia) throw new Error("Failed to create cache media record");
+  return cacheMedia;
 }
 
 export async function updateCacheMedia({
@@ -274,16 +349,17 @@ export async function updateCacheMedia({
   allFinderMedias,
   dbTx,
 }: {
-  existingCacheMedia: dbSchema.CacheMedia
-  allFinderMedias: GenericMedia[]
-  dbTx: DbTransaction
+  existingCacheMedia: dbSchema.CacheMedia;
+  allFinderMedias: GenericMedia[];
+  dbTx: DbTransaction;
 }): Promise<void> {
   for (const fm of allFinderMedias) {
-    await ensureSource(fm.mediaFinderSource, dbTx)
+    await ensureSource(fm.mediaFinderSource, dbTx);
   }
-  await dbTx.update(dbSchema.cacheMedia)
+  await dbTx
+    .update(dbSchema.cacheMedia)
     .set(buildCacheMediaValues(allFinderMedias))
-    .where(eq(dbSchema.cacheMedia.id, existingCacheMedia.id))
+    .where(eq(dbSchema.cacheMedia.id, existingCacheMedia.id));
 }
 
 export async function createOrUpdateCacheMediaGroups({
@@ -291,123 +367,150 @@ export async function createOrUpdateCacheMediaGroups({
   cacheMedia,
   dbTx,
 }: {
-  finderMedias: GenericMedia[]
-  cacheMedia: dbSchema.CacheMedia
-  dbTx: DbTransaction
+  finderMedias: GenericMedia[];
+  cacheMedia: dbSchema.CacheMedia;
+  dbTx: DbTransaction;
 }): Promise<void> {
   let rootTagsGroup = await dbTx.query.group.findFirst({
-    where: g => and(eq(g.name, 'tags'), isNull(g.parentId)),
-  })
+    where: (g) => and(eq(g.name, "tags"), isNull(g.parentId)),
+  });
   if (!rootTagsGroup) {
-    rootTagsGroup = await dbTx.insert(dbSchema.group)
-      .values({ name: 'tags', updatedAt: new Date() })
+    rootTagsGroup = await dbTx
+      .insert(dbSchema.group)
+      .values({ name: "tags", updatedAt: new Date() })
       .returning()
-      .then(r => r[0])
-    if (!rootTagsGroup) throw new Error('Failed to create root tags group')
+      .then((r) => r[0]);
+    if (!rootTagsGroup) throw new Error("Failed to create root tags group");
   }
 
-  const allTags = [...new Set(finderMedias.flatMap(fm => fm.tags || []))]
+  const allTags = [...new Set(finderMedias.flatMap((fm) => fm.tags || []))];
 
-  const groupIds: string[] = []
+  const groupIds: string[] = [];
   // parentMap stores id → parentId for groups we've touched, so we can compute paths without extra queries
-  const parentMap = new Map<number, number | null>([[rootTagsGroup.id, rootTagsGroup.parentId]])
+  const parentMap = new Map<number, number | null>([
+    [rootTagsGroup.id, rootTagsGroup.parentId],
+  ]);
 
   for (const tag of allTags) {
     let group = await dbTx.query.group.findFirst({
-      where: g => and(eq(g.name, tag), eq(g.parentId, rootTagsGroup.id)),
-    })
+      where: (g) => and(eq(g.name, tag), eq(g.parentId, rootTagsGroup.id)),
+    });
     if (!group) {
-      group = await dbTx.insert(dbSchema.group)
-        .values({ name: tag, parentId: rootTagsGroup.id, updatedAt: new Date() })
+      group = await dbTx
+        .insert(dbSchema.group)
+        .values({
+          name: tag,
+          parentId: rootTagsGroup.id,
+          updatedAt: new Date(),
+        })
         .returning()
-        .then(r => r[0])
-      if (!group) throw new Error(`Failed to create tag group: ${tag}`)
+        .then((r) => r[0]);
+      if (!group) throw new Error(`Failed to create tag group: ${tag}`);
     }
-    parentMap.set(group.id, group.parentId)
-    groupIds.push(String(group.id))
+    parentMap.set(group.id, group.parentId);
+    groupIds.push(String(group.id));
   }
 
   // Build leaf→root paths using parentMap (e.g. '42\t15\t3\t')
   const groupPaths = groupIds.map((idStr) => {
-    let path = ''
-    let current: number | null = Number(idStr)
+    let path = "";
+    let current: number | null = Number(idStr);
     while (current !== null) {
-      path += `${current}\t`
-      current = parentMap.has(current) ? (parentMap.get(current) ?? null) : null
+      path += `${current}\t`;
+      current = parentMap.has(current)
+        ? (parentMap.get(current) ?? null)
+        : null;
     }
-    return path
-  })
+    return path;
+  });
 
-  await dbTx.update(dbSchema.cacheMedia)
+  await dbTx
+    .update(dbSchema.cacheMedia)
     .set({
       groupIds,
       groupPaths,
       updatedAt: new Date(),
     })
-    .where(eq(dbSchema.cacheMedia.id, cacheMedia.id))
+    .where(eq(dbSchema.cacheMedia.id, cacheMedia.id));
 }
 
 export async function getPreviousFinderQueryExecution({
   queryId,
   currentExecutionId,
 }: {
-  queryId: number
-  currentExecutionId: number
+  queryId: number;
+  currentExecutionId: number;
 }): Promise<dbSchema.FinderQueryExecution | null> {
-  return db.query.finderQueryExecution.findFirst({
-    where: (exec, { eq, ne, and }) => and(
-      eq(exec.queryId, queryId),
-      ne(exec.id, currentExecutionId),
-    ),
-    orderBy: (exec, { desc }) => [desc(exec.startedAt)],
-  }).then(r => r ?? null)
+  return db.query.finderQueryExecution
+    .findFirst({
+      where: (exec, { eq, ne, and }) =>
+        and(eq(exec.queryId, queryId), ne(exec.id, currentExecutionId)),
+      orderBy: (exec, { desc }) => [desc(exec.startedAt)],
+    })
+    .then((r) => r ?? null);
 }
 
-type SourceMediaPair = { finderSourceId: string, finderMediaId: string, contentHash: string }
+type SourceMediaPair = {
+  finderSourceId: string;
+  finderMediaId: string;
+  contentHash: string;
+};
 
 export async function getChangedPairs({
   currentExecutionId,
   previousExecutionId,
 }: {
-  currentExecutionId: number
-  previousExecutionId: number | null
-}): Promise<{ added: SourceMediaPair[], updated: SourceMediaPair[], removed: SourceMediaPair[] }> {
-  const currentPairs = await db.select({
-    finderSourceId: dbSchema.finderQueryMedia.finderSourceId,
-    finderMediaId: dbSchema.finderQueryMedia.finderMediaId,
-    contentHash: dbSchema.finderQueryMedia.contentHash,
-  }).from(dbSchema.finderQueryMedia)
-    .where(eq(dbSchema.finderQueryMedia.queryExecutionId, currentExecutionId))
+  currentExecutionId: number;
+  previousExecutionId: number | null;
+}): Promise<{
+  added: SourceMediaPair[];
+  updated: SourceMediaPair[];
+  removed: SourceMediaPair[];
+}> {
+  const currentPairs = await db
+    .select({
+      finderSourceId: dbSchema.finderQueryMedia.finderSourceId,
+      finderMediaId: dbSchema.finderQueryMedia.finderMediaId,
+      contentHash: dbSchema.finderQueryMedia.contentHash,
+    })
+    .from(dbSchema.finderQueryMedia)
+    .where(eq(dbSchema.finderQueryMedia.queryExecutionId, currentExecutionId));
 
   if (!previousExecutionId) {
-    return { added: currentPairs, updated: [], removed: [] }
+    return { added: currentPairs, updated: [], removed: [] };
   }
 
-  const previousPairs = await db.select({
-    finderSourceId: dbSchema.finderQueryMedia.finderSourceId,
-    finderMediaId: dbSchema.finderQueryMedia.finderMediaId,
-    contentHash: dbSchema.finderQueryMedia.contentHash,
-  }).from(dbSchema.finderQueryMedia)
-    .where(eq(dbSchema.finderQueryMedia.queryExecutionId, previousExecutionId))
+  const previousPairs = await db
+    .select({
+      finderSourceId: dbSchema.finderQueryMedia.finderSourceId,
+      finderMediaId: dbSchema.finderQueryMedia.finderMediaId,
+      contentHash: dbSchema.finderQueryMedia.contentHash,
+    })
+    .from(dbSchema.finderQueryMedia)
+    .where(eq(dbSchema.finderQueryMedia.queryExecutionId, previousExecutionId));
 
-  const currentMap = new Map(currentPairs.map(p => [`${p.finderSourceId}:${p.finderMediaId}`, p]))
-  const previousMap = new Map(previousPairs.map(p => [`${p.finderSourceId}:${p.finderMediaId}`, p]))
+  const currentMap = new Map(
+    currentPairs.map((p) => [`${p.finderSourceId}:${p.finderMediaId}`, p]),
+  );
+  const previousMap = new Map(
+    previousPairs.map((p) => [`${p.finderSourceId}:${p.finderMediaId}`, p]),
+  );
 
-  const added: SourceMediaPair[] = []
-  const updated: SourceMediaPair[] = []
-  const removed: SourceMediaPair[] = []
+  const added: SourceMediaPair[] = [];
+  const updated: SourceMediaPair[] = [];
+  const removed: SourceMediaPair[] = [];
 
   for (const [key, pair] of currentMap) {
-    const prev = previousMap.get(key)
-    if (!prev) added.push(pair)
-    else if (prev.contentHash !== pair.contentHash) updated.push(pair)
+    const prev = previousMap.get(key);
+    if (!prev) added.push(pair);
+    else if (prev.contentHash !== pair.contentHash) updated.push(pair);
   }
 
   for (const [key, pair] of previousMap) {
-    if (!currentMap.has(key)) removed.push(pair)
+    if (!currentMap.has(key)) removed.push(pair);
   }
 
-  return { added, updated, removed }
+  return { added, updated, removed };
 }
 
 export async function deleteCacheMediaEntry({
@@ -416,39 +519,47 @@ export async function deleteCacheMediaEntry({
   mergedIntoCacheMediaId,
   dbTx,
 }: {
-  cacheMedia: dbSchema.CacheMedia
-  deletionReason: string
-  mergedIntoCacheMediaId?: number
-  dbTx: DbTransaction
+  cacheMedia: dbSchema.CacheMedia;
+  deletionReason: string;
+  mergedIntoCacheMediaId?: number;
+  dbTx: DbTransaction;
 }): Promise<void> {
   await dbTx.insert(dbSchema.deletedCacheMedia).values({
     updatedAt: new Date(),
     cacheMediaId: cacheMedia.id,
     deletionReason,
     mergedIntoCacheMediaId: mergedIntoCacheMediaId ?? null,
-  })
-  await dbTx.delete(dbSchema.cacheMedia).where(eq(dbSchema.cacheMedia.id, cacheMedia.id))
+  });
+  await dbTx
+    .delete(dbSchema.cacheMedia)
+    .where(eq(dbSchema.cacheMedia.id, cacheMedia.id));
 }
 
 export async function deleteOldFinderQueryMedia({
   queryId,
   currentExecutionId,
 }: {
-  queryId: number
-  currentExecutionId: number
+  queryId: number;
+  currentExecutionId: number;
 }): Promise<void> {
   const oldExecutions = await db
     .select({ id: dbSchema.finderQueryExecution.id })
     .from(dbSchema.finderQueryExecution)
-    .where(and(
-      eq(dbSchema.finderQueryExecution.queryId, queryId),
-      ne(dbSchema.finderQueryExecution.id, currentExecutionId),
-    ))
+    .where(
+      and(
+        eq(dbSchema.finderQueryExecution.queryId, queryId),
+        ne(dbSchema.finderQueryExecution.id, currentExecutionId),
+      ),
+    );
 
-  if (oldExecutions.length === 0) return
+  if (oldExecutions.length === 0) return;
 
-  await db.delete(dbSchema.finderQueryMedia)
-    .where(inArray(dbSchema.finderQueryMedia.queryExecutionId, oldExecutions.map(r => r.id)))
+  await db.delete(dbSchema.finderQueryMedia).where(
+    inArray(
+      dbSchema.finderQueryMedia.queryExecutionId,
+      oldExecutions.map((r) => r.id),
+    ),
+  );
 }
 
 export async function finalizeFinderQueryExecution({
@@ -456,17 +567,29 @@ export async function finalizeFinderQueryExecution({
   queryId: _queryId,
   stats,
 }: {
-  executionId: number
-  queryId: number | null
-  stats: { pageCount: number, mediaFound: number, mediaNew: number, mediaUpdated: number, mediaRemoved: number }
+  executionId: number;
+  queryId: number | null;
+  stats: {
+    pageCount: number;
+    mediaFound: number;
+    mediaNew: number;
+    mediaUpdated: number;
+    mediaRemoved: number;
+  };
 }): Promise<void> {
-  const updated = await db.update(dbSchema.finderQueryExecution)
-    .set({ ...stats, status: 'completed', finishedAt: new Date(), updatedAt: new Date() })
+  const updated = await db
+    .update(dbSchema.finderQueryExecution)
+    .set({
+      ...stats,
+      status: "completed",
+      finishedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(dbSchema.finderQueryExecution.id, executionId))
-    .returning()
-  const row = updated[0]
-  if (!row) return
-  queryExecutionTaskSystem.complete(row)
+    .returning();
+  const row = updated[0];
+  if (!row) return;
+  queryExecutionTaskSystem.complete(row);
 }
 
 export async function failFinderQueryExecution({
@@ -474,13 +597,14 @@ export async function failFinderQueryExecution({
   queryId: _queryId,
   error,
 }: {
-  executionId: number
-  queryId: number | null
-  error: string
+  executionId: number;
+  queryId: number | null;
+  error: string;
 }): Promise<void> {
-  const [row] = await db.update(dbSchema.finderQueryExecution)
-    .set({ status: 'failed', finishedAt: new Date(), updatedAt: new Date() })
+  const [row] = await db
+    .update(dbSchema.finderQueryExecution)
+    .set({ status: "failed", finishedAt: new Date(), updatedAt: new Date() })
     .where(eq(dbSchema.finderQueryExecution.id, executionId))
-    .returning()
-  if (row) queryExecutionTaskSystem.fail(row, error)
+    .returning();
+  if (row) queryExecutionTaskSystem.fail(row, error);
 }

@@ -19,15 +19,24 @@
 
 <script setup lang="ts">
 defineProps<{
-  logs: Array<{ id: number, level: string, message: string, createdAt: string }>
-}>()
+  logs: Array<{
+    id: number;
+    level: string;
+    message: string;
+    createdAt: string;
+  }>;
+}>();
 
 function levelLabel(level: string): string {
-  return { warning: 'WARN', non_fatal_error: 'ERROR', fatal_error: 'FATAL' }[level] ?? level.toUpperCase()
+  return (
+    { warning: "WARN", non_fatal_error: "ERROR", fatal_error: "FATAL" }[
+      level
+    ] ?? level.toUpperCase()
+  );
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString()
+  return new Date(iso).toLocaleTimeString();
 }
 </script>
 
