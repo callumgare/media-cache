@@ -1,4 +1,4 @@
-import { ne, desc, eq } from 'drizzle-orm'
+import { eq, inArray, lte, sql } from 'drizzle-orm'
 import { db, dbSchema } from '@@/server/utils/drizzle'
 import type { TaskEvent, TaskProvider } from '@@/server/utils/task-provider'
 import EventEmitter from 'node:events'
@@ -73,25 +73,38 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
     await this.startupRecovery
     const tasks: QueryExecutionTask[] = []
 
-    // Running executions served entirely from in-memory state
-    for (const state of this.runningStates.values()) {
-      tasks.push(this.stateToTask(state))
-    }
+    // Get top 2 executions per queryId from DB across all statuses
+    const rankedExecs = db.$with('ranked_execs').as(
+      db.select({
+        id: dbSchema.finderQueryExecution.id,
+        rowNum: sql<number>`row_number() over (partition by ${dbSchema.finderQueryExecution.queryId} order by ${dbSchema.finderQueryExecution.startedAt} desc)`.as('rowNum'),
+      }).from(dbSchema.finderQueryExecution),
+    )
 
-    // Most recent completed/failed execution per queryId from DB
-    // Returns one per query (the most recent), regardless of whether that query
-    // also has a currently running execution.
-    const finishedExecs = await db.query.finderQueryExecution.findMany({
-      where: ne(dbSchema.finderQueryExecution.status, 'running'),
-      orderBy: [desc(dbSchema.finderQueryExecution.startedAt)],
+    const topExecIds = await db.with(rankedExecs)
+      .select({ id: rankedExecs.id })
+      .from(rankedExecs)
+      .where(lte(rankedExecs.rowNum, 2))
+
+    const dbExecs = await db.query.finderQueryExecution.findMany({
+      where: inArray(dbSchema.finderQueryExecution.id, topExecIds.map(e => e.id)),
       with: { logs: true },
     })
 
-    const seenQueryIds = new Set<number | null>()
-    for (const exec of finishedExecs) {
-      if (seenQueryIds.has(exec.queryId)) continue
-      seenQueryIds.add(exec.queryId)
-      tasks.push(this.dbRowToTask(exec))
+    // Build tasks from DB, using in-memory state for any currently running executions
+    // since it has more up-to-date counters and logs.
+    const coveredExecutionIds = new Set<number>()
+    for (const exec of dbExecs) {
+      coveredExecutionIds.add(exec.id)
+      const runningState = this.runningStates.get(exec.id)
+      tasks.push(runningState ? this.stateToTask(runningState) : this.dbRowToTask(exec))
+    }
+
+    // Warn if any in-memory running executions have no DB entry (should never happen)
+    for (const state of this.runningStates.values()) {
+      if (!coveredExecutionIds.has(state.executionId)) {
+        console.warn(`Running execution ${state.executionId} has no corresponding DB entry`)
+      }
     }
 
     return tasks

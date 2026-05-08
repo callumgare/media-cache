@@ -1,5 +1,6 @@
 import type { Task, TaskEvent } from '@@/server/utils/task-provider'
 import type { QueryExecutionTask } from '@@/server/lib/media-finder/execution-tasks'
+import type { ToastServiceMethods } from 'primevue/toastservice'
 
 export type { QueryExecutionTask }
 
@@ -8,6 +9,7 @@ const tasks = ref(new Map<string, Task>())
 const tasksLoaded = ref(false)
 let eventSource: EventSource | null = null
 let listenerCount = 0
+let toast: ToastServiceMethods | null = null
 
 function deserializeTask(raw: unknown): Task {
   const task = raw as QueryExecutionTask & { startedAt: string, finishedAt: string | null }
@@ -41,6 +43,7 @@ function handleEvent(raw: string) {
 async function fetchInitialTasks() {
   try {
     const response = await fetch('/api/tasks')
+    if (!response.ok) throw new Error(`Failed to fetch tasks: ${response.status} ${response.statusText}`)
     const data = await response.json() as unknown[]
     const newTasks = new Map<string, Task>()
     for (const raw of data) {
@@ -50,6 +53,8 @@ async function fetchInitialTasks() {
     tasks.value = newTasks
   }
   catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    toast?.add({ severity: 'error', summary: 'Failed to load tasks', detail, life: 5000 })
     console.warn('Failed to fetch initial tasks:', err)
   }
   finally {
@@ -80,6 +85,8 @@ function disconnect() {
 }
 
 export function useTasks() {
+  toast = useToast()
+
   onMounted(() => {
     listenerCount++
     connect()

@@ -23,7 +23,8 @@ const idParam = route.params.id
 const id = typeof idParam === 'string' ? idParam : idParam?.[0]
 
 if (!id) {
-  throw createError({ statusCode: 404, message: 'not found', fatal: true })
+  // This shouldn't be possible since if no id is provided it should match `app/pages/admin/index.vue`
+  throw createError({ statusCode: 500, message: 'Internal Server Error', fatal: true })
 }
 
 let mediaQuery: MediaQueryFormData | undefined
@@ -32,14 +33,25 @@ if (id === 'add') {
   mediaQuery = undefined
 }
 else if (id.match(/^\d+$/)) {
-  const data = await $fetch(`/api/admin/queries/${id}`)
-  const requestOptions = isRecord(data.requestOptions) ? data.requestOptions : {}
-  mediaQuery = { ...data, requestOptions }
+  try {
+    const data = await $fetch(`/api/admin/queries/${id}`)
+    const requestOptions = isRecord(data.requestOptions) ? data.requestOptions : {}
+    mediaQuery = { ...data, requestOptions }
+  }
+  catch (error) {
+    console.error('Error fetching query:', error)
+    throw createError({
+      statusCode: 404,
+      message: 'Not Found',
+      fatal: true,
+    })
+  }
 }
 else {
+  console.log('Invalid query ID:', id)
   throw createError({
-    statusCode: 404,
-    message: 'not found',
+    statusCode: 400,
+    message: 'Not Found',
     fatal: true,
   })
 }
