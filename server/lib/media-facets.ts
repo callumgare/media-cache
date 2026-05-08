@@ -120,16 +120,29 @@ export async function fetchFieldCounts(
     const addedIfRemovedByTagId = new Map<number, number>();
     if (currentValues.size > 0) {
       const currentTotal = await countWhere(where);
-      await Promise.all(
+      const results = await Promise.allSettled(
         [...currentValues].map(async (selectedId) => {
           const newValues = [...currentValues].filter((v) => v !== selectedId);
           const modifiedWhere = calculateWhereValue(
             replaceConditionValue(body, condition.id, newValues),
           );
           const countWithout = await countWhere(modifiedWhere);
-          addedIfRemovedByTagId.set(selectedId, countWithout - currentTotal);
+          return { selectedId, count: countWithout - currentTotal };
         }),
       );
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          addedIfRemovedByTagId.set(
+            result.value.selectedId,
+            result.value.count,
+          );
+        } else {
+          console.error(
+            "Failed to compute addedIfRemoved for tag:",
+            result.reason,
+          );
+        }
+      }
     }
 
     return buckets

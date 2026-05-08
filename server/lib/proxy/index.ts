@@ -3,6 +3,7 @@ import {
   type H3EventContext,
   createError,
   sanitizeStatusCode,
+  sanitizeStatusMessage,
 } from "h3";
 
 // Based of h3's sendProxy but allows the response to be modified before sent

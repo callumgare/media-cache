@@ -1,7 +1,13 @@
+import { proxyRequest } from "@@/server/lib/proxy";
+import { db } from "@@/server/utils/drizzle";
+import {
+  createError,
+  defineEventHandler,
+  getRequestURL,
+  sendWebResponse,
+} from "h3";
 import { replaceLast } from "~/lib/string";
 import { updateFileUrl } from "../../../../lib/media-finder/update-file-url";
-
-import { proxyRequest } from "@@/server/lib/proxy";
 
 export default defineEventHandler(async (event) => {
   const { mediaId: mediaIdString = "", fileId: fileType = "" } =
@@ -9,19 +15,28 @@ export default defineEventHandler(async (event) => {
   const reqUrl = getRequestURL(event);
   const mediaId = Number.parseInt(mediaIdString);
   if (Number.isNaN(mediaId)) {
-    return "wrong";
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Invalid media ID",
+    });
   }
 
   const cacheMedia = await db.query.cacheMedia.findFirst({
     where: (m, { eq }) => eq(m.id, mediaId),
   });
   if (!cacheMedia) {
-    throw Error("Could not fetch media");
+    throw createError({
+      statusCode: 404,
+      statusMessage: "Media not found",
+    });
   }
 
   const file = (cacheMedia.files ?? []).find((f) => f.type === fileType);
   if (!file) {
-    throw Error("Could not fetch file");
+    throw createError({
+      statusCode: 404,
+      statusMessage: "File not found",
+    });
   }
 
   let fileUrl: URL;
@@ -35,18 +50,36 @@ export default defineEventHandler(async (event) => {
     fileUrl.search = reqUrl.search;
   }
 
+  // Validate path to prevent traversal attacks
+  const rawPath = event.context.params?.path || "";
+  if (rawPath.includes("..") || rawPath.startsWith("/")) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Invalid path",
+    });
+  }
+
   const basePath = replaceLast(
     // We only want the path but event.path includes the query string if present
     new URL(event.path, "http://domain.tld").pathname,
-    `/${event.context.params?.path}`,
+    `/${rawPath}`,
   );
 
   const pathParam = event.path.replace(basePath, "");
   const virtualFilename = `media-${event.context.params?.mediaId}-${event.context.params?.fileId}.${file.ext}`;
+
+  // Only allow the virtual filename or no path
+  if (pathParam !== `/${virtualFilename}` && pathParam !== "") {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Invalid path format",
+    });
+  }
+
   const upstreamUrl =
     pathParam === `/${virtualFilename}`
       ? fileUrl
-      : new URL(pathParam, fileUrl.origin);
+      : new URL(pathParam || "/", fileUrl.origin);
 
   let res = await proxyRequest(event, upstreamUrl);
 

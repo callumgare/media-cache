@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
   boolean,
+  customType,
   doublePrecision,
   index,
   integer,
@@ -12,6 +13,27 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { GenericRequest } from "media-finder";
+import type { GenericFile } from "media-finder";
+import superjson from "superjson";
+
+// Custom column type for MediaFinder request objects stored as JSON text.
+// Validation against the handler schema happens at write time (in API endpoints).
+// On read, data is trusted as already-validated and parsed with JSON.parse.
+const mediaFinderRequest = customType<{
+  data: GenericRequest;
+  driverData: string;
+}>({
+  dataType() {
+    return "text";
+  },
+  toDriver(value: GenericRequest): string {
+    return superjson.stringify(value);
+  },
+  fromDriver(value: string): GenericRequest {
+    return superjson.parse<GenericRequest>(value);
+  },
+});
 
 /*
 user
@@ -118,7 +140,9 @@ export const cacheMedia = pgTable(
           width: number | null;
           height: number | null;
           urlExpires: Date | null;
-          urlRefreshDetails: string | null;
+          urlRefreshDetails: NonNullable<
+            GenericFile["urlRefreshDetails"]
+          > | null;
           urlUpdatedAt: Date;
         }[]
       >(),
@@ -249,7 +273,7 @@ export const finderQuery = pgTable("finder_query", {
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
   title: text("title").notNull(),
-  requestOptions: text("request_options").notNull(),
+  requestOptions: mediaFinderRequest("request_options").notNull(),
   fetchCountLimit: integer("fetch_count_limit"),
   schedule: integer("schedule").notNull(),
 });

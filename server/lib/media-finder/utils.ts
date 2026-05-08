@@ -12,8 +12,8 @@ import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
 import type { GenericFile, GenericMedia } from "media-finder";
 import objectHash from "object-hash";
+import superjson from "superjson";
 
-import { deserialize, serialize } from "@@/server/lib/general";
 import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { finderFileToCacheFile } from "./shared";
@@ -136,7 +136,7 @@ export async function createFinderQueryMediaContent({
       finderSourceId: finderMedia.mediaFinderSource,
       finderMediaId: String(finderMedia.id),
       contentHash,
-      content: serialize(finderMedia),
+      content: superjson.stringify(finderMedia),
       updatedAt: new Date(),
     })
     .onConflictDoNothing({
@@ -180,7 +180,7 @@ export async function getAllCopiesOfFinderMedia({
       orderBy: (content, { desc }) => [desc(content.createdAt)],
     })
     .then((items) =>
-      items.map((item) => deserialize(item.content) as GenericMedia),
+      items.map((item) => superjson.parse<GenericMedia>(item.content)),
     );
 }
 

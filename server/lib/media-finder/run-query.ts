@@ -1,7 +1,7 @@
-import { deserialize } from "@@/server/lib/general";
 import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
 import type { GenericMedia, GenericRequest } from "media-finder";
 import { getSecrets } from "media-finder/dist/test/utils/general.js";
+import superjson from "superjson";
 import { getMediaQuery } from "../media-finder";
 import {
   createCacheMedia,
@@ -31,9 +31,7 @@ export async function startFinderQueryExecution(
   dbFinderQuery: dbSchema.FinderQuery,
 ): Promise<dbSchema.FinderQueryExecution> {
   const execution = await createFinderQueryExecution({ dbFinderQuery });
-  const mediaFinderRequest = deserialize(
-    dbFinderQuery.requestOptions,
-  ) as GenericRequest;
+  const mediaFinderRequest = dbFinderQuery.requestOptions;
   const mediaFinderQueryOptions: MediaFinderQueryOptions = {};
   if (dbFinderQuery.fetchCountLimit !== null) {
     mediaFinderQueryOptions.fetchCountLimit = dbFinderQuery.fetchCountLimit;
@@ -44,6 +42,11 @@ export async function startFinderQueryExecution(
     mediaFinderQueryOptions,
     dbFinderQuery,
     existingExecution: execution,
+  }).catch((err) => {
+    console.error(
+      `Query execution ${execution.id} promise rejected unexpectedly:`,
+      err,
+    );
   });
   return execution;
 }
@@ -132,7 +135,7 @@ export async function runMediaFinderQuery({
       const row = await db.query.finderQueryMediaContent.findFirst({
         where: (c, { eq }) => eq(c.contentHash, contentHash),
       });
-      return row ? (deserialize(row.content) as GenericMedia) : null;
+      return row ? superjson.parse<GenericMedia>(row.content) : null;
     }
 
     // Expand the set of changed pairs to include all source/media pairs that share a cache_media

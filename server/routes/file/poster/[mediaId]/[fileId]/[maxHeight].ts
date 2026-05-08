@@ -1,6 +1,7 @@
 import fs from "node:fs";
+import { updateFileUrl } from "@@/server/lib/media-finder/update-file-url";
 import { getPosterOfFile } from "@@/server/lib/transcoding/poster";
-import { updateFileUrl } from "../../../../../lib/media-finder/update-file-url";
+import { createError } from "h3";
 
 export default defineEventHandler(
   async (event): Promise<string | undefined> => {
@@ -10,22 +11,31 @@ export default defineEventHandler(
       maxHeight: maxHeightString = "",
     } = event.context.params || {};
     const reqUrl = getRequestURL(event);
-    const mediaId = Number.parseInt(mediaIdString);
-    const maxHeight = Number.parseInt(maxHeightString);
+    const mediaId = Number.parseInt(mediaIdString, 10);
+    const maxHeight = Number.parseInt(maxHeightString, 10);
     if (Number.isNaN(mediaId)) {
-      return "wrong";
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Invalid media ID",
+      });
     }
 
     const cacheMedia = await db.query.cacheMedia.findFirst({
       where: (m, { eq }) => eq(m.id, mediaId),
     });
     if (!cacheMedia) {
-      throw Error("Could not fetch media");
+      throw createError({
+        statusCode: 404,
+        statusMessage: "Media not found",
+      });
     }
 
     const file = (cacheMedia.files ?? []).find((f) => f.type === fileType);
     if (!file) {
-      throw Error("Could not fetch file");
+      throw createError({
+        statusCode: 404,
+        statusMessage: "File not found",
+      });
     }
 
     let fileUrl: URL;

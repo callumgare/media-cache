@@ -1,4 +1,3 @@
-import { serialize } from "@@/server/lib/general";
 import type { GenericFile } from "media-finder";
 
 type CacheFileResult = {
@@ -14,7 +13,7 @@ type CacheFileResult = {
   width: number | null;
   height: number | null;
   urlExpires: Date | null;
-  urlRefreshDetails: string | null;
+  urlRefreshDetails: NonNullable<GenericFile["urlRefreshDetails"]> | null;
   urlUpdatedAt: Date;
 };
 
@@ -42,9 +41,7 @@ export function finderFileToCacheFile(
     width: finderFile.width ?? null,
     height: finderFile.height ?? null,
     urlExpires,
-    urlRefreshDetails: finderFile.urlRefreshDetails
-      ? serialize(finderFile.urlRefreshDetails)
-      : null,
+    urlRefreshDetails: finderFile.urlRefreshDetails ?? null,
     urlUpdatedAt: new Date(),
   };
 }

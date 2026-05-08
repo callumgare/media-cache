@@ -1,4 +1,4 @@
-import { serialize } from "@@/server/lib/general";
+import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
 
 export default defineEventHandler(async (event) => {
   const { requestOptions, ...other } = await readBody(event);
@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     .insert(dbSchema.finderQuery)
     .values({
       ...other,
-      requestOptions: serialize(requestOptions),
+      requestOptions: await parseMediaFinderRequest(requestOptions),
       updatedAt: new Date(),
     })
     .returning();

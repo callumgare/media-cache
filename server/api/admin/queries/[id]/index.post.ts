@@ -1,4 +1,4 @@
-import { serialize } from "@@/server/lib/general";
+import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
 import { eq } from "drizzle-orm";
 
 export default defineEventHandler(async (event) => {
@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
     .update(dbSchema.finderQuery)
     .set({
       ...other,
-      requestOptions: serialize(requestOptions),
+      requestOptions: await parseMediaFinderRequest(requestOptions),
       updatedAt: new Date(),
     })
     .where(eq(dbSchema.finderQuery.id, other.id))

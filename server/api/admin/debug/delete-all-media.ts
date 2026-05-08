@@ -10,19 +10,17 @@ export default defineEventHandler(async () => {
     console.log("Deleting finderQueryMediaContent");
     let isRowsRemaining = true;
     while (isRowsRemaining) {
-      await db
-        .delete(dbSchema.finderQueryMediaContent)
-        .where(
-          inArray(
-            dbSchema.finderQueryMediaContent.contentHash,
-            db
-              .select({
-                contentHash: dbSchema.finderQueryMediaContent.contentHash,
-              })
-              .from(dbSchema.finderQueryMediaContent)
-              .limit(500),
-          ),
-        );
+      await db.delete(dbSchema.finderQueryMediaContent).where(
+        inArray(
+          dbSchema.finderQueryMediaContent.contentHash,
+          db
+            .select({
+              contentHash: dbSchema.finderQueryMediaContent.contentHash,
+            })
+            .from(dbSchema.finderQueryMediaContent)
+            .limit(500),
+        ),
+      );
       const rowsRemaining = await db
         .select({ count: count() })
         .from(dbSchema.finderQueryMediaContent)

@@ -9,6 +9,7 @@ const tasks = ref(new Map<string, Task>());
 const tasksLoaded = ref(false);
 let eventSource: EventSource | null = null;
 let listenerCount = 0;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let toast: ToastServiceMethods | null = null;
 
 function deserializeTask(raw: unknown): Task {
@@ -80,7 +81,8 @@ function connect() {
     eventSource?.close();
     eventSource = null;
     // Reconnect after a delay
-    setTimeout(() => {
+    reconnectTimeout = setTimeout(() => {
+      reconnectTimeout = null;
       if (listenerCount > 0) connect();
     }, 3000);
   };
@@ -89,6 +91,10 @@ function connect() {
 function disconnect() {
   eventSource?.close();
   eventSource = null;
+  if (reconnectTimeout !== null) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
   tasks.value = new Map();
   tasksLoaded.value = false;
 }

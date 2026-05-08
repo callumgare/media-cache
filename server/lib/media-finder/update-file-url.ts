@@ -1,7 +1,5 @@
-import { deserialize } from "@@/server/lib/general";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { eq } from "drizzle-orm";
-import type { GenericRequestInput } from "media-finder/dist/schemas/request";
 import { getMediaQuery } from "../media-finder";
 import { finderFileToCacheFile } from "./shared";
 
@@ -18,7 +16,7 @@ export async function updateFileUrl({
     throw Error("File has no urlRefreshDetails");
   }
   const mediaQuery = await getMediaQuery({
-    request: deserialize(file.urlRefreshDetails) as GenericRequestInput,
+    request: file.urlRefreshDetails,
     queryOptions: {
       fetchCountLimit: 3,
       secrets: { apiKey: process.env.GIPHY_API_KEY },
@@ -35,7 +33,7 @@ export async function updateFileUrl({
   });
   if (!cacheMedia) throw Error("Could not find media");
 
-  let newUrl: string | undefined;
+  let newUrl: string | null = null;
 
   const updatedFiles = (cacheMedia.files ?? []).map((f) => {
     if (
@@ -70,7 +68,9 @@ export async function updateFileUrl({
   });
 
   if (!newUrl) {
-    throw Error("Returned media did not contain expected file");
+    throw Error(
+      `Returned media did not contain expected file of type "${file.type}" for media ID ${file.finderMediaId}`,
+    );
   }
 
   await db

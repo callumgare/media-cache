@@ -17,11 +17,11 @@ export async function getPosterOfFile(
   } catch {
     // It's okay if poster file doesn't exist, it just means it's not been create yet
   }
-  const inProgress = transcodesInProgress[key];
+  let inProgress = transcodesInProgress[key];
   if (inProgress !== undefined) {
     return inProgress;
   }
-  transcodesInProgress[key] = new Promise((resolve, reject) => {
+  inProgress = new Promise<string>((resolve, reject) => {
     let ffCommand: FfmpegCommand = Ffmpeg();
     ffCommand = ffCommand
       .on("start", (command: string) => {
@@ -31,15 +31,17 @@ export async function getPosterOfFile(
         if (stderr) console.log(stderr);
         if (stdout) console.log(stdout);
         console.log("Transcoding succeeded !");
+        delete transcodesInProgress[key]; // Clean up on success
         resolve(filePath);
       })
       .on(
         "error",
         (err: Error, stdout: string | null, stderr: string | null) => {
-          console.log(`Cannot process video: ${err.message}`);
-          if (stderr) console.log(stderr);
-          if (stdout) console.log(stdout);
-          reject();
+          console.error(`Cannot process video: ${err.message}`, err);
+          if (stderr) console.error(stderr);
+          if (stdout) console.error(stdout);
+          delete transcodesInProgress[key]; // Clean up on error
+          reject(err);
         },
       )
       .input(fileUrl.href)
@@ -51,6 +53,11 @@ export async function getPosterOfFile(
       );
     }
     ffCommand.save(filePath);
+  }).catch((err) => {
+    // Ensure cleanup even if error occurs after callback
+    delete transcodesInProgress[key];
+    throw err;
   });
-  return transcodesInProgress[key];
+  transcodesInProgress[key] = inProgress;
+  return inProgress;
 }

@@ -473,7 +473,7 @@ async function makeDbFinderQuery() {
     .insert(dbSchema.finderQuery)
     .values({
       title: "Test Query",
-      requestOptions: JSON.stringify(TEST_REQUEST),
+      requestOptions: TEST_REQUEST,
       schedule: 0,
       updatedAt: new Date(),
     })

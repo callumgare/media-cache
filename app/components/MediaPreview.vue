@@ -101,6 +101,9 @@ onMounted(() => {
   if (videoRef.value && posterSrc.value) {
     const posterImg = new Image();
     posterImg.onload = onMediaLoaded;
+    posterImg.onerror = () => {
+      console.warn("Failed to load poster image");
+    };
     posterImg.src = posterSrc.value;
     if (posterImg.complete) naturalSizeLoaded.value = true;
   }
@@ -112,9 +115,13 @@ function playHlsVideo() {
     return;
   }
 
-  const videoSrc = getSrc(file);
-  hls.value.loadSource(videoSrc);
-  hls.value?.attachMedia(videoRef.value);
+  try {
+    const videoSrc = getSrc(file);
+    hls.value.loadSource(videoSrc);
+    hls.value?.attachMedia(videoRef.value);
+  } catch (error) {
+    console.error("Failed to load HLS video:", error);
+  }
 }
 const hoverOverPlayCountdown = ref<NodeJS.Timeout | null>(null);
 function handleMouseEnter() {

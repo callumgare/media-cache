@@ -13,9 +13,9 @@ export default defineEventHandler(async (event) => {
     }
   };
 
-  const taskListenerWrapper = ((...args: unknown[]) => {
+  const taskListenerWrapper = (...args: unknown[]): void => {
     if (args[0]) taskListener(args[0] as TaskEvent);
-  }) as (...args: unknown[]) => void;
+  };
 
   taskManager.on("event", taskListenerWrapper);
 

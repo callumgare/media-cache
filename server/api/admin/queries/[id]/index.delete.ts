@@ -1,16 +1,14 @@
 import { eq } from "drizzle-orm";
+import { createError } from "h3";
 
 export default defineEventHandler(async (event) => {
   const idParam = getRouterParam(event, "id");
-  const id = Number.parseInt(idParam || "");
+  const id = Number.parseInt(idParam || "", 10);
   if (Number.isNaN(id)) {
-    throw Error("Invalid id");
+    throw createError({ statusCode: 400, statusMessage: "Invalid query ID" });
   }
-  const mediaFinderQuery = await db
+  const result = await db
     .delete(dbSchema.finderQuery)
     .where(eq(dbSchema.finderQuery.id, id));
-  if (!mediaFinderQuery) {
-    throw Error(`Could not find query with id "${idParam}" to delete`);
-  }
-  return mediaFinderQuery;
+  return result;
 });
