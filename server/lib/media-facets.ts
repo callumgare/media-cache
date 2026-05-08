@@ -120,28 +120,23 @@ export async function fetchFieldCounts(
     const addedIfRemovedByTagId = new Map<number, number>();
     if (currentValues.size > 0) {
       const currentTotal = await countWhere(where);
-      const results = await Promise.allSettled(
-        [...currentValues].map(async (selectedId) => {
-          const newValues = [...currentValues].filter((v) => v !== selectedId);
+      const selectedIds = [...currentValues];
+      // Single UNION ALL query instead of one query per selected tag
+      const unionQuery = sql.join(
+        selectedIds.map((selectedId) => {
+          const newValues = selectedIds.filter((v) => v !== selectedId);
           const modifiedWhere = calculateWhereValue(
             replaceConditionValue(body, condition.id, newValues),
           );
-          const countWithout = await countWhere(modifiedWhere);
-          return { selectedId, count: countWithout - currentTotal };
+          return sql`SELECT ${selectedId}::int AS tag_id, count(*)::int AS tag_count FROM cache_media WHERE ${modifiedWhere ?? sql`TRUE`}`;
         }),
+        sql` UNION ALL `,
       );
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          addedIfRemovedByTagId.set(
-            result.value.selectedId,
-            result.value.count,
-          );
-        } else {
-          console.error(
-            "Failed to compute addedIfRemoved for tag:",
-            result.reason,
-          );
-        }
+      const rows = await db.execute<{ tag_id: number; tag_count: number }>(
+        unionQuery,
+      );
+      for (const row of rows) {
+        addedIfRemovedByTagId.set(row.tag_id, row.tag_count - currentTotal);
       }
     }
 
