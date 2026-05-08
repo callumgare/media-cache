@@ -35,10 +35,16 @@
           border-radius="1rem"
         />
         <span
-          v-else
-          :class="['status-badge', statusClass(slotProps.data)]"
+          v-else-if="!executionsForQuery(slotProps.data.id).length && tasksError"
+          class="status-badge error"
         >
-          {{ statusLabel(slotProps.data) }}
+          Error fetching status
+        </span>
+        <span
+          v-else
+          :class="['status-badge', statusClass(executionsForQuery(slotProps.data.id)[0] ?? null)]"
+        >
+          {{ statusLabel(executionsForQuery(slotProps.data.id)[0] ?? null) }}
         </span>
       </template>
     </Column>
@@ -66,10 +72,16 @@
     </Column>
 
     <template #expansion="slotProps">
+      <span
+        v-if="!executionsForQuery(slotProps.data.id).length && tasksError"
+        class="status-badge error"
+      >
+        Error fetching execution details
+      </span>
       <ExecutionDetails
+        v-else
         :fetch-count-limit="slotProps.data.fetchCountLimit"
-        :active-task="activeTaskForQuery(slotProps.data.id)"
-        :last-task="lastTaskForQuery(slotProps.data.id)"
+        :executions="executionsForQuery(slotProps.data.id)"
       />
     </template>
   </DataTable>
@@ -93,42 +105,29 @@ if (finderDetailsError.value) {
 
 type QueryRow = NonNullable<typeof queryList.value>[number];
 
-const { tasks, tasksLoaded } = useTasks();
+const { tasks, tasksLoaded, tasksError } = useTasks();
 
-function activeTaskForQuery(queryId: number): QueryExecutionTask | null {
-  for (const task of tasks.value.values()) {
-    if (task.type !== "query_execution") continue;
-    const qet = task as QueryExecutionTask;
-    if (qet.queryId === queryId && qet.finishedAt === null) return qet;
-  }
-  return null;
+function executionsForQuery(queryId: number): QueryExecutionTask[] {
+  return [...tasks.value.values()]
+    .filter(
+      (task): task is QueryExecutionTask =>
+        task.type === "query_execution" && task.queryId === queryId,
+    )
+    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
 }
 
-function lastTaskForQuery(queryId: number): QueryExecutionTask | null {
-  let best: QueryExecutionTask | null = null;
-  for (const task of tasks.value.values()) {
-    if (task.type !== "query_execution") continue;
-    const qet = task as QueryExecutionTask;
-    if (qet.queryId !== queryId || qet.finishedAt === null) continue;
-    if (!best || qet.startedAt > best.startedAt) best = qet;
-  }
-  return best;
+function statusLabel(execution: QueryExecutionTask | null): string {
+  if (!execution) return "Never run";
+  if (execution.error || execution.status === "failed") return "Failed";
+  if (execution.status === "running") return "Running…";
+  if (execution.status === "completed") return "Completed";
+  return execution.status;
 }
 
-function statusLabel(query: QueryRow): string {
-  if (activeTaskForQuery(query.id)) return "Running…";
-  const last = lastTaskForQuery(query.id);
-  if (!last) return "Never run";
-  if (last.error || last.status === "failed") return "Failed";
-  return "Completed";
-}
-
-function statusClass(query: QueryRow): string {
-  if (activeTaskForQuery(query.id)) return "running";
-  const last = lastTaskForQuery(query.id);
-  if (!last) return "never";
-  if (last.error || last.status === "failed") return "failed";
-  return "completed";
+function statusClass(execution: QueryExecutionTask | null): string {
+  if (!execution) return "never";
+  if (execution.error || execution.status === "failed") return "failed";
+  return execution.status;
 }
 const expandedRows = ref<Record<string, boolean>>({});
 

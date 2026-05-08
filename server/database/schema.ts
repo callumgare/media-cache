@@ -31,6 +31,17 @@ const mediaFinderRequest = customType<{
     return superjson.stringify(value);
   },
   fromDriver(value: string): GenericRequest {
+    // Originally we were just storing stright stringified JSON rather than using superjson so we have to handle values
+    // writen before moving to superjson.
+    const unstringifedData = JSON.parse(value);
+    if (
+      typeof unstringifedData !== "object" ||
+      unstringifedData === null ||
+      !("json" in unstringifedData)
+    ) {
+      return unstringifedData as GenericRequest;
+    }
+
     return superjson.parse<GenericRequest>(value);
   },
 });

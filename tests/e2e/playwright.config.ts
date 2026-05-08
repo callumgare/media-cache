@@ -7,6 +7,7 @@ export default defineConfig({
   testDir: import.meta.dirname,
   use: {
     baseURL: "http://localhost:3001",
+    screenshot: "only-on-failure",
   },
   // Run tests serially — they share a DB
   workers: 1,

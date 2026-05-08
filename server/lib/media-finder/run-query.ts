@@ -97,14 +97,14 @@ export async function runMediaFinderQuery({
       queryExecutionTaskSystem.update(executionId, {
         pageCount,
         mediaFound: mediaFoundCount,
-        status: "Fetching pages...",
+        statusDetails: "Fetching pages...",
       });
     }
 
     // Phase 2: Diff against previous run, then create/update/delete cache_media accordingly
 
     queryExecutionTaskSystem.update(executionId, {
-      status: "Beginning processing...",
+      statusDetails: "Beginning processing...",
     });
     const previousExecution = dbFinderQuery
       ? await getPreviousFinderQueryExecution({
@@ -173,7 +173,7 @@ export async function runMediaFinderQuery({
 
     if (affectedCacheMediaMap.size) {
       queryExecutionTaskSystem.update(executionId, {
-        status: "Updating existing media...",
+        statusDetails: "Updating existing media...",
       });
     }
     for (const { cacheMedia, pairKeys } of affectedCacheMediaMap.values()) {
@@ -228,7 +228,7 @@ export async function runMediaFinderQuery({
 
     if (added.length) {
       queryExecutionTaskSystem.update(executionId, {
-        status: "Adding new media...",
+        statusDetails: "Adding new media...",
       });
     }
 

@@ -1,6 +1,11 @@
 import { EventEmitter } from "node:events";
-import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
+import {
+  type QueryExecutionTask,
+  queryExecutionTaskSystem,
+} from "@@/server/lib/media-finder/execution-tasks";
 import type { Task, TaskEvent, TaskProvider } from "./task-provider";
+
+export type AnyTask = QueryExecutionTask;
 
 class TaskManager extends EventEmitter {
   private providers: TaskProvider[] = [];

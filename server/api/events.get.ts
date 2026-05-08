@@ -28,21 +28,5 @@ export default defineEventHandler(async (event) => {
     }
   });
 
-  const sendPromise = eventStream.send();
-
-  // Send current tasks so the client is immediately up-to-date
-  try {
-    for (const task of await taskManager.getTasks()) {
-      await eventStream.push(
-        JSON.stringify({
-          type: "task.created",
-          task,
-        } satisfies TaskEvent),
-      );
-    }
-  } catch {
-    // Stream closed before initial state could be sent
-  }
-
-  return sendPromise;
+  return eventStream.send();
 });

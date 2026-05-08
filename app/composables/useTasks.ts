@@ -1,18 +1,20 @@
 import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
 import type { Task, TaskEvent } from "@@/server/utils/task-provider";
 import type { ToastServiceMethods } from "primevue/toastservice";
+import type { AnyTask } from "~~/server/utils/task-manager";
 
 export type { QueryExecutionTask };
 
 // Shared reactive state across all component instances
-const tasks = ref(new Map<string, Task>());
+const tasks = ref(new Map<string, AnyTask>());
+const error = ref<unknown>(null);
 const tasksLoaded = ref(false);
 let eventSource: EventSource | null = null;
 let listenerCount = 0;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let toast: ToastServiceMethods | null = null;
 
-function deserializeTask(raw: unknown): Task {
+function deserializeTask(raw: unknown): AnyTask {
   const task = raw as QueryExecutionTask & {
     startedAt: string;
     finishedAt: string | null;
@@ -25,7 +27,7 @@ function deserializeTask(raw: unknown): Task {
     };
     return qet;
   }
-  return task as Task;
+  return task;
 }
 
 function handleEvent(raw: string) {
@@ -47,12 +49,13 @@ function handleEvent(raw: string) {
 async function fetchInitialTasks() {
   try {
     const response = await fetch("/api/tasks");
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(
         `Failed to fetch tasks: ${response.status} ${response.statusText}`,
       );
+    }
     const data = (await response.json()) as unknown[];
-    const newTasks = new Map<string, Task>();
+    const newTasks = new Map<string, AnyTask>();
     for (const raw of data) {
       const task = deserializeTask(raw);
       newTasks.set(task.id, task);
@@ -66,6 +69,7 @@ async function fetchInitialTasks() {
       detail,
       life: 5000,
     });
+    error.value = err;
     console.warn("Failed to fetch initial tasks:", err);
   } finally {
     tasksLoaded.value = true;
@@ -96,6 +100,7 @@ function disconnect() {
     reconnectTimeout = null;
   }
   tasks.value = new Map();
+  error.value = null;
   tasksLoaded.value = false;
 }
 
@@ -130,6 +135,7 @@ export function useTasks() {
   return {
     tasks,
     tasksLoaded,
+    tasksError: error,
     runningExecutions,
     runningExecutionList,
   };

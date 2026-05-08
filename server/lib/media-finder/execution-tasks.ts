@@ -9,6 +9,7 @@ export interface QueryExecutionTask {
   executionId: number;
   queryId: number | null;
   status: string;
+  statusDetails?: string;
   pageCount: number;
   mediaFound: number;
   mediaNew: number;
@@ -39,6 +40,7 @@ interface RunningExecutionState {
   startedAt: Date;
   // Mutable fields updated throughout the run
   status: string;
+  statusDetails?: string;
   pageCount: number;
   mediaFound: number;
   mediaNew: number;
@@ -147,7 +149,8 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
       mediaNotSuitable: 0,
       mediaUnchanged: 0,
       startedAt: exec.startedAt,
-      status: "Fetching pages...",
+      status: "running",
+      statusDetails: "",
       pageCount: 0,
       mediaFound: 0,
       mediaNew: 0,
@@ -168,6 +171,7 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
       Pick<
         RunningExecutionState,
         | "status"
+        | "statusDetails"
         | "pageCount"
         | "mediaFound"
         | "mediaNew"
@@ -217,6 +221,7 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
       executionId: state.executionId,
       queryId: state.queryId,
       status: state.status,
+      statusDetails: state.statusDetails,
       pageCount: state.pageCount,
       mediaFound: state.mediaFound,
       mediaNew: state.mediaNew,
