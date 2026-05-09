@@ -135,7 +135,22 @@ export async function runMediaFinderQuery({
       const row = await db.query.finderQueryMediaContent.findFirst({
         where: (c, { eq }) => eq(c.contentHash, contentHash),
       });
-      return row ? superjson.parse<GenericMedia>(row.content) : null;
+
+      const contentString = row?.content;
+      if (!contentString) return null;
+
+      // Originally we were just storing stright stringified JSON rather than using superjson so we have to handle values
+      // writen before moving to superjson.
+      const unstringifedContent = JSON.parse(contentString);
+      if (
+        typeof unstringifedContent !== "object" ||
+        unstringifedContent === null ||
+        !("json" in unstringifedContent)
+      ) {
+        return unstringifedContent as GenericMedia;
+      }
+
+      return superjson.parse<GenericMedia>(contentString);
     }
 
     // Expand the set of changed pairs to include all source/media pairs that share a cache_media
