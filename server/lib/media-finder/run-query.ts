@@ -1,47 +1,43 @@
+import util from "node:util";
 import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
-import type { GenericMedia, GenericRequest } from "media-finder";
+import type { GenericRequest } from "media-finder";
 import { getSecrets } from "media-finder/dist/test/utils/general.js";
-import superjson from "superjson";
 import { getMediaQuery } from "../media-finder";
 import {
-  createCacheMedia,
   createExecutionLogEntry,
   createFinderQueryExecution,
   createFinderQueryMedia,
   createFinderQueryMediaContent,
-  createOrUpdateCacheMediaGroups,
+  createOrUpdateCacheMedia,
   deleteCacheMediaEntry,
   deleteOldFinderQueryMedia,
-  failFinderQueryExecution,
-  finalizeFinderQueryExecution,
   getCacheMedia,
-  getChangedPairs,
   getPreviousFinderQueryExecution,
-  updateCacheMedia,
 } from "./utils";
 
 import { db } from "@@/server/utils/drizzle";
-import type { dbSchema } from "@@/server/utils/drizzle";
+import { dbSchema } from "@@/server/utils/drizzle";
+import { and, eq, isNull, ne, not, notInArray, or } from "drizzle-orm";
 
 type MediaFinderQueryOptions = Parameters<
   typeof getMediaQuery
 >[0]["queryOptions"];
 
 export async function startFinderQueryExecution(
-  dbFinderQuery: dbSchema.FinderQuery,
+  savedFinderQuery: dbSchema.FinderQuery,
 ): Promise<dbSchema.FinderQueryExecution> {
-  const execution = await createFinderQueryExecution({ dbFinderQuery });
-  const mediaFinderRequest = dbFinderQuery.requestOptions;
+  const execution = await createFinderQueryExecution({ savedFinderQuery });
+  const mediaFinderRequest = savedFinderQuery.requestOptions;
   const mediaFinderQueryOptions: MediaFinderQueryOptions = {};
-  if (dbFinderQuery.fetchCountLimit !== null) {
-    mediaFinderQueryOptions.fetchCountLimit = dbFinderQuery.fetchCountLimit;
+  if (savedFinderQuery.fetchCountLimit !== null) {
+    mediaFinderQueryOptions.fetchCountLimit = savedFinderQuery.fetchCountLimit;
   }
   // Run the actual execution in the background without blocking the caller
-  runMediaFinderQuery({
+  runFinderQueryExecution({
+    finderQueryExecution: execution,
     mediaFinderRequest,
     mediaFinderQueryOptions,
-    dbFinderQuery,
-    existingExecution: execution,
+    savedFinderQuery,
   }).catch((err) => {
     console.error(
       `Query execution ${execution.id} promise rejected unexpectedly:`,
@@ -51,21 +47,33 @@ export async function startFinderQueryExecution(
   return execution;
 }
 
-export async function runMediaFinderQuery({
+export async function runFinderQueryExecution({
+  finderQueryExecution,
   mediaFinderRequest,
   mediaFinderQueryOptions = {},
-  dbFinderQuery,
-  existingExecution,
+  savedFinderQuery,
 }: {
+  finderQueryExecution: dbSchema.FinderQueryExecution;
   mediaFinderRequest: GenericRequest;
   mediaFinderQueryOptions?: MediaFinderQueryOptions;
-  dbFinderQuery?: dbSchema.FinderQuery;
-  existingExecution?: dbSchema.FinderQueryExecution;
+  savedFinderQuery?: dbSchema.FinderQuery;
 }): Promise<void> {
-  const finderQueryExecution =
-    existingExecution ?? (await createFinderQueryExecution({ dbFinderQuery }));
   const executionId = finderQueryExecution.id;
-  const queryId = dbFinderQuery?.id ?? null;
+  const queryId = savedFinderQuery?.id ?? null;
+
+  let pageCount = 0;
+
+  let finderMediaFound = 0;
+  let finderMediaNew = 0;
+  let finderMediaUpdated = 0;
+  let finderMediaRemoved = 0;
+  const finderMediaNotSuitable = -1; // not used at the moment
+  let finderMediaUnchanged = 0;
+
+  let cacheMediaCreated = 0;
+  let cacheMediaUpdated = 0;
+  let cacheMediaUnchanged = 0;
+  let cacheMediaDeleted = 0;
 
   try {
     mediaFinderQueryOptions.secrets = {
@@ -78,9 +86,10 @@ export async function runMediaFinderQuery({
       queryOptions: mediaFinderQueryOptions,
     });
 
-    // Phase 1: Download all results and record them in finder_query_media
-    let mediaFoundCount = 0;
-    let pageCount = 0;
+    // ----- Saving media finder results to execution media table -----
+    await queryExecutionTaskSystem.updateTask(executionId, {
+      stage: "fetching-media-finder-results",
+    });
     for await (const response of mediaQuery) {
       pageCount++;
       for (const finderMedia of response.media) {
@@ -92,212 +101,261 @@ export async function runMediaFinderQuery({
             finderQueryExecution,
           });
         });
-        mediaFoundCount++;
+        finderMediaFound++;
       }
-      queryExecutionTaskSystem.update(executionId, {
+      await queryExecutionTaskSystem.updateTask(executionId, {
         pageCount,
-        mediaFound: mediaFoundCount,
-        statusDetails: "Fetching pages...",
+        finderMediaFound,
       });
     }
 
-    // Phase 2: Diff against previous run, then create/update/delete cache_media accordingly
-
-    queryExecutionTaskSystem.update(executionId, {
-      statusDetails: "Beginning processing...",
-    });
-    const previousExecution = dbFinderQuery
+    // Anonymous queries don't have a saved finder query so aren't linked to any previous executions
+    const previousExecution = savedFinderQuery
       ? await getPreviousFinderQueryExecution({
-          queryId: dbFinderQuery.id,
+          queryId: savedFinderQuery.id,
           currentExecutionId: executionId,
         })
       : null;
 
-    const { added, updated, removed } = await getChangedPairs({
-      currentExecutionId: executionId,
-      previousExecutionId: previousExecution?.id ?? null,
+    // ----- Adding or updating cache media for found finder media -----
+
+    await queryExecutionTaskSystem.updateTask(executionId, {
+      stage: "processing-added-or-updated",
     });
 
-    // Build a map of pairKey → contentHash for the current execution so Phase 2 only reads
-    // the exact content that belongs to this run (not stale historical records).
-    const currentContentHashByPair = new Map(
-      [...added, ...updated].map((p) => [
-        `${p.finderSourceId}:${p.finderMediaId}`,
-        p.contentHash,
-      ]),
-    );
-
-    async function fetchCurrentMedia(
-      pairKey: string,
-    ): Promise<GenericMedia | null> {
-      const contentHash = currentContentHashByPair.get(pairKey);
-      if (!contentHash) return null;
-      const row = await db.query.finderQueryMediaContent.findFirst({
-        where: (c, { eq }) => eq(c.contentHash, contentHash),
+    // Do in batches to avoid loading results into memory at once.
+    let lastId = 0;
+    const batchSize = 100;
+    while (true) {
+      const foundFinderMedia = await db.query.finderQueryMedia.findMany({
+        where: (media, { eq, and, gt }) =>
+          and(gt(media.id, lastId), eq(media.queryExecutionId, executionId)),
+        limit: batchSize,
+        orderBy: (media, { asc }) => [asc(media.id)],
       });
 
-      const contentString = row?.content;
-      if (!contentString) return null;
+      const lastInBatch = foundFinderMedia.at(-1);
+      if (!lastInBatch) break;
 
-      // Originally we were just storing stright stringified JSON rather than using superjson so we have to handle values
-      // writen before moving to superjson.
-      const unstringifedContent = JSON.parse(contentString);
-      if (
-        typeof unstringifedContent !== "object" ||
-        unstringifedContent === null ||
-        !("json" in unstringifedContent)
-      ) {
-        return unstringifedContent as GenericMedia;
-      }
+      for (const finderMedia of foundFinderMedia) {
+        // Check if found in previous saved query execution
+        const foundFinderMediaFromPreviousExecution =
+          previousExecution && previousExecution.status !== "failed"
+            ? await db
+                .select({
+                  finderId: dbSchema.finderQueryMedia.finderId,
+                  contentHash: dbSchema.finderQueryMedia.contentHash,
+                })
+                .from(dbSchema.finderQueryMedia)
+                .where(
+                  and(
+                    eq(
+                      dbSchema.finderQueryMedia.finderId,
+                      finderMedia.finderId,
+                    ),
+                    eq(
+                      dbSchema.finderQueryMedia.queryExecutionId,
+                      previousExecution.id,
+                    ),
+                  ),
+                )
+            : [];
 
-      return superjson.parse<GenericMedia>(contentString);
-    }
-
-    // Expand the set of changed pairs to include all source/media pairs that share a cache_media
-    // with any of the changed pairs, so multi-source cache_media entries are fully rebuilt.
-    const allChangedPairs = [...added, ...updated, ...removed];
-    const affectedCacheMediaMap = new Map<
-      number,
-      { cacheMedia: dbSchema.CacheMedia; pairKeys: Set<string> }
-    >();
-
-    for (const pair of allChangedPairs) {
-      const cacheMedia = await getCacheMedia({
-        finderSourceId: pair.finderSourceId,
-        finderMediaId: pair.finderMediaId,
-      });
-      if (cacheMedia) {
-        const entry = affectedCacheMediaMap.get(cacheMedia.id) ?? {
-          cacheMedia,
-          pairKeys: new Set(),
-        };
-        for (const key of cacheMedia.finderSourceMediaIds) {
-          if (key.includes("\t")) {
-            const [src, mid] = key.split("\t");
-            entry.pairKeys.add(`${src}:${mid}`);
+        if (foundFinderMediaFromPreviousExecution.length) {
+          // found previous execution
+          const contentHashMatches = foundFinderMediaFromPreviousExecution.some(
+            (m) => m.contentHash === finderMedia.contentHash,
+          );
+          if (contentHashMatches) {
+            // unchanged
+            finderMediaUnchanged++;
+            cacheMediaUnchanged++;
+          } else {
+            // changed
+            finderMediaUpdated++;
+            const { status } = await createOrUpdateCacheMedia({
+              finderId: finderMedia.finderId,
+            });
+            if (status === "updated") {
+              // updated
+              cacheMediaUpdated++;
+            } else if (status === "created") {
+              cacheMediaCreated++;
+              await createExecutionLogEntry({
+                executionId,
+                queryId,
+                level: "warning",
+                message:
+                  "Media found in previous execution so expected cache media to exist but it does not. Re-created it.",
+              });
+            } else {
+              status satisfies never;
+            }
+          }
+        } else {
+          // not found in previous execution (or previous execution failed so we don't trust it)
+          finderMediaNew++;
+          const { status } = await createOrUpdateCacheMedia({
+            finderId: finderMedia.finderId,
+          });
+          if (status === "created") {
+            cacheMediaCreated++;
+          } else if (status === "updated") {
+            cacheMediaUpdated++;
+          } else {
+            status satisfies never;
           }
         }
-        affectedCacheMediaMap.set(cacheMedia.id, entry);
       }
-    }
 
-    let mediaNewCount = 0;
-    let mediaUpdatedCount = 0;
-    let mediaRemovedCount = 0;
-    const handledAddedPairKeys = new Set<string>();
-
-    if (affectedCacheMediaMap.size) {
-      queryExecutionTaskSystem.update(executionId, {
-        statusDetails: "Updating existing media...",
+      await queryExecutionTaskSystem.updateTask(executionId, {
+        pageCount,
+        finderMediaFound,
       });
+
+      lastId = lastInBatch.id;
     }
-    for (const { cacheMedia, pairKeys } of affectedCacheMediaMap.values()) {
-      const pairsWithContent: GenericMedia[] = [];
 
-      for (const pairKey of pairKeys) {
-        const media = await fetchCurrentMedia(pairKey);
-        if (media) pairsWithContent.push(media);
-      }
+    // ----- Removing media that was previously found but is no longer present -----
 
-      if (pairsWithContent.length === 0) {
-        await db.transaction(async (dbTx) => {
-          await deleteCacheMediaEntry({
-            cacheMedia,
-            deletionReason: "all_sources_removed",
-            dbTx,
-          });
-        });
-        mediaRemovedCount++;
-      } else {
-        await db.transaction(async (dbTx) => {
-          await updateCacheMedia({
-            existingCacheMedia: cacheMedia,
-            allFinderMedias: pairsWithContent,
-            dbTx,
-          });
-          await createOrUpdateCacheMediaGroups({
-            finderMedias: pairsWithContent,
-            cacheMedia,
-            dbTx,
-          });
-        });
-        mediaUpdatedCount++;
-      }
+    if (previousExecution) {
+      await queryExecutionTaskSystem.updateTask(executionId, {
+        stage: "processing-removed",
+      });
 
-      for (const pair of added) {
-        if (pairKeys.has(`${pair.finderSourceId}:${pair.finderMediaId}`)) {
-          handledAddedPairKeys.add(
-            `${pair.finderSourceId}:${pair.finderMediaId}`,
+      const removedMedias = await db
+        .select()
+        .from(dbSchema.finderQueryMedia)
+        .where(
+          and(
+            eq(
+              dbSchema.finderQueryMedia.queryExecutionId,
+              previousExecution.id,
+            ),
+            notInArray(
+              dbSchema.finderQueryMedia.finderId,
+              db
+                .select({ finderId: dbSchema.finderQueryMedia.finderId })
+                .from(dbSchema.finderQueryMedia)
+                .where(
+                  eq(dbSchema.finderQueryMedia.queryExecutionId, executionId),
+                ),
+            ),
+          ),
+        );
+
+      await queryExecutionTaskSystem.updateTask(executionId, {
+        finderMediaRemoved: removedMedias.length,
+      });
+
+      for (const removedMedia of removedMedias) {
+        finderMediaRemoved++;
+        const otherExecutionMedia = await db
+          .select({
+            id: dbSchema.finderQueryMedia.id,
+            queryExecutionId: dbSchema.finderQueryMedia.queryExecutionId,
+          })
+          .from(dbSchema.finderQueryMedia)
+          .where(
+            and(
+              eq(dbSchema.finderQueryMedia.finderId, removedMedia.finderId),
+              savedFinderQuery?.id
+                ? or(
+                    ne(dbSchema.finderQueryMedia.queryId, savedFinderQuery.id),
+                    isNull(dbSchema.finderQueryMedia.queryId),
+                  )
+                : undefined,
+              not(eq(dbSchema.finderQueryMedia.queryExecutionId, executionId)),
+            ),
           );
+        if (otherExecutionMedia.length === 0) {
+          // delete - no other instances
+          const cacheMedia = await getCacheMedia({
+            finderId: removedMedia.finderId,
+            executionId, // Used for logging only
+            queryId, // Used for logging only
+          });
+          if (cacheMedia) {
+            cacheMediaDeleted++;
+            await deleteCacheMediaEntry({
+              cacheMedia,
+              deletionReason: "all-sources-removed",
+            });
+          } else {
+            await createExecutionLogEntry({
+              executionId,
+              queryId,
+              level: "warning",
+              message:
+                "Media to be removed but no corresponding cache entry found",
+            });
+          }
+        } else {
+          // update - other instances
+          const { status } = await createOrUpdateCacheMedia({
+            finderId: removedMedia.finderId,
+          });
+          if (status === "updated") {
+            cacheMediaUpdated++;
+          } else if (status === "created") {
+            cacheMediaCreated++;
+            await createExecutionLogEntry({
+              executionId,
+              queryId,
+              level: "warning",
+              message:
+                "Media found in other query execution so expected cache media to exist but it does not. Re-created it.",
+            });
+          } else {
+            status satisfies never;
+          }
         }
       }
     }
 
-    // Update task with processing progress
-    if (mediaUpdatedCount > 0 || mediaRemovedCount > 0) {
-      queryExecutionTaskSystem.update(executionId, {
-        mediaUpdated: mediaUpdatedCount,
-        mediaRemoved: mediaRemovedCount,
+    // ----- Cleanup -----
+    if (savedFinderQuery) {
+      await queryExecutionTaskSystem.updateTask(executionId, {
+        stage: "removing-previous-execution-results",
       });
-    }
 
-    if (added.length) {
-      queryExecutionTaskSystem.update(executionId, {
-        statusDetails: "Adding new media...",
-      });
-    }
-
-    // Create cache_media for added pairs that had no existing cache_media
-    for (const pair of added) {
-      if (
-        handledAddedPairKeys.has(`${pair.finderSourceId}:${pair.finderMediaId}`)
-      )
-        continue;
-
-      const pairKey = `${pair.finderSourceId}:${pair.finderMediaId}`;
-      const finderMedia = await fetchCurrentMedia(pairKey);
-      if (!finderMedia) continue;
-
-      await db.transaction(async (dbTx) => {
-        const cacheMedia = await createCacheMedia({
-          finderMedias: [finderMedia],
-          dbTx,
-        });
-        await createOrUpdateCacheMediaGroups({
-          finderMedias: [finderMedia],
-          cacheMedia,
-          dbTx,
-        });
-      });
-      mediaNewCount++;
-    }
-
-    // Update task with new media count
-    if (mediaNewCount > 0) {
-      queryExecutionTaskSystem.update(executionId, { mediaNew: mediaNewCount });
-    }
-
-    // Clean up old finder_query_media records and update execution stats
-    if (dbFinderQuery) {
       await deleteOldFinderQueryMedia({
-        queryId: dbFinderQuery.id,
+        queryId: savedFinderQuery.id,
         currentExecutionId: executionId,
       });
     }
 
-    await finalizeFinderQueryExecution({
-      executionId,
-      queryId,
-      stats: {
-        pageCount,
-        mediaFound: mediaFoundCount,
-        mediaNew: mediaNewCount,
-        mediaUpdated: mediaUpdatedCount,
-        mediaRemoved: mediaRemovedCount,
-      },
-    });
+    // ----- Success -----
+    const updatedTaskValues: Omit<
+      typeof dbSchema.finderQueryExecution.$inferInsert,
+      "id"
+    > = {
+      updatedAt: new Date(),
+      finishedAt: new Date(),
+      status: "completed",
+      pageCount,
+
+      finderMediaFound,
+      finderMediaNew,
+      finderMediaUpdated,
+      finderMediaRemoved,
+      finderMediaNotSuitable,
+      finderMediaUnchanged,
+
+      cacheMediaCreated,
+      cacheMediaUpdated,
+      cacheMediaUnchanged,
+      cacheMediaDeleted,
+    };
+    await db
+      .update(dbSchema.finderQueryExecution)
+      .set(updatedTaskValues)
+      .where(eq(dbSchema.finderQueryExecution.id, executionId))
+      .returning();
+
+    await queryExecutionTaskSystem.updateTask(executionId, updatedTaskValues);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = util.inspect(err, { depth: 4 });
     console.error(`Finder query execution ${executionId} failed:`, err);
     await createExecutionLogEntry({
       executionId,
@@ -305,6 +363,32 @@ export async function runMediaFinderQuery({
       level: "fatal_error",
       message,
     });
-    await failFinderQueryExecution({ executionId, queryId, error: message });
+    const updatedTaskValues: Omit<
+      typeof dbSchema.finderQueryExecution.$inferInsert,
+      "id"
+    > = {
+      updatedAt: new Date(),
+      finishedAt: new Date(),
+      status: "failed",
+      pageCount,
+
+      finderMediaFound,
+      finderMediaNew,
+      finderMediaUpdated,
+      finderMediaRemoved,
+      finderMediaNotSuitable,
+      finderMediaUnchanged,
+
+      cacheMediaCreated,
+      cacheMediaUpdated,
+      cacheMediaUnchanged,
+      cacheMediaDeleted,
+    };
+    await db
+      .update(dbSchema.finderQueryExecution)
+      .set(updatedTaskValues)
+      .where(eq(dbSchema.finderQueryExecution.id, executionId));
+
+    await queryExecutionTaskSystem.updateTask(executionId, updatedTaskValues);
   }
 }

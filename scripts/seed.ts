@@ -262,16 +262,14 @@ function buildSingleMedia(
     description,
     creators: [creator],
     uploaders: [creator],
-    finderSourceMediaIds: mediaSources.map((s) => [
-      s.finderSourceId,
-      finderMediaId,
-    ]),
+    finderSourceIds: mediaSources.map((s) => s.finderSourceId),
+    finderIds: mediaSources.map((s) => `${s.finderSourceId}\t${finderMediaId}`),
     groupIds: mediaTags.map((g) => {
       if (g.parentId === null)
         throw new Error(
           `Tag group "${g.name}" (id: ${g.id}) has no parent — seed data is malformed`,
         );
-      return [g.id, g.parentId];
+      return `${g.id}\t${g.parentId}`;
     }),
     hasVideo,
     hasAudio,

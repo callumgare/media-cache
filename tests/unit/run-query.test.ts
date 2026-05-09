@@ -1,4 +1,5 @@
-import { runMediaFinderQuery } from "@@/server/lib/media-finder/run-query";
+import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
+import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import {
   TEST_REQUEST,
@@ -15,6 +16,33 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 beforeEach(truncateAll);
 
+async function runMediaFinderQuery(args: {
+  mediaFinderRequest: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderRequest"];
+  mediaFinderQueryOptions?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderQueryOptions"];
+  dbFinderQuery?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["savedFinderQuery"];
+}) {
+  const {
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    dbFinderQuery: savedFinderQuery,
+  } = args;
+  const finderQueryExecution = await createFinderQueryExecution({
+    savedFinderQuery,
+  });
+  return runFinderQueryExecution({
+    finderQueryExecution,
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    savedFinderQuery,
+  });
+}
+
 describe("runMediaFinderQuery — basic lifecycle", () => {
   it("creates cache_media for new media", async () => {
     const m = makeMedia({ id: "media-1", title: "Hello World" });
@@ -26,7 +54,7 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
     expect(all).toHaveLength(1);
     expect(all[0].title).toBe("Hello World");
     expect(all[0].finderSourceIds).toEqual(["test-source"]);
-    expect(all[0].finderSourceMediaIds).toEqual(["test-source\tmedia-1"]);
+    expect(all[0].finderIds).toEqual(["test-source\tmedia-1"]);
   });
 
   it("creates multiple cache_media entries for multiple media", async () => {
@@ -48,10 +76,10 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
 
     const executions = await getFinderQueryExecutionAll();
     expect(executions).toHaveLength(1);
-    expect(executions[0].mediaFound).toBe(1);
-    expect(executions[0].mediaNew).toBe(1);
-    expect(executions[0].mediaUpdated).toBe(0);
-    expect(executions[0].mediaRemoved).toBe(0);
+    expect(executions[0].finderMediaFound).toBe(1);
+    expect(executions[0].finderMediaNew).toBe(1);
+    expect(executions[0].finderMediaUpdated).toBe(0);
+    expect(executions[0].finderMediaRemoved).toBe(0);
   });
 
   it("populates hasVideo / hasImage flags from the main file", async () => {
@@ -62,12 +90,8 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
     await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
 
     const all = await getCacheMediaAll();
-    const vidRow = all.find((r) =>
-      r.finderSourceMediaIds.includes("test-source\tvid"),
-    );
-    const imgRow = all.find((r) =>
-      r.finderSourceMediaIds.includes("test-source\timg"),
-    );
+    const vidRow = all.find((r) => r.finderIds.includes("test-source\tvid"));
+    const imgRow = all.find((r) => r.finderIds.includes("test-source\timg"));
     if (!vidRow) throw new Error("Expected to find a video row in cache_media");
     if (!imgRow)
       throw new Error("Expected to find an image row in cache_media");
@@ -117,8 +141,8 @@ describe("runMediaFinderQuery — second run, no changes", () => {
     const execs = await getFinderQueryExecutionAll();
     const second = execs.sort((a, b) => b.id - a.id)[0];
     if (!second) throw new Error("Expected at least one execution");
-    expect(second.mediaUpdated).toBe(0);
-    expect(second.mediaNew).toBe(0);
+    expect(second.finderMediaUpdated).toBe(0);
+    expect(second.finderMediaNew).toBe(0);
   });
 });
 
@@ -159,8 +183,8 @@ describe("runMediaFinderQuery — update", () => {
     const execs = await getFinderQueryExecutionAll();
     const second = execs.sort((a, b) => b.id - a.id)[0];
     if (!second) throw new Error("Expected at least one execution");
-    expect(second.mediaUpdated).toBe(1);
-    expect(second.mediaNew).toBe(0);
+    expect(second.finderMediaUpdated).toBe(1);
+    expect(second.finderMediaNew).toBe(0);
   });
 });
 
@@ -201,7 +225,7 @@ describe("runMediaFinderQuery — removal", () => {
     expect(deleted).toHaveLength(1);
     expect(deleted[0].cacheMediaId).toBe(before?.id);
     expect(deleted[0].mergedIntoCacheMediaId).toBeNull();
-    expect(deleted[0].deletionReason).toBe("all_sources_removed");
+    expect(deleted[0].deletionReason).toBe("all-sources-removed");
   });
 
   it("records mediaRemoved=1 on deletion", async () => {
@@ -221,7 +245,7 @@ describe("runMediaFinderQuery — removal", () => {
     const execs = await getFinderQueryExecutionAll();
     const second = execs.sort((a, b) => b.id - a.id)[0];
     if (!second) throw new Error("Expected at least one execution");
-    expect(second.mediaRemoved).toBe(1);
+    expect(second.finderMediaRemoved).toBe(1);
   });
 });
 
@@ -463,7 +487,7 @@ describe("runMediaFinderQuery — empty query", () => {
 
     const execs = await getFinderQueryExecutionAll();
     expect(execs).toHaveLength(1);
-    expect(execs[0].mediaFound).toBe(0);
+    expect(execs[0].finderMediaFound).toBe(0);
   });
 });
 

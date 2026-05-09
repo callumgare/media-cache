@@ -132,7 +132,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
 </script>
 
 <template>
-  <div class="root">
+  <div class="root" data-testid="filter-sidebar-root">
     <ClientOnly
       fallback-tag="span"
       fallback="Loading..."

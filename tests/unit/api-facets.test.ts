@@ -1,5 +1,6 @@
 import { fetchFieldCounts } from "@@/server/lib/media-facets";
-import { runMediaFinderQuery } from "@@/server/lib/media-finder/run-query";
+import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
+import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
 import { db } from "@@/server/utils/drizzle";
 import type {
   QueryFieldCondition,
@@ -20,6 +21,33 @@ import {
 } from "./fixtures/helpers";
 
 beforeEach(truncateAll);
+
+async function runMediaFinderQuery(args: {
+  mediaFinderRequest: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderRequest"];
+  mediaFinderQueryOptions?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderQueryOptions"];
+  dbFinderQuery?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["savedFinderQuery"];
+}) {
+  const {
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    dbFinderQuery: savedFinderQuery,
+  } = args;
+  const finderQueryExecution = await createFinderQueryExecution({
+    savedFinderQuery,
+  });
+  return runFinderQueryExecution({
+    finderQueryExecution,
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    savedFinderQuery,
+  });
+}
 
 function makeBody(
   conditions: QueryGroupCondition["conditions"] = [],

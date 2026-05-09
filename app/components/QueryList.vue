@@ -37,14 +37,16 @@
         <span
           v-else-if="!executionsForQuery(slotProps.data.id).length && tasksError"
           class="status-badge error"
+          data-testid="status-badge"
         >
           Error fetching status
         </span>
         <span
           v-else
-          :class="['status-badge', statusClass(executionsForQuery(slotProps.data.id)[0] ?? null)]"
+          :class="['status-badge', executionsForQuery(slotProps.data.id)[0]?.status ?? 'never']"
+          data-testid="status-badge"
         >
-          {{ statusLabel(executionsForQuery(slotProps.data.id)[0] ?? null) }}
+          {{ formatStatus(executionsForQuery(slotProps.data.id)[0] ?? null) }}
         </span>
       </template>
     </Column>
@@ -75,6 +77,7 @@
       <span
         v-if="!executionsForQuery(slotProps.data.id).length && tasksError"
         class="status-badge error"
+        data-testid="status-badge"
       >
         Error fetching execution details
       </span>
@@ -89,6 +92,7 @@
 
 <script setup lang="ts">
 import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
+import { formatStatus } from "~/lib/finder-executions";
 
 const toast = useToast();
 const route = useRoute();
@@ -97,7 +101,7 @@ const {
   data: queryList,
   error: finderDetailsError,
   refresh: refreshQueryList,
-} = await useFetch("/api/admin/queries");
+} = await useSuperFetch("/api/admin/queries");
 
 if (finderDetailsError.value) {
   throw finderDetailsError.value;
@@ -116,19 +120,6 @@ function executionsForQuery(queryId: number): QueryExecutionTask[] {
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
 }
 
-function statusLabel(execution: QueryExecutionTask | null): string {
-  if (!execution) return "Never run";
-  if (execution.error || execution.status === "failed") return "Failed";
-  if (execution.status === "running") return "Running…";
-  if (execution.status === "completed") return "Completed";
-  return execution.status;
-}
-
-function statusClass(execution: QueryExecutionTask | null): string {
-  if (!execution) return "never";
-  if (execution.error || execution.status === "failed") return "failed";
-  return execution.status;
-}
 const expandedRows = ref<Record<string, boolean>>({});
 
 onMounted(() => {

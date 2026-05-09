@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Clear any in-memory running states from previous tests
-  queryExecutionTaskSystem.clearRunningStates();
+  queryExecutionTaskSystem.clearInMemoryTasks();
 
   // Seed the test plugin queue
   globalThis.__testPluginQueue = body.media ?? [];

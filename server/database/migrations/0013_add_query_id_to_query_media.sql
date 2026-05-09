@@ -1,0 +1,2 @@
+ALTER TABLE "finder_query_media" ADD COLUMN "query_id" integer;--> statement-breakpoint
+ALTER TABLE "finder_query_media" ADD CONSTRAINT "finder_query_media_query_id_finder_query_id_fk" FOREIGN KEY ("query_id") REFERENCES "public"."finder_query"("id") ON DELETE no action ON UPDATE no action;

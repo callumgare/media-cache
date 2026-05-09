@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
-import { runMediaFinderQuery } from "@@/server/lib/media-finder/run-query";
+import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
+import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
 import handler from "@@/server/routes/file/[mediaId]/[fileId]/[...path]";
 import { db } from "@@/server/utils/drizzle";
 import { createEvent } from "h3";
@@ -13,6 +14,33 @@ import {
 } from "./fixtures/helpers";
 
 beforeEach(truncateAll);
+
+async function runMediaFinderQuery(args: {
+  mediaFinderRequest: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderRequest"];
+  mediaFinderQueryOptions?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderQueryOptions"];
+  dbFinderQuery?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["savedFinderQuery"];
+}) {
+  const {
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    dbFinderQuery: savedFinderQuery,
+  } = args;
+  const finderQueryExecution = await createFinderQueryExecution({
+    savedFinderQuery,
+  });
+  return runFinderQueryExecution({
+    finderQueryExecution,
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    savedFinderQuery,
+  });
+}
 
 function makeEvent(path: string, params: Record<string, string>) {
   const socket = new Socket();

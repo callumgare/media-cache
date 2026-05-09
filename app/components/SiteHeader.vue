@@ -111,6 +111,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
           v-if="activeExecution"
           :to="`/admin/queries?expandQuery=${activeExecution.queryId}`"
           class="execution-indicator"
+          data-testid="execution-indicator"
           :title="`Query running — ${activeExecution.pageCount} page${activeExecution.pageCount === 1 ? '' : 's'} processed`"
         >
           <ProgressSpinner

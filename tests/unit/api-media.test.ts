@@ -1,4 +1,5 @@
-import { runMediaFinderQuery } from "@@/server/lib/media-finder/run-query";
+import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
+import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { calculateWhereValue } from "@@/server/utils/query-builder";
 import type { QueryGroupCondition } from "@@/types/query-condition";
@@ -18,6 +19,33 @@ import {
 
 beforeEach(truncateAll);
 
+async function runMediaFinderQuery(args: {
+  mediaFinderRequest: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderRequest"];
+  mediaFinderQueryOptions?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["mediaFinderQueryOptions"];
+  dbFinderQuery?: Parameters<
+    typeof runFinderQueryExecution
+  >[0]["savedFinderQuery"];
+}) {
+  const {
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    dbFinderQuery: savedFinderQuery,
+  } = args;
+  const finderQueryExecution = await createFinderQueryExecution({
+    savedFinderQuery,
+  });
+  return runFinderQueryExecution({
+    finderQueryExecution,
+    mediaFinderRequest,
+    mediaFinderQueryOptions,
+    savedFinderQuery,
+  });
+}
+
 // Mirrors the handler's filtered query
 async function queryMediaWhere(condition: QueryGroupCondition) {
   const whereClause = calculateWhereValue(condition) ?? undefined;
@@ -25,7 +53,7 @@ async function queryMediaWhere(condition: QueryGroupCondition) {
     .select({
       id: dbSchema.cacheMedia.id,
       title: dbSchema.cacheMedia.title,
-      finderSourceMediaIds: dbSchema.cacheMedia.finderSourceMediaIds,
+      finderIds: dbSchema.cacheMedia.finderIds,
     })
     .from(dbSchema.cacheMedia)
     .where(whereClause);

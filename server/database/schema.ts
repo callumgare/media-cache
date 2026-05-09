@@ -1,3 +1,4 @@
+import { explain } from "@drizzle-lab/api/extensions";
 import { relations, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
@@ -7,19 +8,17 @@ import {
   index,
   integer,
   jsonb,
+  pgEnum,
+  pgSchema,
   pgTable,
   serial,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { GenericRequest } from "media-finder";
-import type { GenericFile } from "media-finder";
+import type { GenericFile, GenericMedia, GenericRequest } from "media-finder";
 import superjson from "superjson";
 
-// Custom column type for MediaFinder request objects stored as JSON text.
-// Validation against the handler schema happens at write time (in API endpoints).
-// On read, data is trusted as already-validated and parsed with JSON.parse.
 const mediaFinderRequest = customType<{
   data: GenericRequest;
   driverData: string;
@@ -31,20 +30,26 @@ const mediaFinderRequest = customType<{
     return superjson.stringify(value);
   },
   fromDriver(value: string): GenericRequest {
-    // Originally we were just storing stright stringified JSON rather than using superjson so we have to handle values
-    // writen before moving to superjson.
-    const unstringifedData = JSON.parse(value);
-    if (
-      typeof unstringifedData !== "object" ||
-      unstringifedData === null ||
-      !("json" in unstringifedData)
-    ) {
-      return unstringifedData as GenericRequest;
-    }
-
     return superjson.parse<GenericRequest>(value);
   },
 });
+
+const mediaFinderMedia = customType<{
+  data: GenericMedia;
+  driverData: string;
+}>({
+  dataType() {
+    return "text";
+  },
+  toDriver(value: GenericMedia): string {
+    return superjson.stringify(value);
+  },
+  fromDriver(value: string): GenericMedia {
+    return superjson.parse<GenericMedia>(value);
+  },
+});
+
+const statusEnum = pgEnum("status", ["running", "completed", "failed"]);
 
 /*
 user
@@ -102,7 +107,7 @@ export const cacheMedia = pgTable(
       .notNull()
       .default(sql`ARRAY[]::text[]`),
     // GIN-indexed array of 'sourceId<TAB>mediaId' composites for exact source+media lookups.
-    finderSourceMediaIds: text("finder_source_media_ids")
+    finderIds: text("finder_ids")
       .array()
       .notNull()
       .default(sql`ARRAY[]::text[]`),
@@ -185,9 +190,10 @@ export const cacheMedia = pgTable(
     finderSourceIdsGinIndex: index(
       "cache_media__finder_source_ids_gin_idx",
     ).using("gin", cacheMedia.finderSourceIds),
-    finderSourceMediaIdsGinIndex: index(
-      "cache_media__finder_source_media_ids_gin_idx",
-    ).using("gin", cacheMedia.finderSourceMediaIds),
+    finderIdsGinIndex: index("cache_media__finder_ids_gin_idx").using(
+      "gin",
+      cacheMedia.finderIds,
+    ),
     groupIdsGinIndex: index("cache_media__group_ids_gin_idx").using(
       "gin",
       cacheMedia.groupIds,
@@ -304,20 +310,24 @@ execution went/is going.
 export const finderQueryExecution = pgTable("finder_query_execution", {
   id: serial("id").notNull().primaryKey(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+
   startedAt: timestamp("started_at", { precision: 3 }).notNull().defaultNow(),
-  finishedAt: timestamp("finished_at", { precision: 3 }).notNull(),
-  status: text("status").notNull().default("running"), // 'running' | 'completed' | 'failed'
-  mediaFound: integer("media_found").notNull().default(-1),
-  mediaNew: integer("media_new").notNull().default(-1),
-  mediaUpdated: integer("media_updated").notNull().default(-1),
-  mediaRemoved: integer("media_removed").notNull().default(-1),
-  mediaNotSuitable: integer("media_not_suitable").notNull().default(-1),
-  mediaUnchanged: integer("media_unchanged").notNull().default(-1),
-  pageCount: integer("page_count").notNull().default(-1),
-  warningCount: integer("warning_count").notNull().default(0),
-  nonFatalErrorCount: integer("non_fatal_error_count").notNull().default(0),
-  fatalErrorCount: integer("fatal_error_count").notNull().default(0),
+  finishedAt: timestamp("finished_at", { precision: 3 }),
   queryId: integer("query_id").references(() => finderQuery.id),
+  status: statusEnum().notNull(),
+  pageCount: integer("page_count").notNull().default(-1),
+
+  finderMediaFound: integer("media_found").notNull().default(-1),
+  finderMediaNew: integer("media_new").notNull().default(-1),
+  finderMediaUpdated: integer("media_updated").notNull().default(-1),
+  finderMediaRemoved: integer("media_removed").notNull().default(-1),
+  finderMediaNotSuitable: integer("media_not_suitable").notNull().default(-1),
+  finderMediaUnchanged: integer("media_unchanged").notNull().default(-1),
+
+  cacheMediaCreated: integer("cache_media_created").notNull().default(-1),
+  cacheMediaUpdated: integer("cache_media_updated").notNull().default(-1),
+  cacheMediaUnchanged: integer("cache_media_unchanged").notNull().default(-1),
+  cacheMediaDeleted: integer("cache_media_deleted").notNull().default(-1),
 });
 
 export const finderQueryExecutionRelations = relations(
@@ -375,14 +385,21 @@ export const finderQueryMedia = pgTable("finder_query_media", {
   id: serial("id").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
-  finderSourceId: text("finder_source_id").notNull(),
-  finderMediaId: text("finder_media_id").notNull(),
+  finderId: text("finder_id").notNull(),
   contentHash: text("content_hash")
     .notNull()
     .references(() => finderQueryMediaContent.contentHash),
   queryExecutionId: integer("query_execution_id").references(
     () => finderQueryExecution.id,
   ),
+  queryId: integer("query_id").references(() => finderQuery.id),
+});
+
+explain(finderQueryMedia, {
+  columns: {
+    finderId:
+      "A combination of the source and ID of media returned by Media Finder in the form `finderSourceId<TAB>finderMediaId`.",
+  },
 });
 
 export const finderQueryMediaRelations = relations(
@@ -410,11 +427,17 @@ export const finderQueryMediaContent = pgTable("finder_query_media_content", {
   contentHash: text("content_hash").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
-  finderSourceId: text("finder_source_id").notNull(),
-  finderMediaId: text("finder_media_id").notNull(),
-  content: text("content").notNull(), // This should be unique because contentHash is guaranteed to be unique
+  finderId: text("finder_id").notNull(),
+  content: mediaFinderMedia("content").notNull(), // This should be unique because contentHash is guaranteed to be unique
   // but we don't want to actually set the column to be unique values only since that limits the length of the
   // row to ~2000 chars which content can sometimes exceed
+});
+
+explain(finderQueryMediaContent, {
+  columns: {
+    finderId:
+      "A combination of the source and ID of media returned by Media Finder in the form `finderSourceId<TAB>finderMediaId`.",
+  },
 });
 
 export const finderQueryMediaContentRelations = relations(

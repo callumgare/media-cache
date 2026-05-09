@@ -1,15 +1,15 @@
 import type { EventEmitter } from "node:events";
 
-export interface Task {
+export interface BaseTask {
   type: string;
   id: string;
 }
 
 export interface TaskEvent {
   type: "task.created" | "task.updated" | "task.completed" | "task.failed";
-  task: Task;
+  task: BaseTask;
 }
 
 export interface TaskProvider extends EventEmitter {
-  getTasks(): Promise<Task[]> | Task[];
+  getTasks(): Promise<BaseTask[]> | BaseTask[];
 }

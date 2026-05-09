@@ -74,7 +74,9 @@ async function createAndRunQuery({
         const tasksRes = await request.get("/api/tasks");
         if (!tasksRes.ok())
           throw new Error(`Failed to get tasks: ${tasksRes.status()}`);
-        const tasks = (await tasksRes.json()) as Array<{ status: string }>;
+        const tasks = (
+          (await tasksRes.json()) as { json: Array<{ status: string }> }
+        ).json;
         if (tasks.every((t) => t.status !== "running")) return;
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
@@ -122,10 +124,9 @@ test.describe("Browsing via media page grid", () => {
     // The sidebar source dropdown is populated from /api/admin/finder-details.
     // Target it via the QueryBuilderInputBase label text so we don't confuse it
     // with the tags or type dropdowns.
-    const sidebar = page.locator("#page-sidebar");
+    const sidebar = page.getByTestId("page-sidebar");
     const sourceSelect = sidebar
-      .locator(".root")
-      .filter({ has: page.locator("label", { hasText: "Source" }) })
+      .locator(".root", { has: page.locator("label", { hasText: "Source" }) })
       .locator(".p-select");
     await expect(sourceSelect).toBeVisible({ timeout: 5_000 });
     await sourceSelect.click();
@@ -191,7 +192,7 @@ test.describe("Browsing via media page grid", () => {
       await page.goto("/");
 
       const items = page.locator("[data-media-id]");
-      const loadingIndicator = page.locator(".page").getByText("Loading...");
+      const loadingIndicator = page.getByTestId("page").getByText("Loading...");
 
       // Request is held — confirm the loading indicator is visible
       await expect(loadingIndicator).toBeVisible({ timeout: 15_000 });
@@ -217,7 +218,7 @@ test.describe("Browsing via media page grid", () => {
       await page.goto("/");
 
       const items = page.locator("[data-media-id]");
-      const loadingIndicator = page.locator(".page").getByText("Loading...");
+      const loadingIndicator = page.getByTestId("page").getByText("Loading...");
 
       // First request is held — confirm loading indicator is visible then release
       await expect(loadingIndicator).toBeVisible({ timeout: 15_000 });

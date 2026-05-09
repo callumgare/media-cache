@@ -73,7 +73,7 @@ test.describe("Query execution feedback", () => {
     await expect(skeleton).toBeVisible();
 
     // Once tasks have loaded the skeleton goes away and "Never run" appears
-    const badge = page.locator(".status-badge").first();
+    const badge = page.getByTestId("status-badge").first();
     await expect(badge).toHaveText("Never run", { timeout: 10_000 });
   });
 
@@ -93,15 +93,18 @@ test.describe("Query execution feedback", () => {
     await page.goto("/admin/queries");
 
     // Wait for tasks to load (skeleton disappears)
-    await expect(page.locator(".status-badge").first()).toBeVisible({
+    await expect(page.getByTestId("status-badge").first()).toBeVisible({
       timeout: 10_000,
     });
 
     await page.getByRole("button", { name: "Run" }).first().click();
 
-    await expect(page.locator(".status-badge").first()).toHaveText("Running…", {
-      timeout: 5_000,
-    });
+    await expect(page.getByTestId("status-badge").first()).toHaveText(
+      "Running…",
+      {
+        timeout: 5_000,
+      },
+    );
   });
 
   test("status badge changes to Completed after query finishes", async ({
@@ -115,14 +118,14 @@ test.describe("Query execution feedback", () => {
     await createQuery({ request });
 
     await page.goto("/admin/queries");
-    await expect(page.locator(".status-badge").first()).toBeVisible({
+    await expect(page.getByTestId("status-badge").first()).toBeVisible({
       timeout: 10_000,
     });
 
     await page.getByRole("button", { name: "Run" }).first().click();
 
     // Wait for Completed — proves task.completed SSE event was received without a page reload
-    await expect(page.locator(".status-badge").first()).toHaveText(
+    await expect(page.getByTestId("status-badge").first()).toHaveText(
       "Completed",
       { timeout: 30_000 },
     );
@@ -139,7 +142,7 @@ test.describe("Query execution feedback", () => {
     await createQuery({ request });
 
     await page.goto("/admin/queries");
-    await expect(page.locator(".status-badge").first()).toBeVisible({
+    await expect(page.getByTestId("status-badge").first()).toBeVisible({
       timeout: 10_000,
     });
 
@@ -149,7 +152,7 @@ test.describe("Query execution feedback", () => {
     await page.getByRole("button", { name: "Run" }).first().click();
 
     // Live execution view should appear in the expanded row
-    await expect(page.locator(".mode-live").first()).toBeVisible({
+    await expect(page.getByTestId("progress-section").first()).toBeVisible({
       timeout: 5_000,
     });
   });
@@ -165,7 +168,7 @@ test.describe("Query execution feedback", () => {
     await createQuery({ request });
 
     await page.goto("/admin/queries");
-    await expect(page.locator(".status-badge").first()).toBeVisible({
+    await expect(page.getByTestId("status-badge").first()).toBeVisible({
       timeout: 10_000,
     });
 
@@ -175,15 +178,15 @@ test.describe("Query execution feedback", () => {
     await page.getByRole("button", { name: "Run" }).first().click();
 
     // Wait for completion
-    await expect(page.locator(".status-badge").first()).toHaveText(
+    await expect(page.getByTestId("status-badge").first()).toHaveText(
       "Completed",
       { timeout: 30_000 },
     );
 
     // Execution details should show media counts
-    const details = page.locator(".execution-details");
-    await expect(details.getByText(/Found:/)).toBeVisible();
-    await expect(details.getByText(/New:/)).toBeVisible();
+    const details = page.getByTestId("execution-details");
+    await expect(details.getByText(/Found/)).toBeVisible();
+    await expect(details.getByText(/New/)).toBeVisible();
   });
 
   test("site header shows running execution indicator while query runs", async ({
@@ -197,14 +200,14 @@ test.describe("Query execution feedback", () => {
     await createQuery({ request });
 
     await page.goto("/admin/queries");
-    await expect(page.locator(".status-badge").first()).toBeVisible({
+    await expect(page.getByTestId("status-badge").first()).toBeVisible({
       timeout: 10_000,
     });
 
     await page.getByRole("button", { name: "Run" }).first().click();
 
     // Header should show a running indicator
-    await expect(page.locator(".execution-indicator")).toBeVisible({
+    await expect(page.getByTestId("execution-indicator")).toBeVisible({
       timeout: 5_000,
     });
   });

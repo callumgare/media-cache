@@ -3,12 +3,13 @@ import {
   type QueryExecutionTask,
   queryExecutionTaskSystem,
 } from "@@/server/lib/media-finder/execution-tasks";
-import type { Task, TaskEvent, TaskProvider } from "./task-provider";
+import type { TaskEvent, TaskProvider } from "./task-provider";
 
 export type AnyTask = QueryExecutionTask;
+export type AnyTaskProvider = typeof queryExecutionTaskSystem;
 
 class TaskManager extends EventEmitter {
-  private providers: TaskProvider[] = [];
+  private providers: AnyTaskProvider[] = [];
 
   constructor() {
     super();
@@ -23,7 +24,7 @@ class TaskManager extends EventEmitter {
     });
   }
 
-  async getTasks(): Promise<Task[]> {
+  async getTasks(): Promise<AnyTask[]> {
     const results = await Promise.all(this.providers.map((p) => p.getTasks()));
     return results.flat();
   }

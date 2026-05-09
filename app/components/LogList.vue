@@ -10,7 +10,7 @@
         :class="['log-entry', log.level]"
       >
         <span class="log-level">{{ levelLabel(log.level) }}</span>
-        <span class="log-message">{{ log.message }}</span>
+        <pre class="log-message">{{ log.message }}</pre>
         <span class="log-time">{{ formatTime(log.createdAt) }}</span>
       </div>
     </div>
@@ -18,12 +18,12 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const { logs } = defineProps<{
   logs: Array<{
     id: number;
     level: string;
     message: string;
-    createdAt: string;
+    createdAt: Date;
   }>;
 }>();
 
@@ -35,8 +35,8 @@ function levelLabel(level: string): string {
   );
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString();
+function formatTime(date: Date): string {
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 }
 </script>
 

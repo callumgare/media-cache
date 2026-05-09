@@ -18,6 +18,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@drizzle-lab/api": "^0.30.2",
     "@peterbud/nuxt-query": "^1.7.0",
     "@pinia/nuxt": "^0.11.3",
     "@tanstack/vue-query": "^5.100.8",
@@ -30,6 +31,7 @@
     "hls.js": "^1.6.16",
     "media-finder": "^3.13.0",
     "nuxt": "^4.4.4",
+    "nuxt-superjson": "^1.0.0",
     "object-hash": "^3.0.0",
     "photoswipe": "^5.4.4",
     "photoswipe-video-plugin": "^1.0.2",

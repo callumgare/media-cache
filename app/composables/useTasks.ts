@@ -1,6 +1,7 @@
 import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
-import type { Task, TaskEvent } from "@@/server/utils/task-provider";
+import type { TaskEvent } from "@@/server/utils/task-provider";
 import type { ToastServiceMethods } from "primevue/toastservice";
+import superjson from "superjson";
 import type { AnyTask } from "~~/server/utils/task-manager";
 
 export type { QueryExecutionTask };
@@ -33,7 +34,7 @@ function deserializeTask(raw: unknown): AnyTask {
 function handleEvent(raw: string) {
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
+    parsed = superjson.parse(raw) as Record<string, unknown>;
   } catch {
     return;
   }
@@ -48,13 +49,8 @@ function handleEvent(raw: string) {
 
 async function fetchInitialTasks() {
   try {
-    const response = await fetch("/api/tasks");
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch tasks: ${response.status} ${response.statusText}`,
-      );
-    }
-    const data = (await response.json()) as unknown[];
+    const { $superFetch } = useNuxtApp();
+    const data = await $superFetch("/api/tasks");
     const newTasks = new Map<string, AnyTask>();
     for (const raw of data) {
       const task = deserializeTask(raw);

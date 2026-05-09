@@ -181,6 +181,7 @@ async function toggleSidebar() {
         id="page-sidebar"
         ref="sidebar"
         class="sidebar"
+        data-testid="page-sidebar"
         :style="sidebarStyle"
       />
       <button
@@ -194,7 +195,10 @@ async function toggleSidebar() {
         class="sidebar-shadow"
         @click="toggleSidebar"
       />
-      <div class="page">
+      <div
+        class="page"
+        data-testid="page"
+      >
         <NuxtPage />
       </div>
     </div>

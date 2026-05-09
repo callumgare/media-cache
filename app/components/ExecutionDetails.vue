@@ -1,22 +1,26 @@
 <template>
-  <div class="execution-details">
-    <div
-      v-if="latestTask?.status === 'running'"
-      class="mode-live"
-    >
-      <div class="stats-row">
-        <span><strong>Media Found:</strong> {{ latestTask!.mediaFound }}</span>
-      </div>
-      <div class="progress-section">
-        <div class="status">
-          {{ latestTask?.statusDetails || latestTask!.status }}
+  <div class="execution-details" data-testid="execution-details">
+    <template v-if="latestTask">
+      <span class="status">
+        <div v-if="statusIcon.length" :class="['pi', ...statusIcon]" />
+        <div>
+          {{ formatStatus(latestTask) }}
         </div>
+      </span>
+      <span v-if="latestTask.status === 'running'">
+        <strong>Stage:</strong> {{ formatStage(latestTask) }}
+      </span>
+      <div
+        v-if="latestTask.stage === 'fetching-media-finder-results'"
+        class="progress-section"
+        data-testid="progress-section"
+      >
         <div class="progress-label">
           <template v-if="expectedPages > 0">
-            Page {{ latestTask!.pageCount }} of ~{{ expectedPages }}
+            Page {{ latestTask.pageCount }} of ~{{ expectedPages }}
           </template>
           <template v-else>
-            Running… ({{ latestTask!.pageCount }} page{{ latestTask!.pageCount === 1 ? '' : 's' }})
+            Running… ({{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }})
           </template>
         </div>
         <ProgressBar
@@ -24,51 +28,114 @@
           :mode="expectedPages > 0 ? 'determinate' : 'indeterminate'"
         />
       </div>
-      <LogList
-        v-if="latestTask!.logs.length"
-        :logs="latestTask!.logs"
-      />
-    </div>
-
-    <div
-      v-else-if="latestTask?.status === 'completed' || latestTask?.status === 'failed'"
-      class="mode-completed"
-    >
-      <div class="stats-row">
-        <span><strong>Status:</strong> {{ (latestTask!.error || latestTask!.status === 'failed') ? 'Failed' : 'Completed' }}</span>
-        <span><strong>Pages:</strong> {{ latestTask!.pageCount >= 0 ? latestTask!.pageCount : '—' }}</span>
-        <span><strong>Found:</strong> {{ latestTask!.mediaFound >= 0 ? latestTask!.mediaFound : '—' }}</span>
-        <span><strong>New:</strong> {{ latestTask!.mediaNew >= 0 ? latestTask!.mediaNew : '—' }}</span>
-        <span><strong>Updated:</strong> {{ latestTask!.mediaUpdated >= 0 ? latestTask!.mediaUpdated : '—' }}</span>
-        <span><strong>Removed:</strong> {{ latestTask!.mediaRemoved >= 0 ? latestTask!.mediaRemoved : '—' }}</span>
-        <span v-if="latestTask!.warningCount > 0"><strong>Warnings:</strong> {{ latestTask!.warningCount }}</span>
-        <span v-if="latestTask!.nonFatalErrorCount > 0"><strong>Errors:</strong> {{ latestTask!.nonFatalErrorCount }}</span>
-        <span v-if="latestTask!.fatalErrorCount > 0"><strong>Fatal errors:</strong> {{ latestTask!.fatalErrorCount }}</span>
+      
+      <div v-if="latestTask.status === 'completed'">
+        Query results had {{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }}.
+      </div>
+      <div class="stats">
+        <div class="groups">
+          <Fieldset
+            v-if="hasFinderMediaStats"
+            :legend="`Query Results${latestTask.status === 'running' ? ' (so far)' : ''}`"
+          >
+            <div class="contents">
+              <div
+                v-if="latestTask.finderMediaFound !== -1"
+                class="stat"
+              >
+                <span>Found</span>
+                <strong>{{ latestTask.finderMediaFound }}</strong>
+              </div>
+              <div
+                v-if="latestTask.finderMediaNew !== -1"
+                class="stat"
+              >
+                <span>New</span>
+                <strong>{{ latestTask.finderMediaNew }}</strong>
+              </div>
+              <div
+                v-if="latestTask.finderMediaUpdated !== -1"
+                class="stat"
+              >
+                <span>Updated</span>
+                <strong>{{ latestTask.finderMediaUpdated }}</strong>
+              </div>
+              <div
+                v-if="latestTask.finderMediaRemoved !== -1"
+                class="stat"
+              >
+                <span>Removed</span>
+                <strong>{{ latestTask.finderMediaRemoved }}</strong>
+              </div>
+              <div
+                v-if="latestTask.finderMediaNotSuitable !== -1"
+                class="stat"
+              >
+                <span>Not Suitable</span>
+                <strong>{{ latestTask.finderMediaNotSuitable }}</strong>
+              </div>
+              <div
+                v-if="latestTask.finderMediaUnchanged !== -1"
+                class="stat"
+              >
+                <span>Unchanged</span>
+                <strong>{{ latestTask.finderMediaUnchanged }}</strong>
+              </div>
+            </div>
+          </Fieldset>
+          <Fieldset
+            v-if="hasCacheMediaStats"
+            :legend="`Cache Media${latestTask.status === 'running' ? ' (so far)' : ''}`"
+          >
+            <div class="contents">
+              <div
+                v-if="latestTask.cacheMediaCreated !== -1"
+                class="stat"
+              >
+                <span>Created</span>
+                <strong>{{ latestTask.cacheMediaCreated }}</strong>
+              </div>
+              <div
+                v-if="latestTask.cacheMediaUpdated !== -1"
+                class="stat"
+              >
+                <span>Updated</span>
+                <strong>{{ latestTask.cacheMediaUpdated }}</strong>
+              </div>
+              <div
+                v-if="latestTask.cacheMediaUnchanged !== -1"
+                class="stat"
+              >
+                <span>Unchanged</span>
+                <strong>{{ latestTask.cacheMediaUnchanged }}</strong>
+              </div>
+              <div
+                v-if="latestTask.cacheMediaDeleted !== -1"
+                class="stat"
+              >
+                <span>Deleted</span>
+                <strong>{{ latestTask.cacheMediaDeleted }}</strong>
+              </div>
+            </div>
+          </Fieldset>
+        </div>
       </div>
       <LogList
-        v-if="latestTask!.logs?.length"
-        :logs="latestTask!.logs"
+        v-if="latestTask.logs.length"
+        :logs="latestTask.logs"
       />
-    </div>
+    </template>
 
-    <div
-      v-else-if="latestTask"
-      class="mode-unknown"
-    >
-      Execution status: {{ latestTask.status }}
-    </div>
-
-    <p
-      v-else
-      class="never-run"
-    >
+    <template v-else>
       This query has never been run.
-    </p>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
+import type { MessageProps } from "primevue/message";
+import { formatStage, formatStatus } from "~/lib/finder-executions";
 
 const props = defineProps<{
   fetchCountLimit: number | null;
@@ -77,6 +144,40 @@ const props = defineProps<{
 
 const latestTask = computed(() => props.executions[0] ?? null);
 const previousTask = computed(() => props.executions[1] ?? null);
+
+const hasFinderMediaStats = computed(() => {
+  if (!latestTask.value) return false;
+  return [
+    latestTask.value.finderMediaFound,
+    latestTask.value.finderMediaNew,
+    latestTask.value.finderMediaUpdated,
+    latestTask.value.finderMediaRemoved,
+    latestTask.value.finderMediaNotSuitable,
+    latestTask.value.finderMediaUnchanged,
+  ].some((stat) => stat !== -1);
+});
+const hasCacheMediaStats = computed(() => {
+  if (!latestTask.value) return false;
+  return [
+    latestTask.value.cacheMediaCreated,
+    latestTask.value.cacheMediaUpdated,
+    latestTask.value.cacheMediaUnchanged,
+    latestTask.value.cacheMediaDeleted,
+  ].some((stat) => stat !== -1);
+});
+
+const statusIcon = computed<string[]>(() => {
+  if (latestTask.value?.status === "running") {
+    return ["pi-spinner", "pi-spin"];
+  }
+  if (latestTask.value?.status === "completed") {
+    return ["pi-check"];
+  }
+  if (latestTask.value?.status === "failed") {
+    return ["pi-exclamation-triangle"];
+  }
+  return [];
+});
 
 // Denominator for the progress bar when a query is running.
 // Use the last run's pageCount, but fall back to fetchCountLimit if the current run
@@ -103,14 +204,66 @@ const progressPercent = computed(() => {
 
 <style scoped>
   .execution-details {
+    display: flex;
+    flex-direction: column;
     padding: 1rem 1.5rem;
+    
+    .status {
+      display: flex;
+      gap: 0.3em;
+      font-size: 1.4em;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      align-items: center;
+
+      .pi {
+        &.pi-exclamation-triangle {
+          color: var(--p-message-error-color);
+        }
+        &.pi-check {
+          color: var(--p-message-success-color);
+        }
+        &.pi-spinner {
+          color: var(--p-message-info-color);
+        }
+        font-size: 1.2em;
+        align-items: center;
+        translate: 0 -0.1em;
+      }
+    }
   }
 
-  .stats-row {
+  .stats {
     display: flex;
     flex-wrap: wrap;
     gap: 1.5rem;
     margin-bottom: 0.75rem;
+    
+    .stat {
+      display: inline-flex;
+      flex-direction: column;
+    
+      span {
+        opacity: 0.8;
+        font-size: 0.9em;
+      }
+
+      strong {
+        font-size: 1.5em;
+      }
+    }
+    
+    .groups {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      
+      .contents {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+      }
+    }
   }
 
   .progress-section {

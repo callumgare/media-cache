@@ -1,5 +1,5 @@
 import { taskManager } from "@@/server/utils/task-manager";
 
 export default defineEventHandler(async () => {
-  return await taskManager.getTasks();
+  return toSuperJSON(await taskManager.getTasks());
 });
