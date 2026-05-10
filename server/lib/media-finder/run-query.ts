@@ -89,6 +89,7 @@ export async function runFinderQueryExecution({
     // ----- Saving media finder results to execution media table -----
     await queryExecutionTaskSystem.updateTask(executionId, {
       stage: "fetching-media-finder-results",
+      pageCount,
     });
     for await (const response of mediaQuery) {
       pageCount++;

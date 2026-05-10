@@ -5,6 +5,7 @@
     data-key="id"
     table-style="min-width: 50rem"
     :pt="{ bodyRow: options => ({ id: 'query-' + (queryList ?? [])[options.context.index]?.id }) }"
+    :loading="queryListStatus === 'pending'"
   >
     <Column expander />
     <Column
@@ -101,6 +102,7 @@ const {
   data: queryList,
   error: finderDetailsError,
   refresh: refreshQueryList,
+  status: queryListStatus,
 } = await useSuperFetch("/api/admin/queries");
 
 if (finderDetailsError.value) {
