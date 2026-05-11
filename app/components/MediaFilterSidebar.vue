@@ -26,6 +26,7 @@ function findFieldCounts(
 
 const { data: finderDetails, error: finderDetailsError } = await useFetch(
   "/api/admin/finder-details",
+  { server: false },
 );
 if (finderDetailsError.value) {
   throw finderDetailsError.value;
@@ -50,6 +51,7 @@ const selectedTagIds = computed<number[]>(() => {
 
 const { data: facets } = useQuery({
   queryKey: ["media-facets", mediaQueryCondition],
+  enabled: import.meta.client,
   queryFn: () =>
     $fetch<APIMediaFacetsResponse>("/api/media-facets", {
       method: "POST",

@@ -103,6 +103,18 @@ const uiState = useUiState();
   .p-button {
     line-height: normal;
   }
+  
+  :root, :host {
+    /* The page has a background so we make most things transparent with the exception of surfaces that overlap other surfaces */
+    --p-content-background: transparent;
+    --p-content-background-opaque: var(--p-surface-0);
+
+    @media (prefers-color-scheme: dark) {
+      --p-content-background-opaque: var(--p-surface-900);
+    }
+    
+    --p-menubar-submenu-background: var(--p-content-background-opaque);
+  }
 
   /********************
   CSS Reset
