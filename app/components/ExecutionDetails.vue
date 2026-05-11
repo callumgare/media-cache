@@ -7,30 +7,41 @@
         </div>
         <div v-if="statusIcon.length" :class="['pi', ...statusIcon]" />
       </span>
-      <span v-if="latestTask.status === 'running'">
-        <strong>Stage:</strong> {{ formatStage(latestTask) }}
-      </span>
       <div
-        v-if="latestTask.status === 'running' && latestTask.stage === 'fetching-media-finder-results'"
+        v-if="latestTask.status === 'running'"
         class="progress-section"
         data-testid="progress-section"
       >
         <div class="progress-label">
-          <template v-if="expectedPages > 0">
-            Page {{ latestTask.pageCount }} of ~{{ expectedPages }}
+          <template v-if="latestTask.stage === 'fetching-media-finder-results'">
+            <template v-if="expectedPages > 0">
+              Indexing page {{ latestTask.pageCount }} of ~{{ expectedPages }}
+            </template>
+            <template v-else>
+              Running… ({{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }})
+            </template>
+          </template>
+          <template v-else-if="latestTask.stage === 'processing-added-or-updated'">
+            Processing {{ processedInAddOrUpdate }} of {{ latestTask.finderMediaFound !== -1 ? latestTask.finderMediaFound : '?' }}
+          </template>
+          <template v-else-if="latestTask.stage === 'processing-removed'">
+            Processing removed media…
+          </template>
+          <template v-else-if="latestTask.stage === 'removing-previous-execution-results'">
+            Removing previous execution results…
           </template>
           <template v-else>
-            Running… ({{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }})
+            Stage: {{ formatStage(latestTask) }}
           </template>
         </div>
         <ProgressBar
-          :value="progressPercent"
-          :mode="expectedPages > 0 ? 'determinate' : 'indeterminate'"
+          :value="stageProgress.percent"
+          :mode="stageProgress.mode"
         />
       </div>
       
       <div v-if="latestTask.status === 'completed'">
-        Query results had {{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }}.
+        Indexed {{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }} in {{ formatDuration(latestTask) }}.
       </div>
       <div class="stats">
         <div class="groups">
@@ -193,12 +204,71 @@ const expectedPages = computed(() => {
   return limit > 0 ? limit : 0;
 });
 
-const progressPercent = computed(() => {
-  if (!latestTask.value || expectedPages.value <= 0) return 0;
-  return Math.min(
-    100,
-    Math.round((latestTask.value.pageCount / expectedPages.value) * 100),
+const processedInAddOrUpdate = computed(() => {
+  if (!latestTask.value) return 0;
+  const { finderMediaNew, finderMediaUpdated, finderMediaUnchanged } =
+    latestTask.value;
+  return (
+    (finderMediaNew !== -1 ? finderMediaNew : 0) +
+    (finderMediaUpdated !== -1 ? finderMediaUpdated : 0) +
+    (finderMediaUnchanged !== -1 ? finderMediaUnchanged : 0)
   );
+});
+
+function formatDuration(task: QueryExecutionTask): string {
+  if (!task.finishedAt) return "";
+  const ms = task.finishedAt.getTime() - task.startedAt.getTime();
+  const seconds = ms / 1000;
+  if (seconds < 60)
+    return `${Math.round(seconds)} second${Math.round(seconds) === 1 ? "" : "s"}`;
+  const minutes = seconds / 60;
+  if (minutes < 60)
+    return `${+minutes.toFixed(1)} minute${+minutes.toFixed(1) === 1 ? "" : "s"}`;
+  const hours = minutes / 60;
+  return `${+hours.toFixed(1)} hour${+hours.toFixed(1) === 1 ? "" : "s"}`;
+}
+
+const stageProgress = computed(() => {
+  if (!latestTask.value) return { percent: 0, mode: "indeterminate" as const };
+
+  const stage = latestTask.value.stage;
+
+  if (stage === "fetching-media-finder-results") {
+    if (expectedPages.value > 0) {
+      return {
+        percent: Math.min(
+          55,
+          Math.round((latestTask.value.pageCount / expectedPages.value) * 55),
+        ),
+        mode: "determinate" as const,
+      };
+    }
+    return { percent: 0, mode: "indeterminate" as const };
+  }
+
+  if (stage === "processing-added-or-updated") {
+    const total = latestTask.value.finderMediaFound;
+    if (total > 0) {
+      return {
+        percent: Math.min(
+          90,
+          Math.round(55 + (processedInAddOrUpdate.value / total) * 35),
+        ),
+        mode: "determinate" as const,
+      };
+    }
+    return { percent: 55, mode: "determinate" as const };
+  }
+
+  if (stage === "processing-removed") {
+    return { percent: 90, mode: "determinate" as const };
+  }
+
+  if (stage === "removing-previous-execution-results") {
+    return { percent: 95, mode: "determinate" as const };
+  }
+
+  return { percent: 0, mode: "indeterminate" as const };
 });
 </script>
 

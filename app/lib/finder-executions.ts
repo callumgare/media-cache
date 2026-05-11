@@ -5,7 +5,9 @@ export function formatStatus(execution: QueryExecutionTask | null): string {
   if (execution.status === "completed") return "Completed";
   return execution.status satisfies never;
 }
-export function formatStage(execution: QueryExecutionTask | null): string {
+export function formatStage(
+  execution: QueryExecutionTask | null | undefined,
+): string {
   if (!execution || !execution.stage) return "-";
   if (execution.stage === "fetching-media-finder-results")
     return "Fetching media finder results";
@@ -16,5 +18,6 @@ export function formatStage(execution: QueryExecutionTask | null): string {
   if (execution.stage === "removing-previous-execution-results")
     return "Removing previous execution results";
   execution.stage satisfies never;
+  if (execution.stage) return `unknown stage "${execution.stage}"`;
   return "-";
 }
