@@ -1,34 +1,34 @@
 <template>
-  <Teleport
-    v-if="panelEl"
-    :to="panelEl"
+  <div
+    v-if="media"
+    class="panel-content"
   >
-    <div
-      v-if="currentMedia"
-      class="panel-content"
-    >
       <!-- Top-level title / description (common across all sources) -->
-      <dl
-        v-if="currentMedia.title || currentMedia.description"
-        class="fields"
+      <h2
+        v-if="media.title"
+        class="media-title"
       >
-        <template v-if="currentMedia.title">
-          <dt>Title</dt>
-          <dd>{{ currentMedia.title }}</dd>
-        </template>
-        <template v-if="currentMedia.description">
-          <dt>Description</dt>
-          <dd>{{ currentMedia.description }}</dd>
-        </template>
-      </dl>
+        {{ media.title }}
+      </h2>
+      <div
+        v-if="media.description"
+        class="media-description"
+      >
+        <p
+          v-for="(paragraph, i) in media.description.split('\n\n')"
+          :key="i"
+        >
+          {{ paragraph }}
+        </p>
+      </div>
 
       <!-- Tags -->
       <div
-        v-if="currentMedia.tags.length"
+        v-if="media.tags.length"
         class="tags-section"
       >
         <span
-          v-for="tag in currentMedia.tags"
+          v-for="tag in media.tags"
           :key="tag"
           class="tag"
         >{{ tag }}</span>
@@ -36,7 +36,7 @@
 
       <!-- Per-source details -->
       <section
-        v-for="src in currentMedia.sourceDetails"
+        v-for="src in media.sourceDetails"
         :key="src.sourceName"
         class="info-section"
       >
@@ -79,7 +79,7 @@
 
       <!-- Per-file details -->
       <section
-        v-for="file in currentMedia.files"
+        v-for="file in media.files"
         :key="file.type"
         class="info-section"
       >
@@ -111,19 +111,22 @@
           </template>
         </dl>
       </section>
-    </div>
+  </div>
 
-    <p
-      v-else
-      class="empty"
-    >
-      No details available.
-    </p>
-  </Teleport>
+  <p
+    v-else
+    class="empty"
+  >
+    No details available.
+  </p>
 </template>
 
 <script setup lang="ts">
-const { currentMedia, panelEl } = useInfoPanel();
+import type { APIMediaData } from "@@/types/api-media";
+
+defineProps<{
+  media: APIMediaData | null;
+}>();
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -135,6 +138,24 @@ function formatBytes(bytes: number): string {
 <style scoped>
 .panel-content {
   overflow: auto;
+}
+
+.media-title {
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.media-description {
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.media-description p {
+  margin: 0 0 6px;
+}
+
+.media-description p:last-child {
+  margin-bottom: 0;
 }
 
 .fields {

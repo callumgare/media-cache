@@ -7,6 +7,7 @@ import { PhotoSwipeCustomVideoPlugin } from "~/lib/photo-swipe/plugins/custom-vi
 import { PhotoSwipeCustomZoomPlugin } from "~/lib/photo-swipe/plugins/custom-zoom";
 import { PhotoSwipeDebugPlugin } from "~/lib/photo-swipe/plugins/debug";
 import { PhotoSwipeInfoPanelPlugin } from "~/lib/photo-swipe/plugins/info-panel";
+import { PhotoSwipePenAsMousePlugin } from "~/lib/photo-swipe/plugins/pen-as-mouse";
 import { PhotoSwipeSizeOnLoadPlugin } from "~/lib/photo-swipe/plugins/size-on-load";
 
 export type PhotoSwipeSlide = {
@@ -73,6 +74,7 @@ onMounted(() => {
     new PhotoSwipeDebugPlugin(photoSwipe.value);
   }
   new PhotoSwipeCustomZoomPlugin(photoSwipe.value);
+  new PhotoSwipePenAsMousePlugin(photoSwipe.value);
   new PhotoSwipeInfoPanelPlugin(photoSwipe.value);
 
   photoSwipe.value.addFilter("numItems", (numItems) => {
@@ -117,10 +119,25 @@ onUnmounted(() => {
     photoSwipe.value = undefined;
   }
 });
+
+const { currentMedia, panelEl } = useInfoPanel();
 </script>
 
 <template>
   <div>
-    <MediaInfo />
+    <Teleport
+      v-if="panelEl"
+      :to="panelEl"
+    >
+      <div class="info-panel-contents">
+        <MediaInfo :media="currentMedia" />
+      </div>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.info-panel-contents {
+  padding-bottom: 1rem;
+}
+</style>

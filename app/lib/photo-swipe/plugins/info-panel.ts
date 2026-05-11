@@ -179,7 +179,7 @@ export class PhotoSwipeInfoPanelPlugin {
       pswp.template?.classList.toggle("pswp--info-open", open);
 
       // Resize the pan area so the media sits above the panel (or restore full area).
-      const targetPadding = open ? Math.round(pswp.viewportSize.y * 0.5) : 0;
+      const targetPadding = open ? openPadding() : 0;
       if (immediate) {
         // Lightbox is closing — snap instantly, no animation needed.
         if (resizeAnimRafId !== null) cancelAnimationFrame(resizeAnimRafId);
@@ -190,6 +190,14 @@ export class PhotoSwipeInfoPanelPlugin {
       }
     }
     _registerSetOpen(setOpen);
+
+    // The padding to reserve at the bottom when the panel is open: the smaller of
+    // half the viewport height (the CSS max-height cap) and the panel's actual height.
+    function openPadding() {
+      const half = Math.round(pswp.viewportSize.y * 0.5);
+      const panelH = panelEl.value?.offsetHeight;
+      return panelH !== undefined ? Math.min(half, panelH) : half;
+    }
 
     // When the panel is open, Escape should close only the panel, not the lightbox.
     pswp.on("keydown", (e) => {
@@ -362,10 +370,7 @@ export class PhotoSwipeInfoPanelPlugin {
           }
           pswp.applyBgOpacity(1);
           // Spring media from its dragged position to the final clamped position.
-          animatePanelResize(
-            Math.round(pswp.viewportSize.y * 0.5),
-            draggedPanY,
-          );
+          animatePanelResize(openPadding(), draggedPanY);
         } else {
           // Not enough — restore bgOpacity and spring panel back closed.
           pswp.applyBgOpacity(1);
@@ -454,10 +459,7 @@ export class PhotoSwipeInfoPanelPlugin {
             panelEl.value.style.transform = "";
           }
           pswp.applyBgOpacity(1);
-          animatePanelResize(
-            Math.round(pswp.viewportSize.y * 0.5),
-            draggedPanY,
-          );
+          animatePanelResize(openPadding(), draggedPanY);
         }
       }
     });
@@ -656,6 +658,12 @@ export class PhotoSwipeInfoPanelPlugin {
           },
           { passive: true },
         );
+
+        // Prevent wheel events from reaching PhotoSwipe (which would zoom the media)
+        // when the pointer is over the panel — let the panel scroll normally instead.
+        el.addEventListener("wheel", (e: WheelEvent) => {
+          e.stopPropagation();
+        });
       }
       currentMedia.value =
         (pswp.currSlide as SlideWithMedia | undefined)?.data?.mediaData ?? null;
@@ -670,7 +678,15 @@ export class PhotoSwipeInfoPanelPlugin {
       setOpen(false, true);
     });
 
+    function onResize() {
+      if (!isOpen.value) return;
+      panelBottomPadding = openPadding();
+      pswp.updateSize(true);
+    }
+    window.addEventListener("resize", onResize);
+
     pswp.on("destroy", () => {
+      window.removeEventListener("resize", onResize);
       _registerSetOpen(null);
       panelEl.value?.remove();
       panelEl.value = null;
