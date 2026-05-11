@@ -116,7 +116,6 @@ import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-ta
 import { formatStatus } from "~/lib/finder-executions";
 
 const toast = useToast();
-const route = useRoute();
 
 const {
   data: queryList,
@@ -202,12 +201,18 @@ function formatOptionValue(value: unknown): string {
 
 const expandedRows = ref<Record<string, boolean>>({});
 
-onMounted(() => {
-  const expandId = route.query.expandQuery;
-  if (expandId) {
-    expandedRows.value = { [String(expandId)]: true };
-    const el = document.getElementById(`query-${expandId}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+watch(tasksLoaded, (loaded) => {
+  if (!loaded) return;
+  const runningIds = (queryList.value ?? [])
+    .filter((query) =>
+      executionsForQuery(query.id).some((e) => e.status === "running"),
+    )
+    .map((query) => String(query.id));
+  if (runningIds.length) {
+    expandedRows.value = {
+      ...expandedRows.value,
+      ...Object.fromEntries(runningIds.map((id) => [id, true])),
+    };
   }
 });
 
