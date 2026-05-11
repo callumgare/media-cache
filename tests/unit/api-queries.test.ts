@@ -1,12 +1,17 @@
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
+import deleteQueryHandler from "@@/server/api/admin/queries/[id]/index.delete";
 import { getMediaFinder } from "@@/server/lib/media-finder";
 import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { eq } from "drizzle-orm";
+import { createEvent } from "h3";
 import { beforeEach, describe, expect, it } from "vitest";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   TEST_REQUEST,
   createTestFinderQuery,
+  runMediaFinderQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
@@ -439,5 +444,48 @@ describe("query form — field values survive switching handlers and back", () =
     const submittedOnKeyword = await stripToHandlerFields(formState);
     expect(submittedOnKeyword).toHaveProperty("keyword", "cats");
     expect(submittedOnKeyword).not.toHaveProperty("extraField");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers for handler-level delete tests
+// ---------------------------------------------------------------------------
+
+function makeDeleteEvent(queryId: number) {
+  const socket = new Socket();
+  const req = new IncomingMessage(socket);
+  req.url = `/api/admin/queries/${queryId}`;
+  req.method = "DELETE";
+  const res = new ServerResponse(req);
+  const event = createEvent(req, res);
+  event.context.params = { id: String(queryId) };
+  return event;
+}
+
+describe("DELETE /api/admin/queries/:id", () => {
+  it("deletes a query that has never been run", async () => {
+    const q = await createTestFinderQuery();
+    await deleteQueryHandler(makeDeleteEvent(q.id));
+
+    const found = await db.query.finderQuery.findFirst({
+      where: (r, { eq }) => eq(r.id, q.id),
+    });
+    expect(found).toBeUndefined();
+  });
+
+  it("deletes a query that has been run (has associated execution records)", async () => {
+    // Bug: the handler only deletes the finderQuery row directly. When the
+    // query has been executed, finderQueryExecution rows exist with a FK to
+    // finderQuery.id (no ON DELETE CASCADE), so the DELETE fails with a
+    // foreign-key constraint violation.
+    const q = await createTestFinderQuery();
+    await runMediaFinderQuery(q); // creates a finderQueryExecution row
+
+    await deleteQueryHandler(makeDeleteEvent(q.id));
+
+    const found = await db.query.finderQuery.findFirst({
+      where: (r, { eq }) => eq(r.id, q.id),
+    });
+    expect(found).toBeUndefined();
   });
 });
