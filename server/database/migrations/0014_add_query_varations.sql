@@ -1,0 +1,1 @@
+ALTER TABLE "finder_query" ADD COLUMN "query_variations" jsonb;

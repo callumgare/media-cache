@@ -15,6 +15,40 @@ export default {
       description: "A controllable source for automated testing",
       requestHandlers: [
         {
+          id: "test-handler-with-keyword",
+          displayName: "Test Handler With Keyword",
+          description: "Like test-handler but with an optional keyword field",
+          requestSchema: z
+            .object({
+              source: z.string(),
+              queryType: z.string(),
+              keyword: z.string().optional(),
+            })
+            .strict(),
+          paginationType: "none" as const,
+          responses: [
+            {
+              schema: z
+                .object({
+                  media: z.array(z.any()),
+                  request: z.any(),
+                })
+                .passthrough(),
+              constructor: {
+                media: async () => {
+                  const delayMs = globalThis.__testPluginDelayMs ?? 0;
+                  if (delayMs > 0)
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, delayMs),
+                    );
+                  return globalThis.__testPluginQueue?.shift() ?? [];
+                },
+                request: ($) => $.request,
+              },
+            },
+          ],
+        },
+        {
           id: "test-handler",
           displayName: "Test Handler",
           description: "Returns media from a programmatic queue",

@@ -1,3 +1,4 @@
+import { startFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { sql } from "drizzle-orm";
 import type { GenericMedia } from "media-finder";
@@ -90,4 +91,24 @@ export async function getFinderQueryExecutionAll() {
 
 export async function getFinderQueryMediaAll() {
   return db.select().from(dbSchema.finderQueryMedia);
+}
+
+export async function createTestFinderQuery(requestOptions = TEST_REQUEST) {
+  const [row] = await db
+    .insert(dbSchema.finderQuery)
+    .values({
+      title: "Test Query",
+      requestOptions,
+      schedule: 0,
+      updatedAt: new Date(),
+    })
+    .returning();
+  if (!row) throw new Error("Failed to insert test finder query");
+  return row;
+}
+
+export async function runMediaFinderQuery(finderQuery?: dbSchema.FinderQuery) {
+  const q = finderQuery ?? (await createTestFinderQuery());
+  const { executionPromise } = await startFinderQueryExecution(q);
+  await executionPromise;
 }

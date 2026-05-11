@@ -1,4 +1,5 @@
 import util from "node:util";
+import type { QueryVariation } from "@@/server/database/schema";
 import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
 import type { GenericRequest } from "media-finder";
 import { getSecrets } from "media-finder/dist/test/utils/general.js";
@@ -23,38 +24,85 @@ type MediaFinderQueryOptions = Parameters<
   typeof getMediaQuery
 >[0]["queryOptions"];
 
+function cartesianProduct<T>(arrays: T[][]): T[][] {
+  return arrays.reduce<T[][]>(
+    (acc, arr) =>
+      acc.flatMap((existing) => arr.map((item) => [...existing, item])),
+    [[]],
+  );
+}
+
+function expandVariation(
+  baseRequest: GenericRequest,
+  variation: QueryVariation,
+): GenericRequest[] {
+  const entries = Object.entries(variation.fieldOverrides).filter(
+    ([, values]) => values.length > 0,
+  );
+  if (entries.length === 0) return [baseRequest];
+
+  const fieldNames = entries.map(([name]) => name);
+  const fieldValues = entries.map(([, values]) => values);
+  const combinations = cartesianProduct(fieldValues);
+
+  return combinations.map((combo) => {
+    const overrides = Object.fromEntries(
+      fieldNames.map((name, i) => [name, combo[i]]),
+    );
+    return { ...baseRequest, ...overrides } as GenericRequest;
+  });
+}
+
+function expandAllVariations(
+  savedFinderQuery: dbSchema.FinderQuery,
+): GenericRequest[] {
+  const base = savedFinderQuery.requestOptions;
+  const variations = savedFinderQuery.queryVariations;
+  if (!variations || variations.length === 0) return [base];
+
+  const allRequests: GenericRequest[] = [];
+  for (const variation of variations) {
+    allRequests.push(...expandVariation(base, variation));
+  }
+  return allRequests;
+}
+
 export async function startFinderQueryExecution(
   savedFinderQuery: dbSchema.FinderQuery,
-): Promise<dbSchema.FinderQueryExecution> {
+): Promise<{
+  execution: dbSchema.FinderQueryExecution;
+  executionPromise: Promise<void>;
+}> {
   const execution = await createFinderQueryExecution({ savedFinderQuery });
-  const mediaFinderRequest = savedFinderQuery.requestOptions;
+  const mediaFinderRequests = expandAllVariations(savedFinderQuery);
   const mediaFinderQueryOptions: MediaFinderQueryOptions = {};
   if (savedFinderQuery.fetchCountLimit !== null) {
     mediaFinderQueryOptions.fetchCountLimit = savedFinderQuery.fetchCountLimit;
   }
   // Run the actual execution in the background without blocking the caller
-  runFinderQueryExecution({
+  const executionPromise = runFinderQueryExecution({
     finderQueryExecution: execution,
-    mediaFinderRequest,
+    mediaFinderRequests,
     mediaFinderQueryOptions,
     savedFinderQuery,
-  }).catch((err) => {
+  });
+  executionPromise.catch((err) => {
     console.error(
       `Query execution ${execution.id} promise rejected unexpectedly:`,
       err,
     );
   });
-  return execution;
+  return { execution, executionPromise };
 }
 
 export async function runFinderQueryExecution({
   finderQueryExecution,
-  mediaFinderRequest,
+  mediaFinderRequests,
   mediaFinderQueryOptions = {},
   savedFinderQuery,
 }: {
   finderQueryExecution: dbSchema.FinderQueryExecution;
-  mediaFinderRequest: GenericRequest;
+  mediaFinderRequests: GenericRequest[];
   mediaFinderQueryOptions?: MediaFinderQueryOptions;
   savedFinderQuery?: dbSchema.FinderQuery;
 }): Promise<void> {
@@ -76,38 +124,40 @@ export async function runFinderQueryExecution({
   let cacheMediaDeleted = 0;
 
   try {
-    mediaFinderQueryOptions.secrets = {
-      ...mediaFinderQueryOptions.secrets,
-      ...(await getSecrets(mediaFinderRequest)),
-    };
-
-    const mediaQuery = await getMediaQuery({
-      request: mediaFinderRequest,
-      queryOptions: mediaFinderQueryOptions,
-    });
-
     // ----- Saving media finder results to execution media table -----
     await queryExecutionTaskSystem.updateTask(executionId, {
       stage: "fetching-media-finder-results",
       pageCount,
     });
-    for await (const response of mediaQuery) {
-      pageCount++;
-      for (const finderMedia of response.media) {
-        await db.transaction(async (dbTx) => {
-          await createFinderQueryMediaContent({ dbTx, finderMedia });
-          await createFinderQueryMedia({
-            dbTx,
-            finderMedia,
-            finderQueryExecution,
-          });
-        });
-        finderMediaFound++;
-      }
-      await queryExecutionTaskSystem.updateTask(executionId, {
-        pageCount,
-        finderMediaFound,
+    for (const mediaFinderRequest of mediaFinderRequests) {
+      mediaFinderQueryOptions.secrets = {
+        ...mediaFinderQueryOptions.secrets,
+        ...(await getSecrets(mediaFinderRequest)),
+      };
+
+      const mediaQuery = await getMediaQuery({
+        request: mediaFinderRequest,
+        queryOptions: mediaFinderQueryOptions,
       });
+
+      for await (const response of mediaQuery) {
+        pageCount++;
+        for (const finderMedia of response.media) {
+          await db.transaction(async (dbTx) => {
+            await createFinderQueryMediaContent({ dbTx, finderMedia });
+            await createFinderQueryMedia({
+              dbTx,
+              finderMedia,
+              finderQueryExecution,
+            });
+          });
+          finderMediaFound++;
+        }
+        await queryExecutionTaskSystem.updateTask(executionId, {
+          pageCount,
+          finderMediaFound,
+        });
+      }
     }
 
     // Anonymous queries don't have a saved finder query so aren't linked to any previous executions

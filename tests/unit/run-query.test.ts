@@ -1,8 +1,7 @@
-import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
-import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
+import { startFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import {
-  TEST_REQUEST,
+  createTestFinderQuery,
   enqueueMedia,
   getCacheMediaAll,
   getDeletedCacheMediaAll,
@@ -10,45 +9,19 @@ import {
   getFinderQueryMediaAll,
   makeImageMedia,
   makeMedia,
+  runMediaFinderQuery,
   truncateAll,
 } from "@@/tests/unit/fixtures/helpers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 beforeEach(truncateAll);
 
-async function runMediaFinderQuery(args: {
-  mediaFinderRequest: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["mediaFinderRequest"];
-  mediaFinderQueryOptions?: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["mediaFinderQueryOptions"];
-  dbFinderQuery?: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["savedFinderQuery"];
-}) {
-  const {
-    mediaFinderRequest,
-    mediaFinderQueryOptions,
-    dbFinderQuery: savedFinderQuery,
-  } = args;
-  const finderQueryExecution = await createFinderQueryExecution({
-    savedFinderQuery,
-  });
-  return runFinderQueryExecution({
-    finderQueryExecution,
-    mediaFinderRequest,
-    mediaFinderQueryOptions,
-    savedFinderQuery,
-  });
-}
-
 describe("runMediaFinderQuery — basic lifecycle", () => {
   it("creates cache_media for new media", async () => {
     const m = makeMedia({ id: "media-1", title: "Hello World" });
     enqueueMedia([m]);
 
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const all = await getCacheMediaAll();
     expect(all).toHaveLength(1);
@@ -64,7 +37,7 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
       makeMedia({ id: "c" }),
     ]);
 
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const all = await getCacheMediaAll();
     expect(all).toHaveLength(3);
@@ -72,7 +45,7 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
 
   it("records a finderQueryExecution row", async () => {
     enqueueMedia([makeMedia()]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const executions = await getFinderQueryExecutionAll();
     expect(executions).toHaveLength(1);
@@ -87,7 +60,7 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
     const image = makeImageMedia({ id: "img" });
     enqueueMedia([video, image]);
 
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const all = await getCacheMediaAll();
     const vidRow = all.find((r) => r.finderIds.includes("test-source\tvid"));
@@ -105,38 +78,27 @@ describe("runMediaFinderQuery — basic lifecycle", () => {
 
 describe("runMediaFinderQuery — second run, no changes", () => {
   it("does not create duplicate cache_media on unchanged second run", async () => {
+    const q = await createTestFinderQuery();
     const m = makeMedia({ id: "stable" });
     enqueueMedia([m]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: await makeDbFinderQuery(),
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([m]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: await makeDbFinderQuery(),
-    });
+    await runMediaFinderQuery(q);
 
     const all = await getCacheMediaAll();
     expect(all).toHaveLength(1);
   });
 
   it("records mediaUpdated=0 when nothing changed", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     const m = makeMedia({ id: "stable" });
 
     enqueueMedia([m]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([m]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const execs = await getFinderQueryExecutionAll();
     const second = execs.sort((a, b) => b.id - a.id)[0];
@@ -148,18 +110,12 @@ describe("runMediaFinderQuery — second run, no changes", () => {
 
 describe("runMediaFinderQuery — update", () => {
   it("updates cache_media when media content changes", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "upd", title: "Old Title" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([makeMedia({ id: "upd", title: "New Title" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const all = await getCacheMediaAll();
     expect(all).toHaveLength(1);
@@ -167,18 +123,12 @@ describe("runMediaFinderQuery — update", () => {
   });
 
   it("records mediaUpdated=1 on content change", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "upd", title: "v1" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([makeMedia({ id: "upd", title: "v2" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const execs = await getFinderQueryExecutionAll();
     const second = execs.sort((a, b) => b.id - a.id)[0];
@@ -190,36 +140,24 @@ describe("runMediaFinderQuery — update", () => {
 
 describe("runMediaFinderQuery — removal", () => {
   it("deletes cache_media when media is no longer in results", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "gone" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([]); // empty second run
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     expect(await getCacheMediaAll()).toHaveLength(0);
   });
 
   it("inserts a deleted_cache_media record on removal", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "gone" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const [before] = await getCacheMediaAll();
     enqueueMedia([]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const deleted = await getDeletedCacheMediaAll();
     expect(deleted).toHaveLength(1);
@@ -229,18 +167,12 @@ describe("runMediaFinderQuery — removal", () => {
   });
 
   it("records mediaRemoved=1 on deletion", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "gone" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const execs = await getFinderQueryExecutionAll();
     const second = execs.sort((a, b) => b.id - a.id)[0];
@@ -251,26 +183,17 @@ describe("runMediaFinderQuery — removal", () => {
 
 describe("runMediaFinderQuery — re-add after removal", () => {
   it("creates a fresh cache_media when re-added after removal", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "cycle" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     expect(await getCacheMediaAll()).toHaveLength(0);
 
     enqueueMedia([makeMedia({ id: "cycle", title: "Back Again" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const all = await getCacheMediaAll();
     expect(all).toHaveLength(1);
@@ -278,30 +201,18 @@ describe("runMediaFinderQuery — re-add after removal", () => {
   });
 
   it("accumulates two deleted_cache_media records after remove-readd-remove", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "cycle2" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([makeMedia({ id: "cycle2" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     expect(await getDeletedCacheMediaAll()).toHaveLength(2);
     expect(await getCacheMediaAll()).toHaveLength(0);
@@ -310,12 +221,9 @@ describe("runMediaFinderQuery — re-add after removal", () => {
 
 describe("runMediaFinderQuery — tags", () => {
   it("creates group rows for tags and links them via groupIds", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "tagged", tags: ["cats", "dogs"] })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const all = await getCacheMediaAll();
     expect(all).toHaveLength(1);
@@ -331,18 +239,12 @@ describe("runMediaFinderQuery — tags", () => {
   });
 
   it("updates tags when media tags change", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "tagged2", tags: ["alpha"] })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([makeMedia({ id: "tagged2", tags: ["beta"] })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const all = await getCacheMediaAll();
     expect(all[0].groupIds).toHaveLength(1);
@@ -360,18 +262,12 @@ describe("runMediaFinderQuery — tags", () => {
   });
 
   it("removes groupIds when all tags are stripped", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "notags", tags: ["removeme"] })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     enqueueMedia([makeMedia({ id: "notags", tags: [] })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const all = await getCacheMediaAll();
     expect(all[0].groupIds).toHaveLength(0);
@@ -380,21 +276,15 @@ describe("runMediaFinderQuery — tags", () => {
 
 describe("runMediaFinderQuery — cleanup", () => {
   it("deletes old finder_query_media rows after second run", async () => {
-    const q = await makeDbFinderQuery();
+    const q = await createTestFinderQuery();
     enqueueMedia([makeMedia({ id: "cleanup" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     const afterFirst = await getFinderQueryMediaAll();
     expect(afterFirst).toHaveLength(1);
 
     enqueueMedia([makeMedia({ id: "cleanup" })]);
-    await runMediaFinderQuery({
-      mediaFinderRequest: TEST_REQUEST,
-      dbFinderQuery: q,
-    });
+    await runMediaFinderQuery(q);
 
     // Only the current execution's row should remain
     const afterSecond = await getFinderQueryMediaAll();
@@ -406,10 +296,9 @@ describe("runMediaFinderQuery — cleanup", () => {
     expect(afterSecond[0].queryExecutionId).toBe(latest.id);
   });
 
-  it("does not delete finder_query_media when no dbFinderQuery is given", async () => {
-    // Without a dbFinderQuery, deleteOldFinderQueryMedia is skipped
+  it("retains the current execution's finder_query_media row after a single run", async () => {
     enqueueMedia([makeMedia({ id: "no-query" })]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const all = await getFinderQueryMediaAll();
     expect(all).toHaveLength(1);
@@ -423,7 +312,7 @@ describe("runMediaFinderQuery — aggregation", () => {
       makeMedia({ id: "v1", views: 100 }),
       makeMedia({ id: "v2", views: 200 }),
     ]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const all = await getCacheMediaAll();
     const views = all.map((r) => r.views).sort((a, b) => (a ?? 0) - (b ?? 0));
@@ -432,7 +321,7 @@ describe("runMediaFinderQuery — aggregation", () => {
 
   it("picks first truthy title from sources", async () => {
     enqueueMedia([makeMedia({ id: "titled", title: "First Title" })]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const all = await getCacheMediaAll();
     expect(all[0].title).toBe("First Title");
@@ -441,7 +330,7 @@ describe("runMediaFinderQuery — aggregation", () => {
   it("stores sources jsonb with correct fields", async () => {
     const m = makeMedia({ id: "src-test", title: "Source Test", views: 42 });
     enqueueMedia([m]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const [row] = await getCacheMediaAll();
     const sources = row.sources ?? [];
@@ -466,7 +355,7 @@ describe("runMediaFinderQuery — aggregation", () => {
         ],
       }),
     ]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const [row] = await getCacheMediaAll();
     expect(row.files?.[0].url).toBe("https://example.com/vid.mp4");
@@ -476,32 +365,17 @@ describe("runMediaFinderQuery — aggregation", () => {
 describe("runMediaFinderQuery — empty query", () => {
   it("creates no cache_media when query returns no results", async () => {
     enqueueMedia([]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     expect(await getCacheMediaAll()).toHaveLength(0);
   });
 
   it("still records a finderQueryExecution with mediaFound=0", async () => {
     enqueueMedia([]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const execs = await getFinderQueryExecutionAll();
     expect(execs).toHaveLength(1);
     expect(execs[0].finderMediaFound).toBe(0);
   });
 });
-
-// Helper: create a db finder_query row for linking executions
-async function makeDbFinderQuery() {
-  const [row] = await db
-    .insert(dbSchema.finderQuery)
-    .values({
-      title: "Test Query",
-      requestOptions: TEST_REQUEST,
-      schedule: 0,
-      updatedAt: new Date(),
-    })
-    .returning();
-  if (!row) throw new Error("Failed to insert finder query");
-  return row;
-}

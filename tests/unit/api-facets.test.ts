@@ -1,6 +1,4 @@
 import { fetchFieldCounts } from "@@/server/lib/media-facets";
-import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
-import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
 import { db } from "@@/server/utils/drizzle";
 import type {
   QueryFieldCondition,
@@ -14,40 +12,15 @@ import type {
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   TEST_REQUEST,
+  createTestFinderQuery,
   enqueueMedia,
   makeImageMedia,
   makeMedia,
+  runMediaFinderQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
 beforeEach(truncateAll);
-
-async function runMediaFinderQuery(args: {
-  mediaFinderRequest: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["mediaFinderRequest"];
-  mediaFinderQueryOptions?: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["mediaFinderQueryOptions"];
-  dbFinderQuery?: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["savedFinderQuery"];
-}) {
-  const {
-    mediaFinderRequest,
-    mediaFinderQueryOptions,
-    dbFinderQuery: savedFinderQuery,
-  } = args;
-  const finderQueryExecution = await createFinderQueryExecution({
-    savedFinderQuery,
-  });
-  return runFinderQueryExecution({
-    finderQueryExecution,
-    mediaFinderRequest,
-    mediaFinderQueryOptions,
-    savedFinderQuery,
-  });
-}
 
 function makeBody(
   conditions: QueryGroupCondition["conditions"] = [],
@@ -108,7 +81,7 @@ async function seedMedia() {
       ],
     },
   ]);
-  await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+  await runMediaFinderQuery();
 }
 
 describe("/api/media-facets — source counts", () => {
@@ -187,7 +160,7 @@ describe("/api/media-facets — tag counts", () => {
   it("addedIfRemoved=0 when removing the tag adds no extra items", async () => {
     // Seed only media with cats, so removing cats doesn't expose new items
     enqueueMedia([makeMedia({ id: "only-cats", tags: ["cats"] })]);
-    await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+    await runMediaFinderQuery();
 
     const catsId = await getGroupId("cats");
     const cond = makeTagCondition([catsId]);

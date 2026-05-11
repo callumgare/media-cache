@@ -1,3 +1,4 @@
+import type { QueryVariation } from "@@/server/database/schema";
 import type { GenericRequest } from "media-finder";
 
 export type QueryListResponse = Array<{
@@ -8,6 +9,7 @@ export type QueryListResponse = Array<{
   requestOptions: GenericRequest;
   fetchCountLimit: number | null;
   schedule: number;
+  queryVariations: QueryVariation[] | null;
 }>;
 
 export type QueryDetailResponse = {
@@ -18,4 +20,5 @@ export type QueryDetailResponse = {
   requestOptions: GenericRequest;
   fetchCountLimit: number | null;
   schedule: number;
+  queryVariations: QueryVariation[] | null;
 };

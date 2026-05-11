@@ -285,6 +285,11 @@ finderQuery
 
 The details for a query to be executed with Media Finder
 */
+export type QueryVariation = {
+  id: string;
+  fieldOverrides: Record<string, unknown[]>;
+};
+
 export const finderQuery = pgTable("finder_query", {
   id: serial("id").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
@@ -293,6 +298,7 @@ export const finderQuery = pgTable("finder_query", {
   requestOptions: mediaFinderRequest("request_options").notNull(),
   fetchCountLimit: integer("fetch_count_limit"),
   schedule: integer("schedule").notNull(),
+  queryVariations: jsonb("query_variations").$type<QueryVariation[]>(),
 });
 
 export const finderQueryRelations = relations(finderQuery, ({ many }) => ({

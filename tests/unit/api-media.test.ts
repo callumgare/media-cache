@@ -1,5 +1,3 @@
-import { runFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
-import { createFinderQueryExecution } from "@@/server/lib/media-finder/utils";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { calculateWhereValue } from "@@/server/utils/query-builder";
 import type { QueryGroupCondition } from "@@/types/query-condition";
@@ -11,40 +9,15 @@ import type { QueryGroupCondition } from "@@/types/query-condition";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   TEST_REQUEST,
+  createTestFinderQuery,
   enqueueMedia,
   makeImageMedia,
   makeMedia,
+  runMediaFinderQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
 beforeEach(truncateAll);
-
-async function runMediaFinderQuery(args: {
-  mediaFinderRequest: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["mediaFinderRequest"];
-  mediaFinderQueryOptions?: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["mediaFinderQueryOptions"];
-  dbFinderQuery?: Parameters<
-    typeof runFinderQueryExecution
-  >[0]["savedFinderQuery"];
-}) {
-  const {
-    mediaFinderRequest,
-    mediaFinderQueryOptions,
-    dbFinderQuery: savedFinderQuery,
-  } = args;
-  const finderQueryExecution = await createFinderQueryExecution({
-    savedFinderQuery,
-  });
-  return runFinderQueryExecution({
-    finderQueryExecution,
-    mediaFinderRequest,
-    mediaFinderQueryOptions,
-    savedFinderQuery,
-  });
-}
 
 // Mirrors the handler's filtered query
 async function queryMediaWhere(condition: QueryGroupCondition) {
@@ -93,7 +66,7 @@ async function seedMedia() {
       ],
     },
   ]);
-  await runMediaFinderQuery({ mediaFinderRequest: TEST_REQUEST });
+  await runMediaFinderQuery();
 }
 
 async function getGroupId(name: string): Promise<number> {

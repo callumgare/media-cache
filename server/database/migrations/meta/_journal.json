@@ -99,6 +99,13 @@
       "when": 1778338336723,
       "tag": "0013_add_query_id_to_query_media",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778413117501,
+      "tag": "0014_add_query_varations",
+      "breakpoints": true
     }
   ]
 }

@@ -16,5 +16,6 @@ export default defineEventHandler(async (event) => {
       statusMessage: `Query with ID ${id} not found`,
     });
   }
-  return await startFinderQueryExecution(mediaFinderQuery);
+  const { execution } = await startFinderQueryExecution(mediaFinderQuery);
+  return execution;
 });
