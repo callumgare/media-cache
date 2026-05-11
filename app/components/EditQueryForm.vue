@@ -5,6 +5,7 @@
         <div class="option">
           <label for="sourceInput">Source</label>
           <Select
+            data-testid="source-select"
             input-id="sourceInput"
             input-class="field-input"
             :loading="loading"
@@ -297,6 +298,20 @@ const formValue = ref<FormData>(
         queryVariations: [],
         fetchCountLimit: 1000,
       },
+);
+
+// When the page uses server:false for its fetch, mediaQuery arrives after
+// mount. Watch for the first non-undefined value and initialise formValue.
+watch(
+  () => props.mediaQuery,
+  (mediaQuery) => {
+    if (!mediaQuery) return;
+    formValue.value = {
+      ...mediaQuery,
+      queryVariations: mediaQuery.queryVariations ?? [],
+    };
+  },
+  { once: true },
 );
 
 const selectedSourceId = computed(() => {

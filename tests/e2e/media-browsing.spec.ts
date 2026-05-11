@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { GenericMedia } from "media-finder";
 import type PhotoSwipe from "photoswipe";
+import { collectConsoleProblems } from "./helpers";
 
 // window.pswp is set by the PhotoSwipeDebugPlugin when debug mode is on,
 // and by registerMediaSwipe in MediaSwipe.vue.
@@ -114,6 +115,7 @@ test.describe("Browsing via media page grid", () => {
   });
 
   test("use filters to filter media", async ({ page }) => {
+    const problems = collectConsoleProblems(page);
     await page.goto("/");
 
     // Wait for media items to appear (all 3 from test-source)
@@ -145,6 +147,11 @@ test.describe("Browsing via media page grid", () => {
 
     // All 3 items are from test-source so the count should remain 3 after filtering
     await expect(items).toHaveCount(3, { timeout: 10_000 });
+
+    expect(
+      problems,
+      "No console errors or warnings on media index page",
+    ).toEqual([]);
   });
 
   test.describe("Infinite scroll", () => {

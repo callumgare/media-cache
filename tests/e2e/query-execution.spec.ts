@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { GenericMedia } from "media-finder";
+import { collectConsoleProblems } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,6 +67,7 @@ test.describe("Query execution feedback", () => {
     await setup({ request });
     await createQuery({ request });
 
+    const problems = collectConsoleProblems(page);
     await page.goto("/admin/queries");
 
     // Initially the status column should show a skeleton (tasks not yet loaded)
@@ -75,6 +77,74 @@ test.describe("Query execution feedback", () => {
     // Once tasks have loaded the skeleton goes away and "Never run" appears
     const badge = page.getByTestId("status-badge").first();
     await expect(badge).toHaveText("Never run", { timeout: 10_000 });
+
+    expect(
+      problems,
+      "No console errors or warnings on query list page",
+    ).toEqual([]);
+  });
+
+  test("edit a saved query", async ({ page, request }) => {
+    await setup({ request });
+    const { id } = await createQuery({ request });
+
+    // --- Step 1: navigate from the query list to the edit page ---
+    await page.goto("/admin/queries");
+    await page.getByRole("link", { name: "Edit" }).first().click();
+    await expect(page.getByRole("heading", { name: "Edit Query" })).toBeVisible(
+      { timeout: 10_000 },
+    );
+
+    // Wait for the client-side fetch to finish (loading spinners disappear)
+    await expect(page.locator(".p-select-loading-icon")).toHaveCount(0, {
+      timeout: 10_000,
+    });
+    // Confirm the saved source value is shown in the source field
+    const sourceLabel = page
+      .getByTestId("source-select")
+      .locator(".p-select-label");
+    await expect(sourceLabel).toHaveText("Test Source", { timeout: 5_000 });
+
+    // --- Step 2: reload the page directly (cold SSR load) and check for console problems ---
+    const problems = collectConsoleProblems(page);
+    await page.goto(`/admin/queries/${id}`);
+    await expect(page.getByRole("heading", { name: "Edit Query" })).toBeVisible(
+      { timeout: 10_000 },
+    );
+    await expect(page.locator(".p-select-loading-icon")).toHaveCount(0, {
+      timeout: 10_000,
+    });
+    await expect(sourceLabel).toHaveText("Test Source", { timeout: 5_000 });
+    expect(
+      problems,
+      "No console errors or warnings on direct page load",
+    ).toEqual([]);
+
+    // --- Step 3: change the request handler to one with a keyword field,
+    //     fill in a keyword, and save ---
+    const requestHandlerSelect = page
+      .locator("#requestHandlerInput")
+      .locator("xpath=ancestor::div[contains(@class,'p-select')][1]");
+    await requestHandlerSelect.click();
+    const overlay = page.locator(".p-select-overlay");
+    await overlay
+      .locator(".p-select-option", { hasText: "Test Handler With Keyword" })
+      .click();
+    // Wait for the overlay to close before interacting with the form
+    await expect(overlay).not.toBeVisible({ timeout: 5_000 });
+
+    await page.locator("#keyword").fill("my-test-keyword");
+
+    await page.getByRole("button", { name: "Save" }).click();
+
+    // Save navigates back to the query list
+    await expect(page).toHaveURL("/admin/queries", { timeout: 10_000 });
+
+    // --- Step 4: confirm the updated keyword is visible in the Request Options column ---
+    const row = page.locator(`#query-${id}`);
+    await expect(
+      row.locator(".request-option", { hasText: "keyword" }),
+    ).toContainText("my-test-keyword", { timeout: 5_000 });
   });
 
   test("clicking Run changes status badge to Running…", async ({

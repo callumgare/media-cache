@@ -2,7 +2,7 @@
   <div>
     <EditQueryForm
       :media-query="mediaQuery"
-      :loading="queryRequest?.status.value === 'pending'"
+      :loading="isLoading"
     />
   </div>
 </template>
@@ -59,6 +59,16 @@ if (queryRequest) {
     throw createError({ statusCode: 404, message: "Not Found", fatal: true });
   });
 }
+
+// Keep loading=true during SSR and the first client render (hydration) so
+// they match, then switch to the real fetch status after mount.
+const isMounted = ref(false);
+onMounted(() => {
+  isMounted.value = true;
+});
+const isLoading = computed(
+  () => !isMounted.value || queryRequest?.status.value === "pending",
+);
 
 const mediaQuery = computed<MediaQueryFormData | undefined>(() => {
   const data = queryRequest?.data.value;
