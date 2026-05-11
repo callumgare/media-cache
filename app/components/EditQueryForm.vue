@@ -1,33 +1,55 @@
 <template>
-  <form @submit.prevent="handleValidateClick">
-    <div class="primary-options fields-list">
-      <div class="option">
-        <label for="sourceInput">Source</label>
-        <Select
-          input-id="sourceInput"
-          input-class="field-input"
-          :loading="loading"
-          v-model="formValue.requestOptions.source"
-          :options="sources"
-          option-label="name"
-          option-value="id"
-        />
+  <form @submit.prevent="handleValidateClick">    
+    <div class="top-section">
+      <div class="primary-options fields-list">
+        <div class="option">
+          <label for="sourceInput">Source</label>
+          <Select
+            input-id="sourceInput"
+            input-class="field-input"
+            :loading="loading"
+            v-model="formValue.requestOptions.source"
+            :options="sources"
+            option-label="name"
+            option-value="id"
+          />
+        </div>
+        <div class="option">
+          <label for="requestHandlerInput">Request Handler</label>
+          <Select
+            input-id="requestHandlerInput"
+            input-class="field-input"
+            :loading="loading"
+            v-model="formValue.requestOptions.queryType"
+            :options="requestHandlers"
+            option-label="name"
+            option-value="id"
+          >
+            <template #empty>
+              {{ formValue.requestOptions.source ? "Source has no query types" : "Please select a source first" }}
+            </template>
+          </Select>
+        </div>
       </div>
-      <div class="option">
-        <label for="requestHandlerInput">Request Handler</label>
-        <Select
-          input-id="requestHandlerInput"
-          input-class="field-input"
-          :loading="loading"
-          v-model="formValue.requestOptions.queryType"
-          :options="requestHandlers"
-          option-label="name"
-          option-value="id"
+
+      <div class="query-actions">
+        <Button
+          type="button"
+          outlined
+          @click="copyQuery($event)"
         >
-          <template #empty>
-            {{ formValue.requestOptions.source ? "Source has no query types" : "Please select a source first" }}
-          </template>
-        </Select>
+          <Copy :size="16" />
+          Copy
+        </Button>
+        <Popover ref="copyPopoverRef">Copied!</Popover>
+        <Button
+          type="button"
+          outlined
+          @click="showImportDialog = true"
+        >
+          <Upload :size="16" />
+          Import
+        </Button>
       </div>
     </div>
     <div
@@ -180,12 +202,32 @@
       Save
     </Button>
   </form>
+
+  <Dialog
+    v-model:visible="showImportDialog"
+    header="Import Query"
+    modal
+    :style="{ width: '500px' }"
+  >
+    <p style="margin: 0 0 0.75rem">Paste a previously copied query JSON below:</p>
+    <Textarea
+      v-model="importJson"
+      rows="14"
+      style="width: 100%; font-family: monospace; font-size: 0.85em"
+      autofocus
+    />
+    <p v-if="importError" class="import-error">{{ importError }}</p>
+    <template #footer>
+      <Button label="Cancel" severity="secondary" @click="showImportDialog = false" />
+      <Button label="Import" @click="importQuery" />
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import type { FinderQuery, QueryVariation } from "@@/server/database/schema";
 import { useUiState } from "@@/stores/ui";
-import { Plus, Split } from "lucide-vue-next";
+import { Copy, Plus, Split, Upload } from "lucide-vue-next";
 import JsonInput from "./forms/JsonInput.vue";
 import TextList from "./forms/TextList.vue";
 
@@ -433,6 +475,76 @@ function addFieldToVariation(vIdx: number, fieldName: string) {
   }
 }
 
+// --- Copy / Import ---
+
+const copyPopoverRef = ref();
+
+async function copyQuery(event: MouseEvent) {
+  try {
+    const {
+      id: _id,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      title: _title,
+      ...exportValue
+    } = formattedFormValue.value;
+    const json = JSON.stringify(exportValue, null, 2);
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(json);
+    } else {
+      const el = document.createElement("textarea");
+      el.value = json;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  copyPopoverRef.value?.show(event);
+  setTimeout(() => {
+    copyPopoverRef.value?.hide();
+  }, 2000);
+}
+
+const showImportDialog = ref(false);
+const importJson = ref("");
+const importError = ref<string | null>(null);
+
+function importQuery() {
+  try {
+    const parsed = JSON.parse(importJson.value);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      importError.value = "Invalid JSON: expected an object";
+      return;
+    }
+    if (parsed.requestOptions && typeof parsed.requestOptions === "object") {
+      formValue.value.requestOptions = parsed.requestOptions;
+    }
+    if (Array.isArray(parsed.queryVariations)) {
+      formValue.value.queryVariations = parsed.queryVariations;
+    }
+    if (
+      typeof parsed.fetchCountLimit === "number" ||
+      parsed.fetchCountLimit === null
+    ) {
+      formValue.value.fetchCountLimit = parsed.fetchCountLimit;
+    }
+    showImportDialog.value = false;
+    importJson.value = "";
+    importError.value = null;
+  } catch (e) {
+    importError.value = e instanceof Error ? e.message : "Invalid JSON";
+  }
+}
+
 async function handleValidateClick() {
   try {
     if (!formattedFormValue.value.id) {
@@ -477,21 +589,52 @@ async function handleValidateClick() {
 </script>
 
 <style scoped>
+  .query-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+    justify-content: end;
+
+    .p-button {
+      display: flex;
+      gap: 0.4em;
+      align-items: center;
+      white-space: nowrap;
+    }
+  }
+
+  .import-error {
+    color: var(--p-message-error-color);
+    margin: 0.5rem 0 0;
+    font-size: 0.9em;
+  }
+
   form {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 2em;
     
-    .primary-options {
-      :deep(.p-inputwrapper) {
-        max-width: 100%;
-        
-        :deep(.p-select-label) {
-          width: 200px; /* this shrinks if needed */
+    
+    .top-section {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      justify-content: space-between;
+      width: 100%;
+
+      .primary-options {
+        :deep(.p-inputwrapper) {
+          max-width: 100%;
+          
+          :deep(.p-select-label) {
+            width: 200px; /* this shrinks if needed */
+          }
         }
       }
     }
+    
     
     .fields-list {
       display: grid;
