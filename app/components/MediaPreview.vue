@@ -94,8 +94,23 @@ function onMediaLoaded() {
 onMounted(() => {
   // @load / @loadedmetadata won't fire for already-cached media
   if (imgRef.value?.complete) naturalSizeLoaded.value = true;
-  if (videoRef.value && videoRef.value.readyState >= 1)
+  if (videoRef.value && videoRef.value.readyState >= 1) {
     naturalSizeLoaded.value = true;
+  }
+
+  // For images/GIFs: browsers set natural dimensions from the file header
+  // (a few bytes) long before the full file loads. ResizeObserver fires as
+  // soon as the element renders at non-zero size, which happens at that point.
+  if (imgRef.value && !imgRef.value.complete) {
+    const observer = new ResizeObserver(() => {
+      if (imgRef.value && imgRef.value.naturalWidth > 0) {
+        onMediaLoaded();
+        observer.disconnect();
+      }
+    });
+    observer.observe(imgRef.value);
+    onUnmounted(() => observer.disconnect());
+  }
 
   // Treat the video poster as a proxy for "something visible has loaded"
   if (videoRef.value && posterSrc.value) {
@@ -105,7 +120,9 @@ onMounted(() => {
       console.warn("Failed to load poster image");
     };
     posterImg.src = posterSrc.value;
-    if (posterImg.complete) naturalSizeLoaded.value = true;
+    if (posterImg.complete) {
+      naturalSizeLoaded.value = true;
+    }
   }
 });
 
@@ -139,6 +156,7 @@ function handleMouseLeave() {
     class="item"
     :class="{ 'size-placeholder': !naturalSizeLoaded }"
   >
+    <Skeleton v-if="!naturalSizeLoaded" class="media-loading-skeleton" />
     <details v-if="uiState.debugMode">
       <summary>Details</summary>
       <pre>{{ JSON.stringify(media, null, 2) }}</pre>
@@ -180,7 +198,6 @@ function handleMouseLeave() {
 
 <style scoped>
   .item {
-    background-color: grey;
     position: relative;
 
     --play-button-size: 70px;
@@ -189,6 +206,17 @@ function handleMouseLeave() {
   .size-placeholder {
     width: 300px;
     height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .media-loading-skeleton {
+    /* !important is required to override the inline styles added by the Skeleton component */
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    z-index: -1;
   }
 
   img, video {
