@@ -20,13 +20,34 @@
       header="Query Type"
       :field="row => row.requestOptions.queryType"
     />
-    <Column
-      header="Request Options"
-      :field="row => {
-        const { source, queryType, ...otherOptions } = row.requestOptions
-        return JSON.stringify(otherOptions, null, 2)
-      }"
-    />
+    <Column header="Request Options">
+      <template #body="slotProps">
+        <dl
+          v-if="getDisplayOptions(slotProps.data).length"
+          class="request-options-list"
+        >
+          <div
+            v-for="opt in getDisplayOptions(slotProps.data)"
+            :key="opt.key"
+            class="request-option"
+          >
+            <dt>{{ opt.key }}</dt>
+            <dd v-if="opt.variationValues">
+              {{  opt.variationValues.join(" × ") }}
+              <span
+                v-if="opt.moreCount"
+                class="more-count"
+              >+{{ opt.moreCount }} more</span>
+            </dd>
+            <dd v-else>{{ formatOptionValue(opt.value) }}</dd>
+          </div>
+        </dl>
+        <span
+          v-else
+          class="no-options"
+        >—</span>
+      </template>
+    </Column>
     <Column header="Status">
       <template #body="slotProps">
         <Skeleton
@@ -51,26 +72,25 @@
         </span>
       </template>
     </Column>
-    <Column
-      header="Actions"
-      body-class="actions"
-    >
+    <Column header="Actions">
       <template #body="slotProps">
-        <Button @click="() => runQuery(slotProps.data)">
-          Run
-        </Button>
-        <Button
-          as="router-link"
-          :to="`/admin/queries/${slotProps.data.id}`"
-        >
-          Edit
-        </Button>
-        <Button
-          severity="danger"
-          @click="() => deleteQuery(slotProps.data)"
-        >
-          Delete
-        </Button>
+        <div class="inline-list">
+          <Button @click="() => runQuery(slotProps.data)">
+            Run
+          </Button>
+          <Button
+            as="router-link"
+            :to="`/admin/queries/${slotProps.data.id}`"
+          >
+            Edit
+          </Button>
+          <Button
+            severity="danger"
+            @click="() => deleteQuery(slotProps.data)"
+          >
+            Delete
+          </Button>
+        </div>
       </template>
     </Column>
 
@@ -122,6 +142,64 @@ function executionsForQuery(queryId: number): QueryExecutionTask[] {
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
 }
 
+type DisplayOption =
+  | {
+      key: string;
+      value: unknown;
+      variationValues?: undefined;
+      moreCount?: undefined;
+    }
+  | {
+      key: string;
+      value?: undefined;
+      variationValues: string[];
+      moreCount: number;
+    };
+
+const VARIATION_PREVIEW_LIMIT = 3;
+
+function getDisplayOptions(row: QueryRow): DisplayOption[] {
+  const { source: _s, queryType: _q, ...rest } = row.requestOptions;
+
+  // Collect all field names that appear in any variation
+  const variationFields = new Map<string, string[]>();
+  for (const variation of row.queryVariations ?? []) {
+    for (const [field, values] of Object.entries(variation.fieldOverrides)) {
+      const existing = variationFields.get(field) ?? [];
+      for (const v of values) {
+        const formatted = formatOptionValue(v);
+        if (!existing.includes(formatted)) existing.push(formatted);
+      }
+      variationFields.set(field, existing);
+    }
+  }
+
+  const result: DisplayOption[] = [];
+
+  // Regular (non-variation) fields — skip empty values
+  for (const [key, value] of Object.entries(rest)) {
+    if (variationFields.has(key)) continue;
+    if (value === null || value === undefined || value === "") continue;
+    if (Array.isArray(value) && (value as unknown[]).length === 0) continue;
+    result.push({ key, value });
+  }
+
+  // Variation-controlled fields
+  for (const [field, allValues] of variationFields) {
+    const preview = allValues.slice(0, VARIATION_PREVIEW_LIMIT);
+    const moreCount = Math.max(0, allValues.length - VARIATION_PREVIEW_LIMIT);
+    result.push({ key: field, variationValues: preview, moreCount });
+  }
+
+  return result;
+}
+
+function formatOptionValue(value: unknown): string {
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  return String(value);
+}
+
 const expandedRows = ref<Record<string, boolean>>({});
 
 onMounted(() => {
@@ -167,13 +245,61 @@ async function deleteQuery(query: QueryRow) {
 </script>
 
 <style scoped>
+  .request-options-list {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    list-style: none;
+
+    .request-option {
+      display: flex;
+      gap: 0.4em;
+      align-items: baseline;
+      flex-wrap: wrap;
+
+      dt {
+        font-size: 0.8em;
+        font-weight: 600;
+        color: var(--p-text-muted-color);
+        white-space: nowrap;
+
+        &::after {
+          content: ":";
+        }
+      }
+
+      dd {
+        margin: 0;
+        font-size: 0.85em;
+        word-break: break-word;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25em;
+        align-items: center;
+
+        .more-count {
+          font-size: 0.8em;
+          color: var(--p-text-muted-color);
+          white-space: nowrap;
+        }
+      }
+    }
+  }
+
+  .no-options {
+    color: var(--p-text-muted-color);
+  }
+
   .p-datatable {
     margin-bottom: 1em;
 
-    & :deep(.actions) {
+    & .inline-list {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5em;
+      align-items: center;
     }
   }
 

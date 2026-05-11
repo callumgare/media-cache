@@ -11,7 +11,7 @@
         <strong>Stage:</strong> {{ formatStage(latestTask) }}
       </span>
       <div
-        v-if="latestTask.stage === 'fetching-media-finder-results'"
+        v-if="latestTask.status === 'running' && latestTask.stage === 'fetching-media-finder-results'"
         class="progress-section"
         data-testid="progress-section"
       >
