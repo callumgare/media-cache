@@ -28,10 +28,18 @@ const { data: finderDetails, error: finderDetailsError } = await useFetch(
   "/api/admin/finder-details",
   { server: false },
 );
-if (finderDetailsError.value) {
-  throw finderDetailsError.value;
-}
-const sources = Object.values(finderDetails.value?.sources || {});
+watch(finderDetailsError, (error) => {
+  if (!error) return;
+  console.error("Error fetching finder details:", error);
+  throw createError({
+    statusCode: 500,
+    message: "Internal Server Error",
+    fatal: true,
+  });
+});
+const sources = computed(() =>
+  Object.values(finderDetails.value?.sources || {}),
+);
 
 const mediaQuery = useMediaQuery();
 const mediaQueryCondition = ref(mediaQuery.condition);
@@ -65,7 +73,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       id: "source",
       displayName: "Source",
       type: "text",
-      availableOptions: sources
+      availableOptions: sources.value
         .map((s) => ({
           ...s,
           count: facets.value
