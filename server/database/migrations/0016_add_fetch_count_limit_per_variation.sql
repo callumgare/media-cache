@@ -1,0 +1,1 @@
+ALTER TABLE "finder_query" ADD COLUMN "fetch_count_limit_per_variation" boolean DEFAULT false NOT NULL;

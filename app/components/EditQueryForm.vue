@@ -197,6 +197,17 @@
           show-buttons
         />
       </div>
+      <div
+        v-if="formValue.queryVariations && formValue.queryVariations.length > 0"
+        class="option"
+      >
+        <label for="fetchCountLimitPerVariation">Limit per query variation</label>
+        <Checkbox
+          v-model="formValue.fetchCountLimitPerVariation"
+          input-id="fetchCountLimitPerVariation"
+          :binary="true"
+        />
+      </div>
     </div>
 
     <Button type="submit">
@@ -297,6 +308,7 @@ const formValue = ref<FormData>(
         },
         queryVariations: [],
         fetchCountLimit: 1000,
+        fetchCountLimitPerVariation: true,
       },
 );
 

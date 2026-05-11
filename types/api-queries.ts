@@ -8,6 +8,7 @@ export type QueryListResponse = Array<{
   updatedAt: Date;
   requestOptions: GenericRequest;
   fetchCountLimit: number | null;
+  fetchCountLimitPerVariation: boolean;
   schedule: number;
   queryVariations: QueryVariation[] | null;
 }>;
@@ -19,6 +20,7 @@ export type QueryDetailResponse = {
   updatedAt: Date;
   requestOptions: GenericRequest;
   fetchCountLimit: number | null;
+  fetchCountLimitPerVariation: boolean;
   schedule: number;
   queryVariations: QueryVariation[] | null;
 };

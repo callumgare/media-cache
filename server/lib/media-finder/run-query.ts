@@ -77,7 +77,13 @@ export async function startFinderQueryExecution(
   const mediaFinderRequests = expandAllVariations(savedFinderQuery);
   const mediaFinderQueryOptions: MediaFinderQueryOptions = {};
   if (savedFinderQuery.fetchCountLimit !== null) {
-    mediaFinderQueryOptions.fetchCountLimit = savedFinderQuery.fetchCountLimit;
+    if (savedFinderQuery.fetchCountLimitPerVariation) {
+      // Limit applies independently to each variation request
+      mediaFinderQueryOptions.fetchCountLimit =
+        savedFinderQuery.fetchCountLimit;
+    }
+    // else: limit applies across all variation requests combined — enforced
+    // ourselves in the response loop via globalFetchLimit; no per-request cap.
   }
   // Run the actual execution in the background without blocking the caller
   const executionPromise = runFinderQueryExecution({
@@ -110,6 +116,15 @@ export async function runFinderQueryExecution({
   const queryId = savedFinderQuery?.id ?? null;
 
   let pageCount = 0;
+
+  // When fetchCountLimitPerVariation is false the limit applies across all
+  // variation requests combined (counted in pages); we track the running total here.
+  const globalFetchLimit =
+    savedFinderQuery &&
+    savedFinderQuery.fetchCountLimit !== null &&
+    !savedFinderQuery.fetchCountLimitPerVariation
+      ? savedFinderQuery.fetchCountLimit
+      : null;
 
   let finderMediaFound = 0;
   let finderMediaNew = 0;
@@ -161,6 +176,12 @@ export async function runFinderQueryExecution({
           pageCount,
           finderMediaFound,
         });
+        if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
+          break;
+        }
+      }
+      if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
+        break;
       }
     }
 

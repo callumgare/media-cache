@@ -379,3 +379,115 @@ describe("runMediaFinderQuery — empty query", () => {
     expect(execs[0].finderMediaFound).toBe(0);
   });
 });
+
+describe("runMediaFinderQuery — fetchCountLimit", () => {
+  // Each variation = one request = one page (test plugin uses paginationType: "none").
+  // Multi-page scenarios are simulated by using multiple variations.
+  async function createQueryWithLimit(opts: {
+    fetchCountLimit: number;
+    fetchCountLimitPerVariation?: boolean;
+    queryVariations?: dbSchema.QueryVariation[];
+  }) {
+    const [row] = await db
+      .insert(dbSchema.finderQuery)
+      .values({
+        title: "Limit Test Query",
+        requestOptions: {
+          source: "test-source" as const,
+          queryType: "test-handler-with-keyword" as const,
+        },
+        fetchCountLimit: opts.fetchCountLimit,
+        fetchCountLimitPerVariation: opts.fetchCountLimitPerVariation ?? false,
+        queryVariations: opts.queryVariations ?? null,
+        schedule: 0,
+        updatedAt: new Date(),
+      })
+      .returning();
+    if (!row) throw new Error("Failed to insert test finder query");
+    return row;
+  }
+
+  const TWO_VARIATIONS: dbSchema.QueryVariation[] = [
+    { id: "v1", fieldOverrides: { keyword: ["alpha"] } },
+    { id: "v2", fieldOverrides: { keyword: ["beta"] } },
+  ];
+
+  it("fetches media normally when limit is not exceeded", async () => {
+    const q = await createQueryWithLimit({ fetchCountLimit: 5 });
+    enqueueMedia([makeMedia({ id: "m1" }), makeMedia({ id: "m2" })]);
+
+    await runMediaFinderQuery(q);
+
+    expect(await getCacheMediaAll()).toHaveLength(2);
+  });
+
+  it("with fetchCountLimitPerVariation=false, stops after limit pages across all variations", async () => {
+    const q = await createQueryWithLimit({
+      fetchCountLimit: 1,
+      fetchCountLimitPerVariation: false,
+      queryVariations: TWO_VARIATIONS,
+    });
+
+    // Variation 1 produces page 1 (limit reached); variation 2 should be skipped
+    enqueueMedia([makeMedia({ id: "v1-m1" })]);
+    enqueueMedia([makeMedia({ id: "v2-m1" })]);
+
+    await runMediaFinderQuery(q);
+
+    const ids = (await getCacheMediaAll()).flatMap((r) => r.finderIds);
+    expect(ids).toContain("test-source\tv1-m1");
+    expect(ids).not.toContain("test-source\tv2-m1");
+  });
+
+  it("with fetchCountLimitPerVariation=false, fetches all variations when limit is not exceeded", async () => {
+    const q = await createQueryWithLimit({
+      fetchCountLimit: 2,
+      fetchCountLimitPerVariation: false,
+      queryVariations: TWO_VARIATIONS,
+    });
+
+    enqueueMedia([makeMedia({ id: "v1-m1" })]);
+    enqueueMedia([makeMedia({ id: "v2-m1" })]);
+
+    await runMediaFinderQuery(q);
+
+    const ids = (await getCacheMediaAll()).flatMap((r) => r.finderIds);
+    expect(ids).toContain("test-source\tv1-m1");
+    expect(ids).toContain("test-source\tv2-m1");
+  });
+
+  it("with fetchCountLimitPerVariation=true, all variations run regardless of total page count", async () => {
+    // limit=1 per variation; the global page count (2) would stop variation 2 if
+    // fetchCountLimitPerVariation were false, but here each variation is independent.
+    const q = await createQueryWithLimit({
+      fetchCountLimit: 1,
+      fetchCountLimitPerVariation: true,
+      queryVariations: TWO_VARIATIONS,
+    });
+
+    enqueueMedia([makeMedia({ id: "v1-m1" })]);
+    enqueueMedia([makeMedia({ id: "v2-m1" })]);
+
+    await runMediaFinderQuery(q);
+
+    const ids = (await getCacheMediaAll()).flatMap((r) => r.finderIds);
+    expect(ids).toContain("test-source\tv1-m1");
+    expect(ids).toContain("test-source\tv2-m1");
+  });
+
+  it("records correct pageCount when global limit stops fetching early", async () => {
+    const q = await createQueryWithLimit({
+      fetchCountLimit: 1,
+      fetchCountLimitPerVariation: false,
+      queryVariations: TWO_VARIATIONS,
+    });
+
+    enqueueMedia([makeMedia({ id: "v1-m1" })]);
+    enqueueMedia([makeMedia({ id: "v2-m1" })]);
+
+    await runMediaFinderQuery(q);
+
+    const execs = await getFinderQueryExecutionAll();
+    expect(execs[0].pageCount).toBe(1);
+  });
+});

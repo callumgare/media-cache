@@ -307,6 +307,9 @@ export const finderQuery = pgTable("finder_query", {
   title: text("title").notNull(),
   requestOptions: mediaFinderRequest("request_options").notNull(),
   fetchCountLimit: integer("fetch_count_limit"),
+  fetchCountLimitPerVariation: boolean("fetch_count_limit_per_variation")
+    .notNull()
+    .default(false),
   schedule: integer("schedule").notNull(),
   queryVariations: jsonb("query_variations").$type<QueryVariation[]>(),
 });
