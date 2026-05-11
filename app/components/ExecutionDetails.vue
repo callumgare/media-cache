@@ -2,10 +2,10 @@
   <div class="execution-details" data-testid="execution-details">
     <template v-if="latestTask">
       <span class="status">
-        <div v-if="statusIcon.length" :class="['pi', ...statusIcon]" />
         <div>
           {{ formatStatus(latestTask) }}
         </div>
+        <div v-if="statusIcon.length" :class="['pi', ...statusIcon]" />
       </span>
       <span v-if="latestTask.status === 'running'">
         <strong>Stage:</strong> {{ formatStage(latestTask) }}
@@ -134,8 +134,8 @@
 
 <script setup lang="ts">
 import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
-import type { MessageProps } from "primevue/message";
 import { formatStage, formatStatus } from "~/lib/finder-executions";
+import "primeicons/primeicons.css";
 
 const props = defineProps<{
   fetchCountLimit: number | null;
@@ -210,25 +210,27 @@ const progressPercent = computed(() => {
     
     .status {
       display: flex;
-      gap: 0.3em;
+      gap: 0.4em;
       font-size: 1.4em;
       font-weight: 600;
       margin-bottom: 0.75rem;
       align-items: center;
 
       .pi {
+        font-size: 1.2rem;
+        align-items: center;
+        translate: 0 -0.1em;
+
         &.pi-exclamation-triangle {
           color: var(--p-message-error-color);
         }
         &.pi-check {
           color: var(--p-message-success-color);
+          font-weight: bold;
         }
         &.pi-spinner {
           color: var(--p-message-info-color);
         }
-        font-size: 1.2em;
-        align-items: center;
-        translate: 0 -0.1em;
       }
     }
   }
