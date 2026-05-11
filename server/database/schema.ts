@@ -50,6 +50,16 @@ const mediaFinderMedia = customType<{
 });
 
 const statusEnum = pgEnum("status", ["running", "completed", "failed"]);
+export type Status = (typeof statusEnum)["enumValues"][number];
+
+const logLevelEnum = pgEnum("log_level", [
+  "debug",
+  "info",
+  "warning",
+  "error",
+  "fatal-error",
+]);
+export type LogLevel = (typeof logLevelEnum)["enumValues"][number];
 
 /*
 user
@@ -361,7 +371,7 @@ export const finderQueryExecutionLog = pgTable("finder_query_execution_log", {
   executionId: integer("execution_id")
     .notNull()
     .references(() => finderQueryExecution.id),
-  level: text("level").notNull(), // 'warning' | 'non_fatal_error' | 'fatal_error'
+  level: logLevelEnum("level").notNull(),
   message: text("message").notNull(),
   context: jsonb("context"),
 });

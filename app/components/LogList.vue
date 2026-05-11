@@ -18,20 +18,21 @@
 </template>
 
 <script setup lang="ts">
+import type { dbSchema } from "#build/types/nitro-imports";
+
 const { logs } = defineProps<{
-  logs: Array<{
-    id: number;
-    level: string;
-    message: string;
-    createdAt: Date;
-  }>;
+  logs: QueryExecutionTask["logs"];
 }>();
 
-function levelLabel(level: string): string {
+function levelLabel(level: dbSchema.LogLevel): string {
   return (
-    { warning: "WARN", non_fatal_error: "ERROR", fatal_error: "FATAL" }[
-      level
-    ] ?? level.toUpperCase()
+    {
+      debug: "DEBUG",
+      info: "INFO",
+      warning: "WARN",
+      error: "ERROR",
+      "fatal-error": "FATAL",
+    }[level] ?? level.toUpperCase()
   );
 }
 
@@ -73,18 +74,24 @@ function formatTime(date: Date): string {
     &:last-child {
       border-bottom: none;
     }
+    
+    &.debug {
+      background: color-mix(in srgb, var(--p-blue-100) 40%, transparent);
+    }
+    
+    &.info {
+      background: color-mix(in srgb, var(--p-green-100) 40%, transparent);
+    }
 
     &.warning {
       background: color-mix(in srgb, var(--p-yellow-100) 40%, transparent);
     }
 
-    /* stylelint-disable-next-line selector-class-pattern */
-    &.non_fatal_error {
+    &.error {
       background: color-mix(in srgb, var(--p-orange-100) 40%, transparent);
     }
 
-    /* stylelint-disable-next-line selector-class-pattern */
-    &.fatal_error {
+    &.fatal-error {
       background: color-mix(in srgb, var(--p-red-100) 40%, transparent);
     }
   }
@@ -99,6 +106,10 @@ function formatTime(date: Date): string {
 
     /* stylelint-disable-next-line selector-class-pattern */
     .fatal_error & { color: var(--p-red-700); }
+  }
+  
+  .log-message {
+    text-wrap: auto;
   }
 
   .log-time {

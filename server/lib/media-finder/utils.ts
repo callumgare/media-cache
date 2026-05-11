@@ -56,7 +56,7 @@ export async function createExecutionLogEntry({
 }: {
   executionId: number;
   queryId: number | null;
-  level: "warning" | "non_fatal_error" | "fatal_error";
+  level: dbSchema.LogLevel;
   message: string;
   context?: Record<string, unknown>;
 }): Promise<dbSchema.FinderQueryExecutionLog> {
@@ -138,7 +138,7 @@ export async function getCacheMedia({
     await createExecutionLogEntry({
       executionId,
       queryId,
-      level: "non_fatal_error",
+      level: "error",
       message: "Found multiple cache media entries with the same finder id",
     });
   }

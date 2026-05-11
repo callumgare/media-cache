@@ -11,7 +11,7 @@ export type QueryExecutionTask = {
   startedAt: Date;
   finishedAt: Date | null;
   queryId: number | null;
-  status: "running" | "completed" | "failed";
+  status: dbSchema.Status;
   stage?:
     | "fetching-media-finder-results"
     | "processing-added-or-updated"
@@ -33,7 +33,7 @@ export type QueryExecutionTask = {
 
   logs: Array<{
     id: number;
-    level: string;
+    level: dbSchema.LogLevel;
     message: string;
     createdAt: Date;
   }>;
@@ -59,12 +59,15 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
         .then(async (rows) => {
           if (rows.length === 0) return;
           await db.insert(dbSchema.finderQueryExecutionLog).values(
-            rows.map((row) => ({
-              executionId: row.id,
-              level: "fatal_error",
-              message:
-                "Execution was interrupted by a server restart and did not complete.",
-            })),
+            rows.map(
+              (row) =>
+                ({
+                  executionId: row.id,
+                  level: "fatal-error",
+                  message:
+                    "Execution was interrupted by a server restart and did not complete.",
+                }) as const,
+            ),
           );
         });
     }
@@ -201,7 +204,7 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
 
   async addLog(
     executionId: number,
-    log: { id: number; level: string; message: string; createdAt: Date },
+    log: QueryExecutionTask["logs"][number],
   ): Promise<void> {
     const task = await this.getTask(executionId);
 

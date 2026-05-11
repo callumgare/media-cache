@@ -123,6 +123,8 @@ export async function runFinderQueryExecution({
   let cacheMediaUnchanged = 0;
   let cacheMediaDeleted = 0;
 
+  let currentFinderRequest: GenericRequest | null = null;
+
   try {
     // ----- Saving media finder results to execution media table -----
     await queryExecutionTaskSystem.updateTask(executionId, {
@@ -134,6 +136,8 @@ export async function runFinderQueryExecution({
         ...mediaFinderQueryOptions.secrets,
         ...(await getSecrets(mediaFinderRequest)),
       };
+
+      currentFinderRequest = mediaFinderRequest;
 
       const mediaQuery = await getMediaQuery({
         request: mediaFinderRequest,
@@ -411,8 +415,15 @@ export async function runFinderQueryExecution({
     await createExecutionLogEntry({
       executionId,
       queryId,
-      level: "fatal_error",
+      level: "fatal-error",
       message,
+    });
+    const task = await queryExecutionTaskSystem.getTask(executionId);
+    await createExecutionLogEntry({
+      executionId,
+      queryId,
+      level: "info",
+      message: `Failed during stage "${task.stage}" while processing query: ${JSON.stringify(currentFinderRequest, null, 2)}`,
     });
     const updatedTaskValues: Omit<
       typeof dbSchema.finderQueryExecution.$inferInsert,
