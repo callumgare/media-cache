@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useUiState } from "@@/stores/ui";
+import { Shuffle } from "lucide-vue-next";
 import type { MenuItem } from "primevue/menuitem";
 
 const props = defineProps<{
@@ -128,9 +129,16 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         <button @click="uiState.debugMode = !uiState.debugMode">
           Debug
         </button>
-        <button @click="uiState.randomSeed = Math.floor(Math.random() * (100000 - 1))">
-          Randomise{{ uiState.debugMode ? ` (seed: ${uiState.randomSeed})` : '' }}
-        </button>
+        <Button
+          :label="uiState.debugMode ? `seed: ${uiState.randomSeed}` : undefined"
+          severity="secondary"
+          text
+          @click="uiState.randomSeed = Math.floor(Math.random() * (100000 - 1))"
+        >
+          <template #icon>
+            <Shuffle :size="20" />
+          </template>
+        </Button>
         <slot name="header-buttons" />
       </div>
     </div>

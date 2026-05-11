@@ -4,6 +4,7 @@
       :model-value="modelValue"
       :options="option.enum"
       @update:model-value="$emit('update:modelValue', $event)"
+      @change="$emit('confirm')"
     />
   </template>
   <template v-else-if="option?.type === 'number'">
@@ -11,20 +12,24 @@
       :model-value="typeof modelValue === 'number' ? modelValue : null"
       show-buttons
       @update:model-value="$emit('update:modelValue', $event)"
+      @keydown.enter.prevent="$emit('confirm')"
     />
   </template>
   <template v-else-if="option?.type === 'boolean'">
-    <Checkbox
-      :model-value="modelValue === true"
-      :binary="true"
-      @update:model-value="$emit('update:modelValue', $event)"
-    />
+    <InputGroupAddon>
+      <Checkbox
+        :model-value="modelValue === true"
+        :binary="true"
+        @update:model-value="$emit('update:modelValue', $event)"
+      />
+    </InputGroupAddon>
   </template>
   <template v-else>
     <InputText
       :model-value="typeof modelValue === 'string' ? modelValue : ''"
       type="text"
       @update:model-value="$emit('update:modelValue', $event)"
+      @keydown.enter.prevent="$emit('confirm')"
     />
   </template>
 </template>
@@ -43,5 +48,6 @@ defineProps<{
 
 defineEmits<{
   "update:modelValue": [value: unknown];
+  confirm: [];
 }>();
 </script>

@@ -1,10 +1,11 @@
 <template>
   <form @submit.prevent="handleValidateClick">
-    <div class="primary-options">
+    <div class="primary-options fields-list">
       <div class="option">
         <label for="sourceInput">Source</label>
         <Select
-          id="sourceInput"
+          input-id="sourceInput"
+          input-class="field-input"
           v-model="formValue.requestOptions.source"
           :options="sources"
           option-label="name"
@@ -14,7 +15,8 @@
       <div class="option">
         <label for="requestHandlerInput">Request Handler</label>
         <Select
-          id="requestHandlerInput"
+          input-id="requestHandlerInput"
+          input-class="field-input"
           v-model="formValue.requestOptions.queryType"
           :options="requestHandlers"
           option-label="name"
@@ -31,7 +33,7 @@
       class="request-options"
     >
       <h2>Request Options</h2>
-      <ul>
+      <ul class="fields-list">
         <li
           v-for="option in requestOptions"
           :key="`${formValue.requestOptions.source} - ${formValue.requestOptions.queryType} - ${option.name}`"
@@ -41,75 +43,87 @@
             :class="{ 'variation-controlled': variationControlledFields.has(option.name) }"
           >
             <label :for="option.name">{{ camelCaseToTitleCase(option.name) }}</label>
-            <Select
-              v-if="option.type === 'string' && option.enum"
-              v-model="formValue.requestOptions[option.name]"
-              :options="option.enum"
-              :disabled="variationControlledFields.has(option.name)"
-            />
-            <InputText
-              v-else-if="option.type === 'string'"
-              :id="option.name"
-              :model-value="getStringOption(option.name)"
-              placeholder=""
-              type="text"
-              :disabled="variationControlledFields.has(option.name)"
-              @update:model-value="setOption(option.name, $event)"
-            />
-            <InputNumber
-              v-else-if="option.type === 'number'"
-              :id="option.name"
-              :model-value="getNumberOption(option.name)"
-              placeholder=""
-              show-buttons
-              :disabled="variationControlledFields.has(option.name)"
-              @update:model-value="setOption(option.name, $event)"
-            />
-            <JsonInput
-              v-else-if="option.type === 'object'"
-              :id="option.name"
-              :model-value="getJsonOption(option.name)"
-              rows="5"
-              cols="30"
-              :disabled="variationControlledFields.has(option.name)"
-              @update:model-value="setOption(option.name, $event)"
-            />
-            <Checkbox
-              v-else-if="option.type === 'boolean'"
-              v-model="formValue.requestOptions[option.name]"
-              :binary="true"
-              :input-id="option.name"
-              :disabled="variationControlledFields.has(option.name)"
-            />
-            <TextList
-              v-else-if="option.type === 'array' && option.items?.type === 'string'"
-              :model-value="getArrayOption(option.name)"
-              name="fdsafasf"
-              :disabled="variationControlledFields.has(option.name)"
-              @update:model-value="setOption(option.name, $event)"
-            />
-            <template v-else>
-              Option type "{{ option.type }}" is unknown.
-              <pre v-if="uiState.debugMode">{{ JSON.stringify(option, null, 2) }}</pre>
-              <JsonInput
+            <InputGroup class="field-input">
+              <Select
+                v-if="option.type === 'string' && option.enum"
+                :input-id="option.name"
+                v-model="formValue.requestOptions[option.name]"
+                :options="option.enum"
+                :disabled="variationControlledFields.has(option.name)"
+                :placeholder="variationControlledFields.has(option.name) ? 'Set in a variation' : ''"
+              />
+              <InputText
+                v-else-if="option.type === 'string'"
                 :id="option.name"
+                :model-value="getStringOption(option.name)"
+                :placeholder="variationControlledFields.has(option.name) ? 'Set in a variation' : ''"
+                type="text"
+                :disabled="variationControlledFields.has(option.name)"
+                @update:model-value="setOption(option.name, $event)"
+              />
+              <InputNumber
+                v-else-if="option.type === 'number'"
+                :id="option.name"
+                :model-value="getNumberOption(option.name)"
+                :placeholder="variationControlledFields.has(option.name) ? 'Set in a variation' : ''"
+                show-buttons
+                :disabled="variationControlledFields.has(option.name)"
+                @update:model-value="setOption(option.name, $event)"
+                />
+              <JsonInput
+                v-else-if="option.type === 'object'"
+                :id="option.name"
+                :placeholder="variationControlledFields.has(option.name) ? 'Set in a variation' : ''"
                 :model-value="getJsonOption(option.name)"
                 rows="5"
                 cols="30"
                 :disabled="variationControlledFields.has(option.name)"
                 @update:model-value="setOption(option.name, $event)"
               />
-            </template>
-            <button
-              v-if="!variationControlledFields.has(option.name)"
-              type="button"
-              class="add-variation-btn"
-              title="Add to new variation"
-              @click="addFieldToNewVariation(option.name)"
-            >
-              ±
-            </button>
-            <span v-else>Field is set in a query variation</span>
+              
+              <InputGroupAddon v-else-if="option.type === 'boolean'">
+                <Checkbox
+                  v-if="!variationControlledFields.has(option.name)"
+                  v-model="formValue.requestOptions[option.name]"
+                  :binary="true"
+                  :input-id="option.name"
+                />
+                <span v-else>Field is set in a query variation</span>
+              </InputGroupAddon>
+              <TextList
+                v-else-if="option.type === 'array' && option.items?.type === 'string'"
+                :model-value="getArrayOption(option.name)"
+                name="fdsafasf"
+                :disabled="variationControlledFields.has(option.name)"
+                @update:model-value="setOption(option.name, $event)"
+              />
+              <template v-else>
+                Option type "{{ option.type }}" is unknown.
+                <pre v-if="uiState.debugMode">{{ JSON.stringify(option, null, 2) }}</pre>
+                <JsonInput
+                  :id="option.name"
+                  :model-value="getJsonOption(option.name)"
+                  rows="5"
+                  cols="30"
+                  :disabled="variationControlledFields.has(option.name)"
+                  @update:model-value="setOption(option.name, $event)"
+                />
+              </template>
+              <InputGroupAddon
+                v-if="!variationControlledFields.has(option.name)"
+                class="variation-btn-addon"
+              >
+                <Button
+                  type="button"
+                  title="Add to new variation"
+                  severity="secondary"
+                  text
+                  @click="addFieldToNewVariation(option.name)"
+                >
+                  <Split :size="18" style="transform: rotate(90deg)" />
+                </Button>
+              </InputGroupAddon>
+            </InputGroup>
           </div>
         </li>
       </ul>
@@ -121,87 +135,26 @@
     >
       <h2>Query Variations</h2>
       <p class="variations-hint">
-        Each variation generates a cartesian product of its field values and runs as separate queries within the same execution.
+        Each variation runs a separate query for every combination of its field values.
       </p>
-      <div
+      <QueryVariationCard
         v-for="(variation, vIdx) in formValue.queryVariations"
         :key="variation.id"
-        class="variation"
-      >
-        <div class="variation-header">
-          <h3>Variation {{ vIdx + 1 }}</h3>
-          <button
-            type="button"
-            class="remove-btn"
-            @click="removeVariation(vIdx)"
-          >
-            Remove variation
-          </button>
-        </div>
-        <div
-          v-for="fieldName in Object.keys(variation.fieldOverrides)"
-          :key="fieldName"
-          class="variation-field"
-        >
-          <div class="variation-field-header">
-            <span class="variation-field-name">{{ camelCaseToTitleCase(fieldName) }}</span>
-            <button
-              type="button"
-              class="remove-btn"
-              @click="removeFieldFromVariation(vIdx, fieldName)"
-            >
-              Remove field
-            </button>
-          </div>
-          <div class="variation-field-values">
-            <div
-              v-for="(_, valueIdx) in variation.fieldOverrides[fieldName] ?? []"
-              :key="valueIdx"
-              class="variation-value-row"
-            >
-              <VariationFieldInput
-                :option="getOptionByName(fieldName)"
-                :model-value="(variation.fieldOverrides[fieldName] ?? [])[valueIdx]"
-                @update:model-value="setVariationFieldValue(vIdx, fieldName, valueIdx, $event)"
-              />
-              <button
-                type="button"
-                class="remove-btn"
-                @click="removeVariationFieldValue(vIdx, fieldName, valueIdx)"
-              >
-                ×
-              </button>
-            </div>
-            <button
-              v-if="!(getOptionByName(fieldName)?.type === 'boolean' && (variation.fieldOverrides[fieldName] ?? []).length >= 2)"
-              type="button"
-              class="add-value-btn"
-              @click="addVariationFieldValue(vIdx, fieldName)"
-            >
-              + Add value
-            </button>
-          </div>
-        </div>
-        <div
-          v-if="availableFieldsForVariation(vIdx).length > 0"
-          class="add-field-row"
-        >
-          <Select
-            :options="availableFieldsForVariation(vIdx)"
-            option-label="label"
-            option-value="value"
-            placeholder="Add field to variation…"
-            @update:model-value="addFieldToVariation(vIdx, $event)"
-          />
-        </div>
-      </div>
-      <button
+        :variation="variation"
+        :request-options="requestOptions"
+        @remove="removeVariation(vIdx)"
+        @add-field="addFieldToVariation(vIdx, $event)"
+      />
+      <Button
         type="button"
         class="add-variation-btn-secondary"
+        severity="secondary"
+        text
         @click="addVariation()"
       >
-        + Add variation
-      </button>
+        <Plus :size="16" />
+        Add variation
+      </Button>
     </div>
 
     <div
@@ -230,9 +183,9 @@
 <script setup lang="ts">
 import type { FinderQuery, QueryVariation } from "@@/server/database/schema";
 import { useUiState } from "@@/stores/ui";
+import { Plus, Split } from "lucide-vue-next";
 import JsonInput from "./forms/JsonInput.vue";
 import TextList from "./forms/TextList.vue";
-import VariationFieldInput from "./forms/VariationFieldInput.vue";
 
 type JsonSchemaWithProperties = {
   properties: Record<string, Record<string, unknown>>;
@@ -297,7 +250,7 @@ const formValue = ref<FormData>(
           queryType: null,
         },
         queryVariations: [],
-        fetchCountLimit: null,
+        fetchCountLimit: 1000,
       },
 );
 
@@ -434,15 +387,25 @@ function transferBaseValueToVariation(fieldName: string, values: unknown[]) {
 
 function addFieldToNewVariation(fieldName: string) {
   const option = getOptionByName(fieldName);
-  const initialValues = [defaultValueForOption(option)];
-  transferBaseValueToVariation(fieldName, initialValues);
-  const variation: QueryVariation = {
-    id: generateVariationId(),
-    fieldOverrides: {
-      [fieldName]: initialValues,
-    },
-  };
-  formValue.value.queryVariations.push(variation);
+  let initialValues: unknown[];
+  if (option?.type === "boolean") {
+    const current = formValue.value.requestOptions[fieldName];
+    initialValues = current === true ? [true, false] : [false, true];
+    formValue.value.requestOptions[fieldName] = null;
+  } else {
+    initialValues = [defaultValueForOption(option)];
+    transferBaseValueToVariation(fieldName, initialValues);
+  }
+
+  const lastVariation = formValue.value.queryVariations.at(-1);
+  if (lastVariation && !lastVariation.fieldOverrides[fieldName]) {
+    lastVariation.fieldOverrides[fieldName] = initialValues;
+  } else {
+    formValue.value.queryVariations.push({
+      id: generateVariationId(),
+      fieldOverrides: { [fieldName]: initialValues },
+    });
+  }
 }
 
 function addVariation() {
@@ -465,53 +428,6 @@ function addFieldToVariation(vIdx: number, fieldName: string) {
     transferBaseValueToVariation(fieldName, initialValues);
     variation.fieldOverrides[fieldName] = initialValues;
   }
-}
-
-function removeFieldFromVariation(vIdx: number, fieldName: string) {
-  const variation = formValue.value.queryVariations[vIdx];
-  if (!variation) return;
-  const { [fieldName]: _, ...rest } = variation.fieldOverrides;
-  variation.fieldOverrides = rest;
-}
-
-function addVariationFieldValue(vIdx: number, fieldName: string) {
-  const option = getOptionByName(fieldName);
-  const values =
-    formValue.value.queryVariations[vIdx]?.fieldOverrides[fieldName];
-  if (!values) return;
-  values.push(defaultValueForOption(option));
-}
-
-function removeVariationFieldValue(
-  vIdx: number,
-  fieldName: string,
-  valueIdx: number,
-) {
-  const values =
-    formValue.value.queryVariations[vIdx]?.fieldOverrides[fieldName];
-  if (!values) return;
-  values.splice(valueIdx, 1);
-}
-
-function setVariationFieldValue(
-  vIdx: number,
-  fieldName: string,
-  valueIdx: number,
-  value: unknown,
-) {
-  const values =
-    formValue.value.queryVariations[vIdx]?.fieldOverrides[fieldName];
-  if (!values) return;
-  values[valueIdx] = value;
-}
-
-function availableFieldsForVariation(vIdx: number) {
-  const existing = Object.keys(
-    formValue.value.queryVariations[vIdx]?.fieldOverrides ?? {},
-  );
-  return requestOptions.value
-    .filter((opt) => !existing.includes(opt.name))
-    .map((opt) => ({ label: camelCaseToTitleCase(opt.name), value: opt.name }));
 }
 
 async function handleValidateClick() {
@@ -563,11 +479,54 @@ async function handleValidateClick() {
     flex-direction: column;
     align-items: flex-start;
     gap: 2em;
+    
+    .primary-options {
+      :deep(.p-inputwrapper) {
+        max-width: 100%;
+        
+        :deep(.p-select-label) {
+          width: 200px; /* this shrinks if needed */
+        }
+      }
+    }
+    
+    .fields-list {
+      display: grid;
+      grid-template-columns: 100%;
+      gap: 1em;
+      align-self: stretch;
+
+      @media (min-width: 850px) {
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      }
+    }
 
     .option {
       display: flex;
-      flex-direction: column;
-      min-width: 200px;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.75em;
+
+      label {
+        width: 8em;
+        text-align: right;
+        flex-shrink: 0;
+      }
+      
+      @media (max-width: 600px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25em;
+        
+        label {
+          width: auto;
+          text-align: left;
+        }
+      }
+      
+      .field-input {
+        max-width: 20em;
+      }
 
       --height-of-input: calc(2px + (var(--p-form-field-padding-y) * 2) + 1lh); /* 2px for border */
 
@@ -577,52 +536,27 @@ async function handleValidateClick() {
         padding-right: 2em;
       }
 
-      .p-checkbox {
-        height: var(--height-of-input);
-        align-items: center;
-      }
-    }
+      .variation-btn-addon {
+        padding: 0;
 
-    .primary-options {
-      display: flex;
-      flex-flow: row wrap;
-      gap: 1em;
-      align-items: baseline;
-
-      .n-form-item {
-          max-width: 100%;
-          width: 10em;
+        .p-button {
+          height: 100%;
+          border-radius: 0;
+        }
       }
     }
 
     .request-options {
+      align-self: stretch;
       flex-direction: column;
 
       ul {
         list-style-type: none;
         padding-left: 0;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1em;
+        margin: 0.5em 0;
       }
     }
 
-    .add-variation-btn {
-      margin-top: 0.3em;
-      align-self: flex-start;
-      font-size: 1rem;
-      background: none;
-      border: 1px solid var(--p-content-border-color, #ccc);
-      border-radius: 4px;
-      cursor: pointer;
-      padding: 0.1em 0.4em;
-      color: inherit;
-      opacity: 0.6;
-
-      &:hover {
-        opacity: 1;
-      }
-    }
 
     .query-variations {
       display: flex;
@@ -635,110 +569,8 @@ async function handleValidateClick() {
         font-size: 0.85em;
         opacity: 0.7;
       }
-
-      .variation {
-        border: 1px solid var(--p-content-border-color, #ccc);
-        border-radius: 6px;
-        padding: 1em;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75em;
-
-        .variation-header {
-          display: flex;
-          align-items: center;
-          gap: 1em;
-
-          h3 {
-            margin: 0;
-            font-size: 1em;
-          }
-        }
-
-        .variation-field {
-          display: flex;
-          flex-direction: column;
-          gap: 0.4em;
-
-          .variation-field-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75em;
-
-            .variation-field-name {
-              font-weight: 600;
-              font-size: 0.9em;
-            }
-          }
-
-          .variation-field-values {
-            display: flex;
-            flex-direction: column;
-            gap: 0.3em;
-            padding-left: 1em;
-
-            .variation-value-row {
-              display: flex;
-              align-items: center;
-              gap: 0.5em;
-            }
-          }
-        }
-
-        .add-field-row {
-          margin-top: 0.25em;
-        }
-      }
-
-      .add-variation-btn-secondary {
-        align-self: flex-start;
-        background: none;
-        border: 1px dashed var(--p-content-border-color, #ccc);
-        border-radius: 4px;
-        cursor: pointer;
-        padding: 0.3em 0.75em;
-        color: inherit;
-        opacity: 0.7;
-
-        &:hover {
-          opacity: 1;
-        }
-      }
     }
 
-    .remove-btn {
-      background: none;
-      border: 1px solid var(--p-content-border-color, #ccc);
-      border-radius: 4px;
-      cursor: pointer;
-      padding: 0.1em 0.4em;
-      font-size: 0.8em;
-      color: inherit;
-      opacity: 0.6;
-
-      &:hover {
-        opacity: 1;
-        border-color: var(--p-red-400, #f87171);
-        color: var(--p-red-400, #f87171);
-      }
-    }
-
-    .add-value-btn {
-      align-self: flex-start;
-      background: none;
-      border: 1px dashed var(--p-content-border-color, #ccc);
-      border-radius: 4px;
-      cursor: pointer;
-      padding: 0.1em 0.5em;
-      font-size: 0.85em;
-      color: inherit;
-      opacity: 0.6;
-      margin-top: 0.2em;
-
-      &:hover {
-        opacity: 1;
-      }
-    }
 
     .option.variation-controlled,
     span.variation-controlled {
