@@ -310,7 +310,7 @@ async function deleteQuery(query: QueryRow) {
 
   .status-badge {
     display: inline-block;
-    padding: 0.2em 0.6em;
+    padding: 0.3em 0.6em 0.1em;
     border-radius: 1em;
     font-size: 0.85em;
     font-weight: 600;

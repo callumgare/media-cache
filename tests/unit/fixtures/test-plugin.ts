@@ -49,6 +49,41 @@ export default {
           ],
         },
         {
+          id: "test-handler-with-count",
+          displayName: "Test Handler With Count",
+          description:
+            "Like test-handler but with a count field that has a default value",
+          requestSchema: z
+            .object({
+              source: z.string(),
+              queryType: z.string(),
+              count: z.number().default(100),
+            })
+            .strict(),
+          paginationType: "none" as const,
+          responses: [
+            {
+              schema: z
+                .object({
+                  media: z.array(z.any()),
+                  request: z.any(),
+                })
+                .passthrough(),
+              constructor: {
+                media: async () => {
+                  const delayMs = globalThis.__testPluginDelayMs ?? 0;
+                  if (delayMs > 0)
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, delayMs),
+                    );
+                  return globalThis.__testPluginQueue?.shift() ?? [];
+                },
+                request: ($) => $.request,
+              },
+            },
+          ],
+        },
+        {
           id: "test-handler",
           displayName: "Test Handler",
           description: "Returns media from a programmatic queue",

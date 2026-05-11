@@ -8,6 +8,11 @@ export const TEST_REQUEST = {
   queryType: "test-handler" as const,
 };
 
+export const TEST_REQUEST_WITH_COUNT = {
+  source: "test-source" as const,
+  queryType: "test-handler-with-count" as const,
+};
+
 export function makeMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
   const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {

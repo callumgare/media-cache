@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   TEST_REQUEST,
+  TEST_REQUEST_WITH_COUNT,
   createTestFinderQuery,
   runMediaFinderQuery,
   truncateAll,
@@ -487,5 +488,45 @@ describe("DELETE /api/admin/queries/:id", () => {
       where: (r, { eq }) => eq(r.id, q.id),
     });
     expect(found).toBeUndefined();
+  });
+});
+
+describe("query form — clearing number fields", () => {
+  it("clears a number field when it has been removed from the submitted request options", async () => {
+    // 1. Create a query with count explicitly set to 5.
+    const [row] = await db
+      .insert(dbSchema.finderQuery)
+      .values({
+        title: "Query with count",
+        requestOptions: { ...TEST_REQUEST_WITH_COUNT, count: 5 },
+        schedule: 0,
+        updatedAt: new Date(),
+      })
+      .returning();
+    if (!row) throw new Error("Insert failed");
+
+    const initial = await getQuery(row.id);
+    expect(initial.requestOptions).toHaveProperty("count", 5);
+
+    // 2. Simulate the user clearing the count field.
+    //    formattedFormValue sets cleared fields to null then strips them,
+    //    so the submitted object has no "count" key at all.
+    const formState: Record<string, unknown> = {
+      ...TEST_REQUEST_WITH_COUNT,
+      count: null, // user cleared
+    };
+    const submitted = await stripToHandlerFields(formState);
+    expect(submitted).not.toHaveProperty("count");
+
+    // 3. Parse and save — mirrors what the update endpoint does.
+    const parsed = await parseMediaFinderRequest(submitted);
+    await db
+      .update(dbSchema.finderQuery)
+      .set({ requestOptions: parsed, updatedAt: new Date() })
+      .where(eq(dbSchema.finderQuery.id, row.id));
+
+    // 4. The saved query should not have count.
+    const saved = await getQuery(row.id);
+    expect(saved.requestOptions).not.toHaveProperty("count");
   });
 });

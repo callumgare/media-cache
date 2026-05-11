@@ -25,6 +25,14 @@ export async function parseMediaFinderRequest(
   const mediaFinder = await getMediaFinder();
   const handler = mediaFinder.getRequestHandler(source, queryType);
 
-  // Validate against the handler's request schema
-  return handler.requestSchema.parse(data);
+  // Validate against the handler's request schema, then drop any keys that
+  // Zod added via defaults but were not present in the original input.
+  // This ensures that clearing a field removes it rather than resetting it
+  // to its schema default.
+  const inputKeys = new Set(Object.keys(data));
+  const parsed = handler.requestSchema.parse(data) as Record<string, unknown>;
+  for (const key of Object.keys(parsed)) {
+    if (!inputKeys.has(key)) delete parsed[key];
+  }
+  return parsed as GenericRequest;
 }
