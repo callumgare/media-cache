@@ -6,6 +6,7 @@
         <Select
           input-id="sourceInput"
           input-class="field-input"
+          :loading="loading"
           v-model="formValue.requestOptions.source"
           :options="sources"
           option-label="name"
@@ -17,6 +18,7 @@
         <Select
           input-id="requestHandlerInput"
           input-class="field-input"
+          :loading="loading"
           v-model="formValue.requestOptions.queryType"
           :options="requestHandlers"
           option-label="name"
@@ -222,6 +224,7 @@ const props = defineProps<{
     createdAt?: Date | string;
     updatedAt?: Date | string;
   };
+  loading?: boolean;
 }>();
 
 const toast = useToast();

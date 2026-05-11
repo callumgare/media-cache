@@ -1,6 +1,9 @@
 <template>
   <div>
-    <EditQueryForm :media-query="mediaQuery" />
+    <EditQueryForm
+      :media-query="mediaQuery"
+      :loading="queryRequest?.status.value === 'pending'"
+    />
   </div>
 </template>
 
@@ -33,34 +36,40 @@ if (!id) {
     fatal: true,
   });
 }
-
-let mediaQuery: MediaQueryFormData | undefined;
-
-if (id === "add") {
-  mediaQuery = undefined;
-} else if (id.match(/^\d+$/)) {
-  try {
-    const data = await $fetch(`/api/admin/queries/${id}`);
-    const requestOptions = isRecord(data.requestOptions)
-      ? data.requestOptions
-      : {};
-    mediaQuery = { ...data, requestOptions };
-  } catch (error) {
-    console.error("Error fetching query:", error);
-    throw createError({
-      statusCode: 404,
-      message: "Not Found",
-      fatal: true,
-    });
-  }
-} else {
-  console.log("Invalid query ID:", id);
+if (id !== "add" && !/^\d+$/.test(id)) {
+  console.error("Invalid query ID:", id);
   throw createError({
     statusCode: 400,
-    message: "Not Found",
+    message: "Invalid query ID",
     fatal: true,
   });
 }
+
+const queryRequest =
+  id !== "add"
+    ? await useSuperFetch(`/api/admin/queries/${id}`, {
+        server: false,
+      })
+    : null;
+
+if (queryRequest) {
+  watch(queryRequest.error, async (error) => {
+    if (!error) return;
+    console.error("Error fetching query data:", error);
+    throw createError({ statusCode: 404, message: "Not Found", fatal: true });
+  });
+}
+
+const mediaQuery = computed<MediaQueryFormData | undefined>(() => {
+  const data = queryRequest?.data.value;
+  if (!data) return undefined;
+
+  const requestOptions = isRecord(data.requestOptions)
+    ? data.requestOptions
+    : {};
+  return { ...data, requestOptions };
+});
+
 definePageMeta({
   breadcrumbs: ({ route }: { route: RouteLocationNormalizedLoaded }) => [
     "Settings",
