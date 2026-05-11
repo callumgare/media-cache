@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { useMediaQuery } from "@@/stores/media-query";
+import { useUiState } from "@@/stores/ui";
+import { Shuffle } from "lucide-vue-next";
+
+const uiState = useUiState();
 import type {
   APIMediaFacetsResponse,
   FacetCount,
@@ -143,6 +147,18 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
 
 <template>
   <div class="root" data-testid="filter-sidebar-root">
+    <div class="sidebar-header">
+      <Button
+        :label="uiState.debugMode ? `seed: ${uiState.randomSeed}` : undefined"
+        severity="secondary"
+        text
+        @click="uiState.randomSeed = Math.floor(Math.random() * (100000 - 1))"
+      >
+        <template #icon>
+          <Shuffle :size="20" />
+        </template>
+      </Button>
+    </div>
     <ClientOnly
       fallback-tag="span"
       fallback="Loading..."
@@ -158,5 +174,11 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
 <style scoped>
   .root {
     padding: 1em;
+
+    .sidebar-header {
+      display: flex;
+      justify-content: flex-start;
+      margin-bottom: 0.5em;
+    }
   }
 </style>
