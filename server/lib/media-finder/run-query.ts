@@ -266,6 +266,12 @@ export async function runFinderQueryExecution({
       await queryExecutionTaskSystem.updateTask(executionId, {
         pageCount,
         finderMediaFound,
+        finderMediaNew,
+        finderMediaUpdated,
+        finderMediaUnchanged,
+        cacheMediaCreated,
+        cacheMediaUpdated,
+        cacheMediaUnchanged,
       });
 
       lastId = lastInBatch.id;
@@ -299,12 +305,13 @@ export async function runFinderQueryExecution({
           ),
         );
 
+      finderMediaRemoved = removedMedias.length;
+
       await queryExecutionTaskSystem.updateTask(executionId, {
-        finderMediaRemoved: removedMedias.length,
+        finderMediaRemoved,
       });
 
       for (const removedMedia of removedMedias) {
-        finderMediaRemoved++;
         const otherExecutionMedia = await db
           .select({
             id: dbSchema.finderQueryMedia.id,
@@ -366,6 +373,12 @@ export async function runFinderQueryExecution({
           }
         }
       }
+
+      await queryExecutionTaskSystem.updateTask(executionId, {
+        cacheMediaDeleted,
+        cacheMediaUpdated,
+        cacheMediaCreated,
+      });
     }
 
     // ----- Cleanup -----
