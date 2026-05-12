@@ -48,7 +48,7 @@
           outlined
           @click="showImportDialog = true"
         >
-          <Upload :size="16" />
+          <Download :size="16" />
           Import
         </Button>
       </div>
@@ -239,7 +239,7 @@
 <script setup lang="ts">
 import type { FinderQuery, QueryVariation } from "@@/server/database/schema";
 import { useUiState } from "@@/stores/ui";
-import { Copy, Plus, Split, Upload } from "lucide-vue-next";
+import { Copy, Download, Plus, Split } from "lucide-vue-next";
 import JsonInput from "./forms/JsonInput.vue";
 import TextList from "./forms/TextList.vue";
 
