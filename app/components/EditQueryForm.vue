@@ -117,8 +117,9 @@
               </InputGroupAddon>
               <TextList
                 v-else-if="option.type === 'array' && option.items?.type === 'string'"
-                :model-value="getArrayOption(option.name)"
-                name="fdsafasf"
+                :model-value="getArrayOption(option.name) ?? []"
+                :placeholder="variationControlledFields.has(option.name) ? 'Set in a variation' : ''"
+                :id="option.name"
                 :disabled="variationControlledFields.has(option.name)"
                 @update:model-value="setOption(option.name, $event)"
               />
@@ -149,6 +150,9 @@
                 </Button>
               </InputGroupAddon>
             </InputGroup>
+          </div>
+          <div v-if="uiState.debugMode" class="debug-info">
+            <pre>{{ option }}</pre>
           </div>
         </li>
       </ul>
@@ -754,6 +758,12 @@ async function handleValidateClick() {
     span.variation-controlled {
       opacity: 0.45;
       pointer-events: none;
+    }
+    
+    .debug-info {
+      pre {
+        text-wrap: wrap;
+      }
     }
   }
 </style>
