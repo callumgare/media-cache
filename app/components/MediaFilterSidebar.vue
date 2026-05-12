@@ -28,23 +28,6 @@ function findFieldCounts(
   return [];
 }
 
-const { data: liaseDetails, error: liaseDetailsError } = await useFetch(
-  "/api/admin/liase-details",
-  { server: false },
-);
-watch(liaseDetailsError, (error) => {
-  if (!error) return;
-  console.error("Error fetching liase details:", error);
-  throw createError({
-    statusCode: 500,
-    message: "Internal Server Error",
-    fatal: true,
-  });
-});
-const sources = computed(() =>
-  Object.values(liaseDetails.value?.sources || {}),
-);
-
 const mediaQuery = useMediaQuery();
 const mediaQueryCondition = ref(mediaQuery.condition);
 mediaQuery.$subscribe(() => {
@@ -77,14 +60,13 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       id: "source",
       displayName: "Source",
       type: "text",
-      availableOptions: sources.value
-        .map((s) => ({
-          ...s,
-          count: facets.value
-            ? ((
-                findFieldCounts(facets.value, "source") as SourceFacetCount[]
-              ).find((f) => f.liaseSourceId === s.id)?.count ?? 0)
-            : null,
+      availableOptions: (
+        findFieldCounts(facets.value, "source") as SourceFacetCount[]
+      )
+        .map((f) => ({
+          id: f.liaseSourceId,
+          name: f.name ?? f.liaseSourceId,
+          count: f.count,
         }))
         .sort(
           (a, b) =>
@@ -95,18 +77,9 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       id: "tags",
       displayName: "Tags",
       type: "list of text",
-      availableOptions: (liaseDetails.value?.tags || [])
-        .map((g) => {
-          const facet = (
-            findFieldCounts(facets.value, "tags") as TagFacetCount[]
-          ).find((f) => f.id === g.id);
-          return {
-            ...g,
-            count: facet?.count ?? null,
-            addedIfRemoved: facet?.addedIfRemoved ?? null,
-          };
-        })
-        // .sort((a, b) => (b.count ? 1 : 0) - (a.count ? 1 : 0))
+      availableOptions: (
+        findFieldCounts(facets.value, "tags") as TagFacetCount[]
+      )
         .filter(
           (option) => option.count || selectedTagIds.value.includes(option.id),
         )

@@ -24,8 +24,7 @@ export default {
               queryType: z.string(),
               keyword: z.string().optional(),
             })
-            // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
-            .strict() as any,
+            .strict(),
           paginationType: "none" as const,
           responses: [
             {
@@ -34,8 +33,7 @@ export default {
                   media: z.array(z.any()),
                   request: z.any(),
                 })
-                // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
-                .passthrough() as any,
+                .passthrough(),
               constructor: {
                 media: async () => {
                   const delayMs = globalThis.__testPluginDelayMs ?? 0;
@@ -61,8 +59,7 @@ export default {
               queryType: z.string(),
               count: z.number().default(100),
             })
-            // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
-            .strict() as any,
+            .strict(),
           paginationType: "none" as const,
           responses: [
             {
@@ -71,8 +68,7 @@ export default {
                   media: z.array(z.any()),
                   request: z.any(),
                 })
-                // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
-                .passthrough() as any,
+                .passthrough(),
               constructor: {
                 media: async () => {
                   const delayMs = globalThis.__testPluginDelayMs ?? 0;
@@ -96,8 +92,7 @@ export default {
               source: z.string(),
               queryType: z.string(),
             })
-            // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
-            .strict() as any,
+            .strict(),
           paginationType: "none" as const,
           responses: [
             {
@@ -106,8 +101,7 @@ export default {
                   media: z.array(z.any()),
                   request: z.any(),
                 })
-                // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
-                .passthrough() as any,
+                .passthrough(),
               constructor: {
                 media: async () => {
                   const delayMs = globalThis.__testPluginDelayMs ?? 0;

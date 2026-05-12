@@ -3,12 +3,15 @@ import type {
   FacetFieldResult,
   FacetGroupResult,
   FacetResult,
+  SourceFacetCount,
 } from "@@/types/api-media-facets";
 import type {
   QueryCondition,
   QueryFieldCondition,
   QueryGroupCondition,
 } from "@@/types/query-condition";
+import { defineEventHandler, readBody } from "h3";
+import { getLiase } from "../lib/liase";
 import { fetchFieldCounts } from "../lib/media-facets";
 
 function collectFieldConditions(
@@ -45,11 +48,36 @@ export default defineEventHandler(async (event): Promise<FacetResult> => {
   const fieldConditions = collectFieldConditions(body);
   const facetsByNodeId = new Map<number, FacetCount[]>();
 
-  await Promise.all(
-    fieldConditions.map(async (condition) => {
-      facetsByNodeId.set(condition.id, await fetchFieldCounts(condition, body));
-    }),
-  );
+  const hasSourceCondition = fieldConditions.some((c) => c.field === "source");
+  const [, sourceNameById] = await Promise.all([
+    Promise.all(
+      fieldConditions.map(async (condition) => {
+        facetsByNodeId.set(
+          condition.id,
+          await fetchFieldCounts(condition, body),
+        );
+      }),
+    ),
+    hasSourceCondition
+      ? getLiase().then(
+          (liase) => new Map(liase.sources.map((s) => [s.id, s.displayName])),
+        )
+      : Promise.resolve(new Map<string, string>()),
+  ]);
+
+  // Enrich source facets with display names from liase
+  for (const condition of fieldConditions) {
+    if (condition.field === "source") {
+      const counts = facetsByNodeId.get(condition.id) as SourceFacetCount[];
+      facetsByNodeId.set(
+        condition.id,
+        counts.map((c) => ({
+          ...c,
+          name: sourceNameById.get(c.liaseSourceId) ?? null,
+        })),
+      );
+    }
+  }
 
   return buildFacetTree(body, facetsByNodeId);
 });

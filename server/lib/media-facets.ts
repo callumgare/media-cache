@@ -85,7 +85,11 @@ export async function fetchFieldCounts(
       WHERE ${where}
     `);
     return (row?.agg?.buckets ?? []).map(
-      (b): SourceFacetCount => ({ liaseSourceId: b.key, count: b.doc_count }),
+      (b): SourceFacetCount => ({
+        liaseSourceId: b.key,
+        name: null,
+        count: b.doc_count,
+      }),
     );
   }
 
@@ -105,18 +109,20 @@ export async function fetchFieldCounts(
     // with empty arrays. Filter to only numeric keys since group IDs are always integers.
     const buckets = allBuckets.filter((b) => !Number.isNaN(Number(b.key)));
 
-    if (!buckets.length) return [];
-
-    const groupIds = buckets.map((b) => Number(b.key));
-    const groups = await db
-      .select({ id: dbSchema.group.id, name: dbSchema.group.name })
-      .from(dbSchema.group)
-      .where(inArray(dbSchema.group.id, groupIds));
-    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
-
     const currentValues = new Set(
       Array.isArray(condition.value) ? condition.value.map(Number) : [],
     );
+    const bucketIds = buckets.map((b) => Number(b.key));
+    const allRelevantIds = [...new Set([...bucketIds, ...currentValues])];
+
+    if (!allRelevantIds.length) return [];
+
+    const groups = await db
+      .select({ id: dbSchema.group.id, name: dbSchema.group.name })
+      .from(dbSchema.group)
+      .where(inArray(dbSchema.group.id, allRelevantIds));
+    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+
     const addedIfRemovedByTagId = new Map<number, number>();
     if (currentValues.size > 0) {
       const currentTotal = await countWhere(where);
@@ -140,7 +146,7 @@ export async function fetchFieldCounts(
       }
     }
 
-    return buckets
+    const result: TagFacetCount[] = buckets
       .map((b): TagFacetCount | null => {
         const id = Number(b.key);
         const name = groupNameById.get(id);
@@ -153,6 +159,24 @@ export async function fetchFieldCounts(
         };
       })
       .filter((r): r is TagFacetCount => r !== null);
+
+    // Include selected tags not in buckets (count=0) so they still appear in the sidebar
+    const resultIds = new Set(result.map((r) => r.id));
+    for (const selectedId of currentValues) {
+      if (!resultIds.has(selectedId)) {
+        const name = groupNameById.get(selectedId);
+        if (name !== undefined) {
+          result.push({
+            id: selectedId,
+            name,
+            count: 0,
+            addedIfRemoved: addedIfRemovedByTagId.get(selectedId) ?? null,
+          });
+        }
+      }
+    }
+
+    return result;
   }
 
   if (condition.field === "type") {

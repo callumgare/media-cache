@@ -1,9 +1,19 @@
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
+import mediaFacetsHandler from "@@/server/api/media-facets";
 import { fetchFieldCounts } from "@@/server/lib/media-facets";
 import { db } from "@@/server/utils/drizzle";
+import type {
+  FacetFieldResult,
+  SourceFacetCount,
+  TagFacetCount,
+  TypeFacetCount,
+} from "@@/types/api-media-facets";
 import type {
   QueryFieldCondition,
   QueryGroupCondition,
 } from "@@/types/query-condition";
+import { createEvent } from "h3";
 /**
  * Tests for /api/media-facets facet count logic.
  * We call server/lib/media-facets directly rather than going through HTTP,
@@ -256,5 +266,67 @@ describe("/api/media-facets — cross-field interactions", () => {
     expect(byName.cats).toBe(1);
     expect(byName.dogs).toBe(1);
     expect(byName.image).toBeUndefined();
+  });
+});
+
+describe("/api/media-facets — all filters populated", () => {
+  async function callHandler(body: QueryGroupCondition) {
+    const req = new IncomingMessage(new Socket());
+    req.method = "POST";
+    const event = createEvent(req, new ServerResponse(req));
+    // Provide the body directly since readBody reads from the event's _data in h3
+    event._requestBody = JSON.stringify(body);
+    return mediaFacetsHandler(event);
+  }
+
+  it("source, tags, and type facets all return populated options when media exists", async () => {
+    enqueueMedia([
+      makeMedia({ id: "vid-a", tags: ["cats"] }),
+      makeMedia({ id: "vid-b", tags: ["dogs"] }),
+      makeImageMedia({ id: "img-a", tags: ["cats", "dogs"] }),
+    ]);
+    await runLiaseQuery();
+
+    const body = makeBody([
+      makeSourceCondition(),
+      makeTagCondition([]),
+      makeTypeCondition(),
+    ]);
+    const result = await callHandler(body);
+
+    expect(result.type).toBe("group");
+    if (result.type !== "group") return;
+
+    const byField = Object.fromEntries(
+      result.conditions
+        .filter((c): c is FacetFieldResult => c.type === "field")
+        .map((c) => [c.field, c.counts]),
+    );
+
+    // Source filter: test-source appears and has a display name
+    const sourceCounts = byField.source as SourceFacetCount[];
+    expect(sourceCounts).toHaveLength(1);
+    expect(sourceCounts[0].liaseSourceId).toBe("test-source");
+    expect(sourceCounts[0].name).toBe("Test Source");
+    expect(sourceCounts[0].count).toBe(3);
+
+    // Tags filter: cats and dogs both appear
+    const tagCounts = byField.tags as TagFacetCount[];
+    expect(tagCounts.length).toBeGreaterThanOrEqual(2);
+    const tagNames = tagCounts.map((t) => t.name);
+    expect(tagNames).toContain("cats");
+    expect(tagNames).toContain("dogs");
+    for (const tag of tagCounts) expect(tag.count).toBeGreaterThan(0);
+
+    // Type filter: video and image both appear
+    const typeCounts = byField.type as TypeFacetCount[];
+    const typeValues = typeCounts.map((t) => t.value);
+    expect(typeValues).toContain("video");
+    expect(typeValues).toContain("image");
+    const byType = Object.fromEntries(
+      typeCounts.map((t) => [t.value, t.count]),
+    );
+    expect(byType.video).toBe(2);
+    expect(byType.image).toBe(1);
   });
 });
