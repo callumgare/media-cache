@@ -1,4 +1,5 @@
 <template>
+  <ConfirmDialog />
   <DataTable
     v-model:expanded-rows="expandedRows"
     :value="queryList ?? []"
@@ -86,7 +87,7 @@
           </Button>
           <Button
             severity="danger"
-            @click="() => deleteQuery(slotProps.data)"
+            @click="() => confirmDeleteQuery(slotProps.data)"
           >
             Delete
           </Button>
@@ -116,6 +117,7 @@ import type { QueryExecutionTask } from "@@/server/lib/liase/execution-tasks";
 import { formatStatus } from "~/lib/liase-executions";
 
 const toast = useToast();
+const confirm = useConfirm();
 
 const {
   data: queryList,
@@ -229,6 +231,22 @@ async function runQuery(query: QueryRow) {
       detail: (error as Error).message,
       life: 3000,
     });
+  }
+}
+
+function confirmDeleteQuery(query: QueryRow) {
+  if (!tasksLoaded.value || executionsForQuery(query.id).length > 0) {
+    confirm.require({
+      message:
+        "This query has been run previously. Are you sure you want to delete it?",
+      header: "Confirm Delete",
+      icon: "pi pi-exclamation-triangle",
+      rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
+      acceptProps: { label: "Delete", severity: "danger" },
+      accept: () => deleteQuery(query),
+    });
+  } else {
+    deleteQuery(query);
   }
 }
 
