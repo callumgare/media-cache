@@ -1,7 +1,7 @@
-import { startFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
+import { startLiaseQueryExecution } from "@@/server/lib/liase/run-query";
 import { db, dbSchema } from "@@/server/utils/drizzle";
+import type { GenericMedia } from "@liase/core";
 import { sql } from "drizzle-orm";
-import type { GenericMedia } from "media-finder";
 
 export const TEST_REQUEST = {
   source: "test-source" as const,
@@ -16,7 +16,7 @@ export const TEST_REQUEST_WITH_COUNT = {
 export function makeMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
   const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {
-    mediaFinderSource: "test-source",
+    liaseSource: "test-source",
     id,
     files: [
       {
@@ -36,7 +36,7 @@ export function makeImageMedia(
 ): GenericMedia {
   const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {
-    mediaFinderSource: "test-source",
+    liaseSource: "test-source",
     id,
     files: [
       {
@@ -60,10 +60,10 @@ export async function truncateAll() {
   // TRUNCATE CASCADE handles self-referential FKs (group.parentId) and all inter-table FKs
   await db.execute(sql`
     TRUNCATE TABLE
-      finder_query_media,
-      finder_query_media_content,
-      finder_query_execution,
-      finder_query,
+      liase_query_media,
+      liase_query_media_content,
+      liase_query_execution,
+      liase_query,
       deleted_cache_media,
       cache_media,
       "group",
@@ -90,17 +90,17 @@ export async function getGroupByName(name: string) {
   return db.query.group.findFirst({ where: (g, { eq }) => eq(g.name, name) });
 }
 
-export async function getFinderQueryExecutionAll() {
-  return db.select().from(dbSchema.finderQueryExecution);
+export async function getLiaseQueryExecutionAll() {
+  return db.select().from(dbSchema.liaseQueryExecution);
 }
 
-export async function getFinderQueryMediaAll() {
-  return db.select().from(dbSchema.finderQueryMedia);
+export async function getLiaseQueryMediaAll() {
+  return db.select().from(dbSchema.liaseQueryMedia);
 }
 
-export async function createTestFinderQuery(requestOptions = TEST_REQUEST) {
+export async function createTestLiaseQuery(requestOptions = TEST_REQUEST) {
   const [row] = await db
-    .insert(dbSchema.finderQuery)
+    .insert(dbSchema.liaseQuery)
     .values({
       title: "Test Query",
       requestOptions,
@@ -108,12 +108,12 @@ export async function createTestFinderQuery(requestOptions = TEST_REQUEST) {
       updatedAt: new Date(),
     })
     .returning();
-  if (!row) throw new Error("Failed to insert test finder query");
+  if (!row) throw new Error("Failed to insert test liase query");
   return row;
 }
 
-export async function runMediaFinderQuery(finderQuery?: dbSchema.FinderQuery) {
-  const q = finderQuery ?? (await createTestFinderQuery());
-  const { executionPromise } = await startFinderQueryExecution(q);
+export async function runLiaseQuery(liaseQuery?: dbSchema.LiaseQuery) {
+  const q = liaseQuery ?? (await createTestLiaseQuery());
+  const { executionPromise } = await startLiaseQueryExecution(q);
   await executionPromise;
 }

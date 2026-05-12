@@ -8,15 +8,15 @@ import { sql } from "drizzle-orm";
 /**
  * Integration tests for calculateBM25WhereValue.
  *
- * Rows are inserted directly into cache_media so we control finderSourceIds exactly.
+ * Rows are inserted directly into cache_media so we control liaseSourceIds exactly.
  * Each test runs calculateBM25WhereValue as the WHERE clause of a real SQL query,
  * exercising the BM25 index and asserting correctness of the result set.
  *
  * Seed layout:
- *   vid-a  — finderSourceIds: ['source-a'], video (hasVideo=true, hasImage=false)
- *   vid-b  — finderSourceIds: ['source-b'], video
- *   img-a  — finderSourceIds: ['source-a'], image (hasVideo=false, hasImage=true)
- *   img-b  — finderSourceIds: ['source-b'], image
+ *   vid-a  — liaseSourceIds: ['source-a'], video (hasVideo=true, hasImage=false)
+ *   vid-b  — liaseSourceIds: ['source-b'], video
+ *   img-a  — liaseSourceIds: ['source-a'], image (hasVideo=false, hasImage=true)
+ *   img-b  — liaseSourceIds: ['source-b'], image
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { truncateAll } from "./fixtures/helpers";
@@ -31,7 +31,7 @@ async function seedMedia() {
     {
       updatedAt: now,
       title: "vid-a",
-      finderSourceIds: ["source-a"],
+      liaseSourceIds: ["source-a"],
       hasVideo: true,
       hasImage: false,
       hasAudio: false,
@@ -39,7 +39,7 @@ async function seedMedia() {
     {
       updatedAt: now,
       title: "vid-b",
-      finderSourceIds: ["source-b"],
+      liaseSourceIds: ["source-b"],
       hasVideo: true,
       hasImage: false,
       hasAudio: false,
@@ -47,7 +47,7 @@ async function seedMedia() {
     {
       updatedAt: now,
       title: "img-a",
-      finderSourceIds: ["source-a"],
+      liaseSourceIds: ["source-a"],
       hasVideo: false,
       hasImage: true,
       hasAudio: false,
@@ -55,7 +55,7 @@ async function seedMedia() {
     {
       updatedAt: now,
       title: "img-b",
-      finderSourceIds: ["source-b"],
+      liaseSourceIds: ["source-b"],
       hasVideo: false,
       hasImage: true,
       hasAudio: false,

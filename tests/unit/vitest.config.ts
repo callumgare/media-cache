@@ -20,10 +20,7 @@ export default defineConfig({
     globalSetup: [resolve(import.meta.dirname, "../setup/global-setup.ts")],
     env: {
       DATABASE_URL: toTestDbUrl(process.env.DATABASE_URL ?? ""),
-      MEDIA_FINDER_PLUGINS: resolve(
-        import.meta.dirname,
-        "./fixtures/test-plugin.ts",
-      ),
+      LIASE_PLUGINS: resolve(import.meta.dirname, "./fixtures/test-plugin.ts"),
     },
     pool: "forks",
     fileParallelism: false,

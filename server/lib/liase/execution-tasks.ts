@@ -13,18 +13,18 @@ export type QueryExecutionTask = {
   queryId: number | null;
   status: dbSchema.Status;
   stage?:
-    | "fetching-media-finder-results"
+    | "fetching-liase-results"
     | "processing-added-or-updated"
     | "processing-removed"
     | "removing-previous-execution-results";
   pageCount: number;
 
-  finderMediaFound: number;
-  finderMediaNew: number;
-  finderMediaUpdated: number;
-  finderMediaRemoved: number;
-  finderMediaNotSuitable: number;
-  finderMediaUnchanged: number;
+  liaseMediaFound: number;
+  liaseMediaNew: number;
+  liaseMediaUpdated: number;
+  liaseMediaRemoved: number;
+  liaseMediaNotSuitable: number;
+  liaseMediaUnchanged: number;
 
   cacheMediaCreated: number;
   cacheMediaUpdated: number;
@@ -48,17 +48,17 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
       // Mark any executions left as 'running' from a previous server process as failed,
       // and add a log entry to each explaining why.
       this.startupRecovery = db
-        .update(dbSchema.finderQueryExecution)
+        .update(dbSchema.liaseQueryExecution)
         .set({
           status: "failed",
           finishedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(dbSchema.finderQueryExecution.status, "running"))
+        .where(eq(dbSchema.liaseQueryExecution.status, "running"))
         .returning()
         .then(async (rows) => {
           if (rows.length === 0) return;
-          await db.insert(dbSchema.finderQueryExecutionLog).values(
+          await db.insert(dbSchema.liaseQueryExecutionLog).values(
             rows.map(
               (row) =>
                 ({
@@ -78,13 +78,13 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
     const rankedExecs = db.$with("ranked_execs").as(
       db
         .select({
-          id: dbSchema.finderQueryExecution.id,
+          id: dbSchema.liaseQueryExecution.id,
           rowNum:
-            sql<number>`row_number() over (partition by ${dbSchema.finderQueryExecution.queryId} order by ${dbSchema.finderQueryExecution.startedAt} desc)`.as(
+            sql<number>`row_number() over (partition by ${dbSchema.liaseQueryExecution.queryId} order by ${dbSchema.liaseQueryExecution.startedAt} desc)`.as(
               "rowNum",
             ),
         })
-        .from(dbSchema.finderQueryExecution),
+        .from(dbSchema.liaseQueryExecution),
     );
 
     const topExecIds = await db
@@ -93,9 +93,9 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
       .from(rankedExecs)
       .where(lte(rankedExecs.rowNum, 2));
 
-    const dbExecs = await db.query.finderQueryExecution.findMany({
+    const dbExecs = await db.query.liaseQueryExecution.findMany({
       where: inArray(
-        dbSchema.finderQueryExecution.id,
+        dbSchema.liaseQueryExecution.id,
         topExecIds.map((e) => e.id),
       ),
       with: { logs: true },
@@ -127,8 +127,8 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   }
 
   createTask(
-    exec: dbSchema.FinderQueryExecution,
-    executionLogs: dbSchema.FinderQueryExecutionLog[] = [],
+    exec: dbSchema.LiaseQueryExecution,
+    executionLogs: dbSchema.LiaseQueryExecutionLog[] = [],
   ): QueryExecutionTask {
     const task: QueryExecutionTask = {
       type: "query_execution",
@@ -140,12 +140,12 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
       status: exec.status,
       pageCount: exec.pageCount,
 
-      finderMediaFound: exec.finderMediaFound,
-      finderMediaNew: exec.finderMediaNew,
-      finderMediaUpdated: exec.finderMediaUpdated,
-      finderMediaRemoved: exec.finderMediaRemoved,
-      finderMediaNotSuitable: exec.finderMediaNotSuitable,
-      finderMediaUnchanged: exec.finderMediaUnchanged,
+      liaseMediaFound: exec.liaseMediaFound,
+      liaseMediaNew: exec.liaseMediaNew,
+      liaseMediaUpdated: exec.liaseMediaUpdated,
+      liaseMediaRemoved: exec.liaseMediaRemoved,
+      liaseMediaNotSuitable: exec.liaseMediaNotSuitable,
+      liaseMediaUnchanged: exec.liaseMediaUnchanged,
 
       cacheMediaCreated: exec.cacheMediaCreated,
       cacheMediaUpdated: exec.cacheMediaUpdated,
@@ -160,7 +160,7 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   }
 
   async getTask(
-    executionOrExecutionId: dbSchema.FinderQueryExecution | number,
+    executionOrExecutionId: dbSchema.LiaseQueryExecution | number,
   ): Promise<QueryExecutionTask> {
     let execution =
       typeof executionOrExecutionId === "number"
@@ -173,16 +173,16 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
     let task = this.inMemoryTasks.get(executionId);
     if (!task) {
       if (!execution) {
-        execution = await db.query.finderQueryExecution.findFirst({
-          where: eq(dbSchema.finderQueryExecution.id, executionId),
+        execution = await db.query.liaseQueryExecution.findFirst({
+          where: eq(dbSchema.liaseQueryExecution.id, executionId),
           with: { logs: true },
         });
       }
       if (!execution) {
         throw Error(`No execution found with ID ${executionId}`);
       }
-      const executionLogs = await db.query.finderQueryExecutionLog.findMany({
-        where: eq(dbSchema.finderQueryExecutionLog.executionId, executionId),
+      const executionLogs = await db.query.liaseQueryExecutionLog.findMany({
+        where: eq(dbSchema.liaseQueryExecutionLog.executionId, executionId),
         orderBy: (log, { asc }) => asc(log.createdAt),
       });
       task = this.createTask(execution, executionLogs);

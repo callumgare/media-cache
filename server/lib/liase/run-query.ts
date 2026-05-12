@@ -1,28 +1,26 @@
 import util from "node:util";
 import type { QueryVariation } from "@@/server/database/schema";
-import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
-import type { GenericRequest } from "media-finder";
-import { getSecrets } from "media-finder/dist/test/utils/general.js";
-import { getMediaQuery } from "../media-finder";
+import { queryExecutionTaskSystem } from "@@/server/lib/liase/execution-tasks";
+import type { GenericRequest } from "@liase/core";
+import { getSecrets } from "@liase/core/dist/test/utils/general.js";
+import { getLiaseQuery } from "../liase";
 import {
   createExecutionLogEntry,
-  createFinderQueryExecution,
-  createFinderQueryMedia,
-  createFinderQueryMediaContent,
+  createLiaseQueryExecution,
+  createLiaseQueryMedia,
+  createLiaseQueryMediaContent,
   createOrUpdateCacheMedia,
   deleteCacheMediaEntry,
-  deleteOldFinderQueryMedia,
+  deleteOldLiaseQueryMedia,
   getCacheMedia,
-  getPreviousFinderQueryExecution,
+  getPreviousLiaseQueryExecution,
 } from "./utils";
 
 import { db } from "@@/server/utils/drizzle";
 import { dbSchema } from "@@/server/utils/drizzle";
 import { and, eq, isNull, ne, not, notInArray, or } from "drizzle-orm";
 
-type MediaFinderQueryOptions = Parameters<
-  typeof getMediaQuery
->[0]["queryOptions"];
+type LiaseQueryOptions = Parameters<typeof getLiaseQuery>[0]["queryOptions"];
 
 function cartesianProduct<T>(arrays: T[][]): T[][] {
   return arrays.reduce<T[][]>(
@@ -54,10 +52,10 @@ function expandVariation(
 }
 
 function expandAllVariations(
-  savedFinderQuery: dbSchema.FinderQuery,
+  savedLiaseQuery: dbSchema.LiaseQuery,
 ): GenericRequest[] {
-  const base = savedFinderQuery.requestOptions;
-  const variations = savedFinderQuery.queryVariations;
+  const base = savedLiaseQuery.requestOptions;
+  const variations = savedLiaseQuery.queryVariations;
   if (!variations || variations.length === 0) return [base];
 
   const allRequests: GenericRequest[] = [];
@@ -67,30 +65,29 @@ function expandAllVariations(
   return allRequests;
 }
 
-export async function startFinderQueryExecution(
-  savedFinderQuery: dbSchema.FinderQuery,
+export async function startLiaseQueryExecution(
+  savedLiaseQuery: dbSchema.LiaseQuery,
 ): Promise<{
-  execution: dbSchema.FinderQueryExecution;
+  execution: dbSchema.LiaseQueryExecution;
   executionPromise: Promise<void>;
 }> {
-  const execution = await createFinderQueryExecution({ savedFinderQuery });
-  const mediaFinderRequests = expandAllVariations(savedFinderQuery);
-  const mediaFinderQueryOptions: MediaFinderQueryOptions = {};
-  if (savedFinderQuery.fetchCountLimit !== null) {
-    if (savedFinderQuery.fetchCountLimitPerVariation) {
+  const execution = await createLiaseQueryExecution({ savedLiaseQuery });
+  const liaseRequests = expandAllVariations(savedLiaseQuery);
+  const liaseQueryOptions: LiaseQueryOptions = {};
+  if (savedLiaseQuery.fetchCountLimit !== null) {
+    if (savedLiaseQuery.fetchCountLimitPerVariation) {
       // Limit applies independently to each variation request
-      mediaFinderQueryOptions.fetchCountLimit =
-        savedFinderQuery.fetchCountLimit;
+      liaseQueryOptions.fetchCountLimit = savedLiaseQuery.fetchCountLimit;
     }
     // else: limit applies across all variation requests combined — enforced
     // ourselves in the response loop via globalFetchLimit; no per-request cap.
   }
   // Run the actual execution in the background without blocking the caller
-  const executionPromise = runFinderQueryExecution({
-    finderQueryExecution: execution,
-    mediaFinderRequests,
-    mediaFinderQueryOptions,
-    savedFinderQuery,
+  const executionPromise = runLiaseQueryExecution({
+    liaseQueryExecution: execution,
+    liaseRequests,
+    liaseQueryOptions,
+    savedLiaseQuery,
   });
   executionPromise.catch((err) => {
     console.error(
@@ -101,80 +98,81 @@ export async function startFinderQueryExecution(
   return { execution, executionPromise };
 }
 
-export async function runFinderQueryExecution({
-  finderQueryExecution,
-  mediaFinderRequests,
-  mediaFinderQueryOptions = {},
-  savedFinderQuery,
+export async function runLiaseQueryExecution({
+  liaseQueryExecution,
+  liaseRequests,
+  liaseQueryOptions = {},
+  savedLiaseQuery,
 }: {
-  finderQueryExecution: dbSchema.FinderQueryExecution;
-  mediaFinderRequests: GenericRequest[];
-  mediaFinderQueryOptions?: MediaFinderQueryOptions;
-  savedFinderQuery?: dbSchema.FinderQuery;
+  liaseQueryExecution: dbSchema.LiaseQueryExecution;
+  liaseRequests: GenericRequest[];
+  liaseQueryOptions?: LiaseQueryOptions;
+  savedLiaseQuery?: dbSchema.LiaseQuery;
 }): Promise<void> {
-  const executionId = finderQueryExecution.id;
-  const queryId = savedFinderQuery?.id ?? null;
+  const executionId = liaseQueryExecution.id;
+  const queryId = savedLiaseQuery?.id ?? null;
 
   let pageCount = 0;
 
   // When fetchCountLimitPerVariation is false the limit applies across all
   // variation requests combined (counted in pages); we track the running total here.
   const globalFetchLimit =
-    savedFinderQuery &&
-    savedFinderQuery.fetchCountLimit !== null &&
-    !savedFinderQuery.fetchCountLimitPerVariation
-      ? savedFinderQuery.fetchCountLimit
+    savedLiaseQuery &&
+    savedLiaseQuery.fetchCountLimit !== null &&
+    !savedLiaseQuery.fetchCountLimitPerVariation
+      ? savedLiaseQuery.fetchCountLimit
       : null;
 
-  let finderMediaFound = 0;
-  let finderMediaNew = 0;
-  let finderMediaUpdated = 0;
-  let finderMediaRemoved = 0;
-  const finderMediaNotSuitable = -1; // not used at the moment
-  let finderMediaUnchanged = 0;
+  let liaseMediaFound = 0;
+  let liaseMediaNew = 0;
+  let liaseMediaUpdated = 0;
+  let liaseMediaRemoved = 0;
+  const liaseMediaNotSuitable = -1; // not used at the moment
+  let liaseMediaUnchanged = 0;
 
   let cacheMediaCreated = 0;
   let cacheMediaUpdated = 0;
   let cacheMediaUnchanged = 0;
   let cacheMediaDeleted = 0;
 
-  let currentFinderRequest: GenericRequest | null = null;
+  let currentLiaseRequest: GenericRequest | null = null;
+  let currentLiaseId: string | null = null;
 
   try {
-    // ----- Saving media finder results to execution media table -----
+    // ----- Saving liase results to execution media table -----
     await queryExecutionTaskSystem.updateTask(executionId, {
-      stage: "fetching-media-finder-results",
+      stage: "fetching-liase-results",
       pageCount,
     });
-    for (const mediaFinderRequest of mediaFinderRequests) {
-      mediaFinderQueryOptions.secrets = {
-        ...mediaFinderQueryOptions.secrets,
-        ...(await getSecrets(mediaFinderRequest)),
+    for (const liaseRequest of liaseRequests) {
+      liaseQueryOptions.secrets = {
+        ...liaseQueryOptions.secrets,
+        ...(await getSecrets(liaseRequest)),
       };
 
-      currentFinderRequest = mediaFinderRequest;
+      currentLiaseRequest = liaseRequest;
 
-      const mediaQuery = await getMediaQuery({
-        request: mediaFinderRequest,
-        queryOptions: mediaFinderQueryOptions,
+      const liaseQuery = await getLiaseQuery({
+        request: liaseRequest,
+        queryOptions: liaseQueryOptions,
       });
 
-      for await (const response of mediaQuery) {
+      for await (const response of liaseQuery) {
         pageCount++;
-        for (const finderMedia of response.media) {
+        for (const liaseMedia of response.media) {
           await db.transaction(async (dbTx) => {
-            await createFinderQueryMediaContent({ dbTx, finderMedia });
-            await createFinderQueryMedia({
+            await createLiaseQueryMediaContent({ dbTx, liaseMedia });
+            await createLiaseQueryMedia({
               dbTx,
-              finderMedia,
-              finderQueryExecution,
+              liaseMedia,
+              liaseQueryExecution,
             });
           });
-          finderMediaFound++;
+          liaseMediaFound++;
         }
         await queryExecutionTaskSystem.updateTask(executionId, {
           pageCount,
-          finderMediaFound,
+          liaseMediaFound,
         });
         if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
           break;
@@ -185,15 +183,15 @@ export async function runFinderQueryExecution({
       }
     }
 
-    // Anonymous queries don't have a saved finder query so aren't linked to any previous executions
-    const previousExecution = savedFinderQuery
-      ? await getPreviousFinderQueryExecution({
-          queryId: savedFinderQuery.id,
+    // Anonymous queries don't have a saved liase query so aren't linked to any previous executions
+    const previousExecution = savedLiaseQuery
+      ? await getPreviousLiaseQueryExecution({
+          queryId: savedLiaseQuery.id,
           currentExecutionId: executionId,
         })
       : null;
 
-    // ----- Adding or updating cache media for found finder media -----
+    // ----- Adding or updating cache media for found liase media -----
 
     await queryExecutionTaskSystem.updateTask(executionId, {
       stage: "processing-added-or-updated",
@@ -203,54 +201,52 @@ export async function runFinderQueryExecution({
     let lastId = 0;
     const batchSize = 100;
     while (true) {
-      const foundFinderMedia = await db.query.finderQueryMedia.findMany({
+      const foundLiaseMedia = await db.query.liaseQueryMedia.findMany({
         where: (media, { eq, and, gt }) =>
           and(gt(media.id, lastId), eq(media.queryExecutionId, executionId)),
         limit: batchSize,
         orderBy: (media, { asc }) => [asc(media.id)],
       });
 
-      const lastInBatch = foundFinderMedia.at(-1);
+      const lastInBatch = foundLiaseMedia.at(-1);
       if (!lastInBatch) break;
 
-      for (const finderMedia of foundFinderMedia) {
+      for (const liaseMedia of foundLiaseMedia) {
+        currentLiaseId = liaseMedia.liaseId;
         // Check if found in previous saved query execution
-        const foundFinderMediaFromPreviousExecution =
+        const foundLiaseMediaFromPreviousExecution =
           previousExecution && previousExecution.status !== "failed"
             ? await db
                 .select({
-                  finderId: dbSchema.finderQueryMedia.finderId,
-                  contentHash: dbSchema.finderQueryMedia.contentHash,
+                  liaseId: dbSchema.liaseQueryMedia.liaseId,
+                  contentHash: dbSchema.liaseQueryMedia.contentHash,
                 })
-                .from(dbSchema.finderQueryMedia)
+                .from(dbSchema.liaseQueryMedia)
                 .where(
                   and(
+                    eq(dbSchema.liaseQueryMedia.liaseId, liaseMedia.liaseId),
                     eq(
-                      dbSchema.finderQueryMedia.finderId,
-                      finderMedia.finderId,
-                    ),
-                    eq(
-                      dbSchema.finderQueryMedia.queryExecutionId,
+                      dbSchema.liaseQueryMedia.queryExecutionId,
                       previousExecution.id,
                     ),
                   ),
                 )
             : [];
 
-        if (foundFinderMediaFromPreviousExecution.length) {
+        if (foundLiaseMediaFromPreviousExecution.length) {
           // found previous execution
-          const contentHashMatches = foundFinderMediaFromPreviousExecution.some(
-            (m) => m.contentHash === finderMedia.contentHash,
+          const contentHashMatches = foundLiaseMediaFromPreviousExecution.some(
+            (m) => m.contentHash === liaseMedia.contentHash,
           );
           if (contentHashMatches) {
             // unchanged
-            finderMediaUnchanged++;
+            liaseMediaUnchanged++;
             cacheMediaUnchanged++;
           } else {
             // changed
-            finderMediaUpdated++;
+            liaseMediaUpdated++;
             const { status } = await createOrUpdateCacheMedia({
-              finderId: finderMedia.finderId,
+              liaseId: liaseMedia.liaseId,
             });
             if (status === "updated") {
               // updated
@@ -270,9 +266,9 @@ export async function runFinderQueryExecution({
           }
         } else {
           // not found in previous execution (or previous execution failed so we don't trust it)
-          finderMediaNew++;
+          liaseMediaNew++;
           const { status } = await createOrUpdateCacheMedia({
-            finderId: finderMedia.finderId,
+            liaseId: liaseMedia.liaseId,
           });
           if (status === "created") {
             cacheMediaCreated++;
@@ -283,13 +279,14 @@ export async function runFinderQueryExecution({
           }
         }
       }
+      currentLiaseId = null;
 
       await queryExecutionTaskSystem.updateTask(executionId, {
         pageCount,
-        finderMediaFound,
-        finderMediaNew,
-        finderMediaUpdated,
-        finderMediaUnchanged,
+        liaseMediaFound,
+        liaseMediaNew,
+        liaseMediaUpdated,
+        liaseMediaUnchanged,
         cacheMediaCreated,
         cacheMediaUpdated,
         cacheMediaUnchanged,
@@ -307,54 +304,52 @@ export async function runFinderQueryExecution({
 
       const removedMedias = await db
         .select()
-        .from(dbSchema.finderQueryMedia)
+        .from(dbSchema.liaseQueryMedia)
         .where(
           and(
-            eq(
-              dbSchema.finderQueryMedia.queryExecutionId,
-              previousExecution.id,
-            ),
+            eq(dbSchema.liaseQueryMedia.queryExecutionId, previousExecution.id),
             notInArray(
-              dbSchema.finderQueryMedia.finderId,
+              dbSchema.liaseQueryMedia.liaseId,
               db
-                .select({ finderId: dbSchema.finderQueryMedia.finderId })
-                .from(dbSchema.finderQueryMedia)
+                .select({ liaseId: dbSchema.liaseQueryMedia.liaseId })
+                .from(dbSchema.liaseQueryMedia)
                 .where(
-                  eq(dbSchema.finderQueryMedia.queryExecutionId, executionId),
+                  eq(dbSchema.liaseQueryMedia.queryExecutionId, executionId),
                 ),
             ),
           ),
         );
 
-      finderMediaRemoved = removedMedias.length;
+      liaseMediaRemoved = removedMedias.length;
 
       await queryExecutionTaskSystem.updateTask(executionId, {
-        finderMediaRemoved,
+        liaseMediaRemoved,
       });
 
       for (const removedMedia of removedMedias) {
+        currentLiaseId = removedMedia.liaseId;
         const otherExecutionMedia = await db
           .select({
-            id: dbSchema.finderQueryMedia.id,
-            queryExecutionId: dbSchema.finderQueryMedia.queryExecutionId,
+            id: dbSchema.liaseQueryMedia.id,
+            queryExecutionId: dbSchema.liaseQueryMedia.queryExecutionId,
           })
-          .from(dbSchema.finderQueryMedia)
+          .from(dbSchema.liaseQueryMedia)
           .where(
             and(
-              eq(dbSchema.finderQueryMedia.finderId, removedMedia.finderId),
-              savedFinderQuery?.id
+              eq(dbSchema.liaseQueryMedia.liaseId, removedMedia.liaseId),
+              savedLiaseQuery?.id
                 ? or(
-                    ne(dbSchema.finderQueryMedia.queryId, savedFinderQuery.id),
-                    isNull(dbSchema.finderQueryMedia.queryId),
+                    ne(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id),
+                    isNull(dbSchema.liaseQueryMedia.queryId),
                   )
                 : undefined,
-              not(eq(dbSchema.finderQueryMedia.queryExecutionId, executionId)),
+              not(eq(dbSchema.liaseQueryMedia.queryExecutionId, executionId)),
             ),
           );
         if (otherExecutionMedia.length === 0) {
           // delete - no other instances
           const cacheMedia = await getCacheMedia({
-            finderId: removedMedia.finderId,
+            liaseId: removedMedia.liaseId,
             executionId, // Used for logging only
             queryId, // Used for logging only
           });
@@ -376,7 +371,7 @@ export async function runFinderQueryExecution({
         } else {
           // update - other instances
           const { status } = await createOrUpdateCacheMedia({
-            finderId: removedMedia.finderId,
+            liaseId: removedMedia.liaseId,
           });
           if (status === "updated") {
             cacheMediaUpdated++;
@@ -394,6 +389,7 @@ export async function runFinderQueryExecution({
           }
         }
       }
+      currentLiaseId = null;
 
       await queryExecutionTaskSystem.updateTask(executionId, {
         cacheMediaDeleted,
@@ -403,20 +399,20 @@ export async function runFinderQueryExecution({
     }
 
     // ----- Cleanup -----
-    if (savedFinderQuery) {
+    if (savedLiaseQuery) {
       await queryExecutionTaskSystem.updateTask(executionId, {
         stage: "removing-previous-execution-results",
       });
 
-      await deleteOldFinderQueryMedia({
-        queryId: savedFinderQuery.id,
+      await deleteOldLiaseQueryMedia({
+        queryId: savedLiaseQuery.id,
         currentExecutionId: executionId,
       });
     }
 
     // ----- Success -----
     const updatedTaskValues: Omit<
-      typeof dbSchema.finderQueryExecution.$inferInsert,
+      typeof dbSchema.liaseQueryExecution.$inferInsert,
       "id"
     > = {
       updatedAt: new Date(),
@@ -424,12 +420,12 @@ export async function runFinderQueryExecution({
       status: "completed",
       pageCount,
 
-      finderMediaFound,
-      finderMediaNew,
-      finderMediaUpdated,
-      finderMediaRemoved,
-      finderMediaNotSuitable,
-      finderMediaUnchanged,
+      liaseMediaFound,
+      liaseMediaNew,
+      liaseMediaUpdated,
+      liaseMediaRemoved,
+      liaseMediaNotSuitable,
+      liaseMediaUnchanged,
 
       cacheMediaCreated,
       cacheMediaUpdated,
@@ -437,15 +433,15 @@ export async function runFinderQueryExecution({
       cacheMediaDeleted,
     };
     await db
-      .update(dbSchema.finderQueryExecution)
+      .update(dbSchema.liaseQueryExecution)
       .set(updatedTaskValues)
-      .where(eq(dbSchema.finderQueryExecution.id, executionId))
+      .where(eq(dbSchema.liaseQueryExecution.id, executionId))
       .returning();
 
     await queryExecutionTaskSystem.updateTask(executionId, updatedTaskValues);
   } catch (err) {
     const message = util.inspect(err, { depth: 4 });
-    console.error(`Finder query execution ${executionId} failed:`, err);
+    console.error(`Liase query execution ${executionId} failed:`, err);
     await createExecutionLogEntry({
       executionId,
       queryId,
@@ -457,10 +453,10 @@ export async function runFinderQueryExecution({
       executionId,
       queryId,
       level: "info",
-      message: `Failed during stage "${task.stage}" while processing query: ${JSON.stringify(currentFinderRequest, null, 2)}`,
+      message: `Failed during stage "${task.stage}" while processing${currentLiaseId !== null ? ` media ${currentLiaseId} from` : ""} query: ${JSON.stringify(currentLiaseRequest, null, 2)}`,
     });
     const updatedTaskValues: Omit<
-      typeof dbSchema.finderQueryExecution.$inferInsert,
+      typeof dbSchema.liaseQueryExecution.$inferInsert,
       "id"
     > = {
       updatedAt: new Date(),
@@ -468,12 +464,12 @@ export async function runFinderQueryExecution({
       status: "failed",
       pageCount,
 
-      finderMediaFound,
-      finderMediaNew,
-      finderMediaUpdated,
-      finderMediaRemoved,
-      finderMediaNotSuitable,
-      finderMediaUnchanged,
+      liaseMediaFound,
+      liaseMediaNew,
+      liaseMediaUpdated,
+      liaseMediaRemoved,
+      liaseMediaNotSuitable,
+      liaseMediaUnchanged,
 
       cacheMediaCreated,
       cacheMediaUpdated,
@@ -481,9 +477,9 @@ export async function runFinderQueryExecution({
       cacheMediaDeleted,
     };
     await db
-      .update(dbSchema.finderQueryExecution)
+      .update(dbSchema.liaseQueryExecution)
       .set(updatedTaskValues)
-      .where(eq(dbSchema.finderQueryExecution.id, executionId));
+      .where(eq(dbSchema.liaseQueryExecution.id, executionId));
 
     await queryExecutionTaskSystem.updateTask(executionId, updatedTaskValues);
   }

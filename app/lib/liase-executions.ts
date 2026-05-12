@@ -9,8 +9,8 @@ export function formatStage(
   execution: QueryExecutionTask | null | undefined,
 ): string {
   if (!execution || !execution.stage) return "-";
-  if (execution.stage === "fetching-media-finder-results")
-    return "Fetching media finder results";
+  if (execution.stage === "fetching-liase-results")
+    return "Fetching liase results";
   if (execution.stage === "processing-added-or-updated")
     return "Processing added and updated media";
   if (execution.stage === "processing-removed")

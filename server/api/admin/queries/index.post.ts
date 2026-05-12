@@ -1,16 +1,16 @@
-import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
+import { parseLiaseRequest } from "@@/server/lib/liase/parse-request";
 
 export default defineEventHandler(async (event) => {
   const { requestOptions, queryVariations, ...other } = await readBody(event);
 
-  const [mediaFinderQuery] = await db
-    .insert(dbSchema.finderQuery)
+  const [liaseQuery] = await db
+    .insert(dbSchema.liaseQuery)
     .values({
       ...other,
-      requestOptions: await parseMediaFinderRequest(requestOptions),
+      requestOptions: await parseLiaseRequest(requestOptions),
       queryVariations: queryVariations ?? null,
       updatedAt: new Date(),
     })
     .returning();
-  return mediaFinderQuery;
+  return liaseQuery;
 });

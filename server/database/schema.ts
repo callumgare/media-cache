@@ -1,4 +1,5 @@
 import { explain } from "@drizzle-lab/api/extensions";
+import type { GenericFile, GenericMedia, GenericRequest } from "@liase/core";
 import { relations, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
@@ -16,10 +17,9 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { GenericFile, GenericMedia, GenericRequest } from "media-finder";
 import superjson from "superjson";
 
-const mediaFinderRequest = customType<{
+const liaseRequest = customType<{
   data: GenericRequest;
   driverData: string;
 }>({
@@ -34,7 +34,7 @@ const mediaFinderRequest = customType<{
   },
 });
 
-const mediaFinderMedia = customType<{
+const liaseMedia = customType<{
   data: GenericMedia;
   driverData: string;
 }>({
@@ -78,13 +78,13 @@ export type User = typeof user.$inferSelect;
 /*
 source
 
-Information about Media Finder source
+Information about Liase source
 */
 export const source = pgTable("source", {
   id: serial("id").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
-  finderSourceId: text("finder_source_id").notNull().unique(),
+  liaseSourceId: text("liase_source_id").notNull().unique(),
 });
 
 export type Source = typeof source.$inferSelect;
@@ -112,17 +112,14 @@ export const cacheMedia = pgTable(
     likes: integer("likes"),
     dislikes: integer("dislikes"),
     // GIN-indexed array of plain source names (e.g. 'chan-browser') for source-only filters.
-    finderSourceIds: text("finder_source_ids")
+    liaseSourceIds: text("liase_source_ids")
       .array()
       .notNull()
       .default(sql`ARRAY[]::text[]`),
     // GIN-indexed array of 'sourceId<TAB>mediaId' composites for exact source+media lookups.
-    finderIds: text("finder_ids")
-      .array()
-      .notNull()
-      .default(sql`ARRAY[]::text[]`),
+    liaseIds: text("liase_ids").array().notNull().default(sql`ARRAY[]::text[]`),
     // GIN-indexed array of group IDs (as text) the media belongs to,
-    // populated from media finder results.
+    // populated from liase results.
     groupIds: text("group_ids").array().notNull().default(sql`ARRAY[]::text[]`),
     // GIN-indexed array of group IDs for manually-assigned groups.
     originalGroupIds: text("original_group_ids")
@@ -152,8 +149,8 @@ export const cacheMedia = pgTable(
         {
           createdAt: Date;
           updatedAt: Date;
-          finderSourceId: string;
-          finderMediaId: string;
+          liaseSourceId: string;
+          liaseMediaId: string;
           type: string;
           url: string;
           ext: string | null;
@@ -175,8 +172,8 @@ export const cacheMedia = pgTable(
     sources:
       jsonb("sources").$type<
         {
-          finderSourceId: string;
-          finderMediaId: string;
+          liaseSourceId: string;
+          liaseMediaId: string;
           createdAt: Date;
           updatedAt: Date;
           uploadedAt: Date | null;
@@ -197,12 +194,12 @@ export const cacheMedia = pgTable(
     hasImageIndex: index("cache_media__has_image_idx").on(cacheMedia.hasImage),
     hasAudioIndex: index("cache_media__has_audio_idx").on(cacheMedia.hasAudio),
     durationIndex: index("cache_media__duration_idx").on(cacheMedia.duration),
-    finderSourceIdsGinIndex: index(
-      "cache_media__finder_source_ids_gin_idx",
-    ).using("gin", cacheMedia.finderSourceIds),
-    finderIdsGinIndex: index("cache_media__finder_ids_gin_idx").using(
+    liaseSourceIdsGinIndex: index(
+      "cache_media__liase_source_ids_gin_idx",
+    ).using("gin", cacheMedia.liaseSourceIds),
+    liaseIdsGinIndex: index("cache_media__liase_ids_gin_idx").using(
       "gin",
-      cacheMedia.finderIds,
+      cacheMedia.liaseIds,
     ),
     groupIdsGinIndex: index("cache_media__group_ids_gin_idx").using(
       "gin",
@@ -291,21 +288,21 @@ export const groupRelations = relations(group, ({ one, many }) => ({
 export type Group = typeof group.$inferSelect;
 
 /*
-finderQuery
+liaseQuery
 
-The details for a query to be executed with Media Finder
+The details for a query to be executed with Liase
 */
 export type QueryVariation = {
   id: string;
   fieldOverrides: Record<string, unknown[]>;
 };
 
-export const finderQuery = pgTable("finder_query", {
+export const liaseQuery = pgTable("liase_query", {
   id: serial("id").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
   title: text("title").notNull(),
-  requestOptions: mediaFinderRequest("request_options").notNull(),
+  requestOptions: liaseRequest("request_options").notNull(),
   fetchCountLimit: integer("fetch_count_limit"),
   fetchCountLimitPerVariation: boolean("fetch_count_limit_per_variation")
     .notNull()
@@ -314,34 +311,34 @@ export const finderQuery = pgTable("finder_query", {
   queryVariations: jsonb("query_variations").$type<QueryVariation[]>(),
 });
 
-export const finderQueryRelations = relations(finderQuery, ({ many }) => ({
-  finderQueryExecutions: many(finderQueryExecution),
+export const liaseQueryRelations = relations(liaseQuery, ({ many }) => ({
+  liaseQueryExecutions: many(liaseQueryExecution),
 }));
 
-export type FinderQuery = typeof finderQuery.$inferSelect;
+export type LiaseQuery = typeof liaseQuery.$inferSelect;
 
 /*
-finderQueryExecution
+liaseQueryExecution
 
-A finderQueryExecution is created every time a media finder query is executed with details about how that
+A liaseQueryExecution is created every time a liase query is executed with details about how that
 execution went/is going.
 */
-export const finderQueryExecution = pgTable("finder_query_execution", {
+export const liaseQueryExecution = pgTable("liase_query_execution", {
   id: serial("id").notNull().primaryKey(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
 
   startedAt: timestamp("started_at", { precision: 3 }).notNull().defaultNow(),
   finishedAt: timestamp("finished_at", { precision: 3 }),
-  queryId: integer("query_id").references(() => finderQuery.id),
+  queryId: integer("query_id").references(() => liaseQuery.id),
   status: statusEnum().notNull(),
   pageCount: integer("page_count").notNull().default(-1),
 
-  finderMediaFound: integer("media_found").notNull().default(-1),
-  finderMediaNew: integer("media_new").notNull().default(-1),
-  finderMediaUpdated: integer("media_updated").notNull().default(-1),
-  finderMediaRemoved: integer("media_removed").notNull().default(-1),
-  finderMediaNotSuitable: integer("media_not_suitable").notNull().default(-1),
-  finderMediaUnchanged: integer("media_unchanged").notNull().default(-1),
+  liaseMediaFound: integer("media_found").notNull().default(-1),
+  liaseMediaNew: integer("media_new").notNull().default(-1),
+  liaseMediaUpdated: integer("media_updated").notNull().default(-1),
+  liaseMediaRemoved: integer("media_removed").notNull().default(-1),
+  liaseMediaNotSuitable: integer("media_not_suitable").notNull().default(-1),
+  liaseMediaUnchanged: integer("media_unchanged").notNull().default(-1),
 
   cacheMediaCreated: integer("cache_media_created").notNull().default(-1),
   cacheMediaUpdated: integer("cache_media_updated").notNull().default(-1),
@@ -349,122 +346,120 @@ export const finderQueryExecution = pgTable("finder_query_execution", {
   cacheMediaDeleted: integer("cache_media_deleted").notNull().default(-1),
 });
 
-export const finderQueryExecutionRelations = relations(
-  finderQueryExecution,
+export const liaseQueryExecutionRelations = relations(
+  liaseQueryExecution,
   ({ one, many }) => ({
-    query: one(finderQuery, {
-      fields: [finderQueryExecution.queryId],
-      references: [finderQuery.id],
+    query: one(liaseQuery, {
+      fields: [liaseQueryExecution.queryId],
+      references: [liaseQuery.id],
     }),
-    finderMedia: many(finderQueryMedia),
-    logs: many(finderQueryExecutionLog),
+    liaseMedia: many(liaseQueryMedia),
+    logs: many(liaseQueryExecutionLog),
   }),
 );
 
-export type FinderQueryExecution = typeof finderQueryExecution.$inferSelect;
+export type LiaseQueryExecution = typeof liaseQueryExecution.$inferSelect;
 
 /*
-finderQueryExecutionLog
+liaseQueryExecutionLog
 
-A log entry created during the execution of a finder query, recording warnings and errors.
+A log entry created during the execution of a liase query, recording warnings and errors.
 */
-export const finderQueryExecutionLog = pgTable("finder_query_execution_log", {
+export const liaseQueryExecutionLog = pgTable("liase_query_execution_log", {
   id: serial("id").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   executionId: integer("execution_id")
     .notNull()
-    .references(() => finderQueryExecution.id),
+    .references(() => liaseQueryExecution.id),
   level: logLevelEnum("level").notNull(),
   message: text("message").notNull(),
   context: jsonb("context"),
 });
 
-export const finderQueryExecutionLogRelations = relations(
-  finderQueryExecutionLog,
+export const liaseQueryExecutionLogRelations = relations(
+  liaseQueryExecutionLog,
   ({ one }) => ({
-    execution: one(finderQueryExecution, {
-      fields: [finderQueryExecutionLog.executionId],
-      references: [finderQueryExecution.id],
+    execution: one(liaseQueryExecution, {
+      fields: [liaseQueryExecutionLog.executionId],
+      references: [liaseQueryExecution.id],
     }),
   }),
 );
 
-export type FinderQueryExecutionLog =
-  typeof finderQueryExecutionLog.$inferSelect;
+export type LiaseQueryExecutionLog = typeof liaseQueryExecutionLog.$inferSelect;
 
 /*
-finderQueryMedia
+liaseQueryMedia
 
-There is a finderQueryMedia created for every Media Finder media found when executing a
-Media Finder query. To avoid duplication the actual contents of the Media Finder media isn't included
+There is a liaseQueryMedia created for every Liase media found when executing a
+Liase query. To avoid duplication the actual contents of the Liase media isn't included
 here. Instead the hash of the contents is recorded and can be used to retrieve the actual contents from
-finderQueryMediaContent.
+liaseQueryMediaContent.
 */
-export const finderQueryMedia = pgTable("finder_query_media", {
+export const liaseQueryMedia = pgTable("liase_query_media", {
   id: serial("id").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
-  finderId: text("finder_id").notNull(),
+  liaseId: text("liase_id").notNull(),
   contentHash: text("content_hash")
     .notNull()
-    .references(() => finderQueryMediaContent.contentHash),
+    .references(() => liaseQueryMediaContent.contentHash),
   queryExecutionId: integer("query_execution_id").references(
-    () => finderQueryExecution.id,
+    () => liaseQueryExecution.id,
   ),
-  queryId: integer("query_id").references(() => finderQuery.id),
+  queryId: integer("query_id").references(() => liaseQuery.id),
 });
 
-explain(finderQueryMedia, {
+explain(liaseQueryMedia, {
   columns: {
-    finderId:
-      "A combination of the source and ID of media returned by Media Finder in the form `finderSourceId<TAB>finderMediaId`.",
+    liaseId:
+      "A combination of the source and ID of media returned by Liase in the form `liaseSourceId<TAB>liaseMediaId`.",
   },
 });
 
-export const finderQueryMediaRelations = relations(
-  finderQueryMedia,
+export const liaseQueryMediaRelations = relations(
+  liaseQueryMedia,
   ({ one }) => ({
-    content: one(finderQueryMediaContent, {
-      fields: [finderQueryMedia.contentHash],
-      references: [finderQueryMediaContent.contentHash],
+    content: one(liaseQueryMediaContent, {
+      fields: [liaseQueryMedia.contentHash],
+      references: [liaseQueryMediaContent.contentHash],
     }),
-    finderQueryExecution: one(finderQueryExecution, {
-      fields: [finderQueryMedia.queryExecutionId],
-      references: [finderQueryExecution.id],
+    liaseQueryExecution: one(liaseQueryExecution, {
+      fields: [liaseQueryMedia.queryExecutionId],
+      references: [liaseQueryExecution.id],
     }),
   }),
 );
 
-export type FinderQueryMedia = typeof finderQueryMedia.$inferSelect;
+export type LiaseQueryMedia = typeof liaseQueryMedia.$inferSelect;
 
 /*
-finderQueryMediaContent
+liaseQueryMediaContent
 
-The contents of a Media Finder media found when executing a media query.
+The contents of a Liase media found when executing a media query.
 */
-export const finderQueryMediaContent = pgTable("finder_query_media_content", {
+export const liaseQueryMediaContent = pgTable("liase_query_media_content", {
   contentHash: text("content_hash").notNull().primaryKey(),
   createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
-  finderId: text("finder_id").notNull(),
-  content: mediaFinderMedia("content").notNull(), // This should be unique because contentHash is guaranteed to be unique
+  liaseId: text("liase_id").notNull(),
+  content: liaseMedia("content").notNull(), // This should be unique because contentHash is guaranteed to be unique
   // but we don't want to actually set the column to be unique values only since that limits the length of the
   // row to ~2000 chars which content can sometimes exceed
 });
 
-explain(finderQueryMediaContent, {
+explain(liaseQueryMediaContent, {
   columns: {
-    finderId:
-      "A combination of the source and ID of media returned by Media Finder in the form `finderSourceId<TAB>finderMediaId`.",
+    liaseId:
+      "A combination of the source and ID of media returned by Liase in the form `liaseSourceId<TAB>liaseMediaId`.",
   },
 });
 
-export const finderQueryMediaContentRelations = relations(
-  finderQueryMediaContent,
+export const liaseQueryMediaContentRelations = relations(
+  liaseQueryMediaContent,
   ({ many }) => ({
-    finderQueryMedia: many(finderQueryMedia),
+    liaseQueryMedia: many(liaseQueryMedia),
   }),
 );
 
-export type FinderQueryMediaContent =
-  typeof finderQueryMediaContent.$inferSelect;
+export type LiaseQueryMediaContent = typeof liaseQueryMediaContent.$inferSelect;

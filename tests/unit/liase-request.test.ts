@@ -1,14 +1,14 @@
-import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
+import { parseLiaseRequest } from "@@/server/lib/liase/parse-request";
 import { describe, expect, it } from "vitest";
 
-describe("Deserialization Safety with MediaFinder Schemas", () => {
+describe("Deserialization Safety with Liase Schemas", () => {
   it("should deserialize valid JSON request with source and queryType", async () => {
     const validRequest = {
       source: "test-source",
       queryType: "test-handler",
     };
 
-    await expect(parseMediaFinderRequest(validRequest)).resolves.toMatchObject({
+    await expect(parseLiaseRequest(validRequest)).resolves.toMatchObject({
       source: "test-source",
       queryType: "test-handler",
     });
@@ -20,7 +20,7 @@ describe("Deserialization Safety with MediaFinder Schemas", () => {
       // missing source
     };
 
-    await expect(parseMediaFinderRequest(invalidRequest)).rejects.toThrow(
+    await expect(parseLiaseRequest(invalidRequest)).rejects.toThrow(
       'Request must have a "source" string field',
     );
   });
@@ -31,19 +31,19 @@ describe("Deserialization Safety with MediaFinder Schemas", () => {
       // missing queryType
     };
 
-    await expect(parseMediaFinderRequest(invalidRequest)).rejects.toThrow(
+    await expect(parseLiaseRequest(invalidRequest)).rejects.toThrow(
       'Request must have a "queryType" string field',
     );
   });
 
   it("should throw on non-object input", async () => {
-    await expect(parseMediaFinderRequest("a string")).rejects.toThrow(
+    await expect(parseLiaseRequest("a string")).rejects.toThrow(
       "data must be an object",
     );
   });
 
   it("should throw when data is not an object", async () => {
-    await expect(parseMediaFinderRequest([1, 2, 3])).rejects.toThrow(
+    await expect(parseLiaseRequest([1, 2, 3])).rejects.toThrow(
       "data must be an object",
     );
   });
@@ -54,7 +54,7 @@ describe("Deserialization Safety with MediaFinder Schemas", () => {
       queryType: "non-existent-handler",
     };
 
-    await expect(parseMediaFinderRequest(unknownRequest)).rejects.toThrow(
+    await expect(parseLiaseRequest(unknownRequest)).rejects.toThrow(
       '"non-existent-source"',
     );
   });
@@ -65,7 +65,7 @@ describe("Deserialization Safety with MediaFinder Schemas", () => {
       queryType: "search",
     };
 
-    await expect(parseMediaFinderRequest(badSourceType)).rejects.toThrow(
+    await expect(parseLiaseRequest(badSourceType)).rejects.toThrow(
       'Request must have a "source" string field',
     );
   });
@@ -76,7 +76,7 @@ describe("Deserialization Safety with MediaFinder Schemas", () => {
       queryType: true, // boolean instead of string
     };
 
-    await expect(parseMediaFinderRequest(badQueryType)).rejects.toThrow(
+    await expect(parseLiaseRequest(badQueryType)).rejects.toThrow(
       'Request must have a "queryType" string field',
     );
   });

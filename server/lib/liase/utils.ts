@@ -1,3 +1,4 @@
+import type { GenericFile, GenericMedia } from "@liase/core";
 import deepmerge, { all } from "deepmerge";
 import {
   type ExtractTablesWithRelations,
@@ -11,12 +12,11 @@ import {
 } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
-import type { GenericFile, GenericMedia } from "media-finder";
 import objectHash from "object-hash";
 
-import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
+import { queryExecutionTaskSystem } from "@@/server/lib/liase/execution-tasks";
 import { db, dbSchema } from "@@/server/utils/drizzle";
-import { finderFileToCacheFile } from "./shared";
+import { liaseFileToCacheFile } from "./shared";
 
 type DbTransaction = PgTransaction<
   PostgresJsQueryResultHKT,
@@ -24,23 +24,23 @@ type DbTransaction = PgTransaction<
   ExtractTablesWithRelations<typeof dbSchema>
 >;
 
-export async function createFinderQueryExecution({
-  savedFinderQuery,
+export async function createLiaseQueryExecution({
+  savedLiaseQuery,
 }: {
-  savedFinderQuery?: dbSchema.FinderQuery;
+  savedLiaseQuery?: dbSchema.LiaseQuery;
 }) {
   const execution = await db
-    .insert(dbSchema.finderQueryExecution)
+    .insert(dbSchema.liaseQueryExecution)
     .values({
       updatedAt: new Date(),
       startedAt: new Date(),
-      queryId: savedFinderQuery?.id ?? null,
+      queryId: savedLiaseQuery?.id ?? null,
       status: "running",
     })
     .returning()
     .then((result) => {
       const row = result[0];
-      if (!row) throw new Error("Failed to create finder query execution");
+      if (!row) throw new Error("Failed to create liase query execution");
       return row;
     });
   queryExecutionTaskSystem.createTask(execution);
@@ -59,9 +59,9 @@ export async function createExecutionLogEntry({
   level: dbSchema.LogLevel;
   message: string;
   context?: Record<string, unknown>;
-}): Promise<dbSchema.FinderQueryExecutionLog> {
+}): Promise<dbSchema.LiaseQueryExecutionLog> {
   const [log] = await db
-    .insert(dbSchema.finderQueryExecutionLog)
+    .insert(dbSchema.liaseQueryExecutionLog)
     .values({ executionId, level, message, context: context ?? null })
     .returning();
   if (!log) throw new Error("Failed to create execution log entry");
@@ -75,79 +75,79 @@ export async function createExecutionLogEntry({
   return log;
 }
 
-export async function createFinderQueryMedia({
+export async function createLiaseQueryMedia({
   dbTx,
-  finderMedia,
-  finderQueryExecution,
+  liaseMedia,
+  liaseQueryExecution,
 }: {
-  finderMedia: GenericMedia;
-  finderQueryExecution: dbSchema.FinderQueryExecution;
+  liaseMedia: GenericMedia;
+  liaseQueryExecution: dbSchema.LiaseQueryExecution;
   dbTx: DbTransaction;
 }) {
-  const contentHash = objectHash(finderMedia);
+  const contentHash = objectHash(liaseMedia);
   return dbTx
-    .insert(dbSchema.finderQueryMedia)
+    .insert(dbSchema.liaseQueryMedia)
     .values({
       updatedAt: new Date(),
-      finderId: getIdFromFinderMedia(finderMedia),
-      queryExecutionId: finderQueryExecution.id,
-      queryId: finderQueryExecution.queryId,
+      liaseId: getIdFromLiaseMedia(liaseMedia),
+      queryExecutionId: liaseQueryExecution.id,
+      queryId: liaseQueryExecution.queryId,
       contentHash,
     })
     .returning()
     .then((result) => result[0]);
 }
 
-export async function createFinderQueryMediaContent({
+export async function createLiaseQueryMediaContent({
   dbTx,
-  finderMedia,
+  liaseMedia,
 }: {
-  finderMedia: GenericMedia;
+  liaseMedia: GenericMedia;
   dbTx: DbTransaction;
 }) {
-  const contentHash = objectHash(finderMedia);
+  const contentHash = objectHash(liaseMedia);
   return dbTx
-    .insert(dbSchema.finderQueryMediaContent)
+    .insert(dbSchema.liaseQueryMediaContent)
     .values({
-      finderId: getIdFromFinderMedia(finderMedia),
+      liaseId: getIdFromLiaseMedia(liaseMedia),
       contentHash,
-      content: finderMedia,
+      content: liaseMedia,
       updatedAt: new Date(),
     })
     .onConflictDoNothing({
-      target: dbSchema.finderQueryMediaContent.contentHash,
+      target: dbSchema.liaseQueryMediaContent.contentHash,
     })
     .returning()
     .then((result) => result[0]);
 }
 
 export async function getCacheMedia({
-  finderId,
+  liaseId,
   executionId,
   queryId,
 }: {
-  finderId: string;
+  liaseId: string;
   executionId: number;
   queryId: number | null;
 }): Promise<dbSchema.CacheMedia | null> {
   const results = await db
     .select()
     .from(dbSchema.cacheMedia)
-    .where(sql`${dbSchema.cacheMedia.finderIds} @> ARRAY[${finderId}]::text[]`);
+    .where(sql`${dbSchema.cacheMedia.liaseIds} @> ARRAY[${liaseId}]::text[]`);
   if (results.length > 1) {
     await createExecutionLogEntry({
       executionId,
       queryId,
       level: "error",
-      message: "Found multiple cache media entries with the same finder id",
+      message: "Found multiple cache media entries with the same liase id",
     });
   }
   return results[0] ?? null;
 }
 
-export function mergeFinderMedia({
-  finderMedias,
-}: { finderMedias: GenericMedia[] }): GenericMedia {
+export function mergeLiaseMedia({
+  liaseMedias,
+}: { liaseMedias: GenericMedia[] }): GenericMedia {
   function combineFilesOfSameType(files: GenericFile[]) {
     return files.reduce<GenericFile[]>((acc, file) => {
       const idx = acc.findIndex((f) => f.type === file.type);
@@ -158,7 +158,7 @@ export function mergeFinderMedia({
     }, []);
   }
 
-  return deepmerge.all<GenericMedia>(finderMedias, {
+  return deepmerge.all<GenericMedia>(liaseMedias, {
     customMerge: (key) =>
       key === "files"
         ? (a: GenericFile[], b: GenericFile[]) =>
@@ -168,58 +168,58 @@ export function mergeFinderMedia({
 }
 
 const existingSources = new Set<string>();
-async function ensureSource(finderSourceId: string, dbTx: DbTransaction) {
-  if (existingSources.has(finderSourceId)) {
+async function ensureSource(liaseSourceId: string, dbTx: DbTransaction) {
+  if (existingSources.has(liaseSourceId)) {
     // Reduce db load by caching sources and assuming that sources aren't deleted
     return;
   }
   const source = await dbTx.query.source.findFirst({
-    where: (s, { eq }) => eq(s.finderSourceId, finderSourceId),
+    where: (s, { eq }) => eq(s.liaseSourceId, liaseSourceId),
   });
   if (!source) {
     await dbTx
       .insert(dbSchema.source)
-      .values({ finderSourceId, updatedAt: new Date() })
+      .values({ liaseSourceId, updatedAt: new Date() })
       .then((r) => r[0]);
   }
-  existingSources.add(finderSourceId);
+  existingSources.add(liaseSourceId);
 }
 
-function getIdFromFinderMedia(finderMedia: GenericMedia) {
-  return `${finderMedia.mediaFinderSource}\t${finderMedia.id}`;
+function getIdFromLiaseMedia(liaseMedia: GenericMedia) {
+  return `${liaseMedia.liaseSource}\t${liaseMedia.id}`;
 }
 
 function buildCacheMediaValues(
-  finderMedias: GenericMedia[],
+  liaseMediasWithDuplicates: GenericMedia[],
 ): typeof dbSchema.cacheMedia.$inferInsert {
   const now = new Date();
 
   // Since multiple queries of the same source might have the same media we merge
-  // finderMedias with the same finder id
-  const normalisedFinderMedias = Object.values(
-    Object.groupBy(finderMedias, getIdFromFinderMedia),
+  // liaseMedias with the same liase id
+  const liaseMedias = Object.values(
+    Object.groupBy(liaseMediasWithDuplicates, getIdFromLiaseMedia),
   )
     .filter((group): group is GenericMedia[] => group !== undefined)
-    .map((finderMedias) => mergeFinderMedia({ finderMedias }));
+    .map((liaseMedias) => mergeLiaseMedia({ liaseMedias }));
 
-  const files = finderMedias.flatMap((fm) =>
+  const files = liaseMedias.flatMap((fm) =>
     (fm.files || []).map((file) => ({
       createdAt: now,
       updatedAt: now,
-      finderSourceId: fm.mediaFinderSource,
-      finderMediaId: String(fm.id),
-      ...finderFileToCacheFile(file),
+      liaseSourceId: fm.liaseSource,
+      liaseMediaId: String(fm.id),
+      ...liaseFileToCacheFile(file),
     })),
   );
 
-  const sources = finderMedias.map((fm) => {
+  const sources = liaseMedias.map((fm) => {
     const total = (fm.numberOfLikes ?? 0) + (fm.numberOfDislikes ?? 0);
     return {
       createdAt: now,
       updatedAt: now,
       uploadedAt: fm.dateUploaded ? new Date(fm.dateUploaded) : null,
-      finderSourceId: fm.mediaFinderSource,
-      finderMediaId: String(fm.id),
+      liaseSourceId: fm.liaseSource,
+      liaseMediaId: String(fm.id),
       title: fm.title ?? null,
       description: fm.description ?? null,
       url: fm.url ?? null,
@@ -233,7 +233,7 @@ function buildCacheMediaValues(
     };
   });
 
-  const uploadDates = finderMedias
+  const uploadDates = liaseMedias
     .map((fm) => (fm.dateUploaded ? new Date(fm.dateUploaded) : null))
     .filter((d): d is Date => d !== null);
 
@@ -243,49 +243,47 @@ function buildCacheMediaValues(
     files[0];
 
   return {
-    title: finderMedias.map((fm) => fm.title).find((t) => !!t) ?? null,
+    title: liaseMedias.map((fm) => fm.title).find((t) => !!t) ?? null,
     description:
-      finderMedias.map((fm) => fm.description).find((d) => !!d) ?? null,
+      liaseMedias.map((fm) => fm.description).find((d) => !!d) ?? null,
     earliestUploadedAt:
       uploadDates.length > 0
         ? new Date(Math.min(...uploadDates.map((d) => d.getTime())))
         : null,
     creators: [
       ...new Set(
-        finderMedias
+        liaseMedias
           .map((fm) => fm.usernameOfCreator)
           .filter((c): c is string => !!c),
       ),
     ],
     uploaders: [
       ...new Set(
-        finderMedias
+        liaseMedias
           .map((fm) => fm.usernameOfUploader ?? fm.nameOfUploader)
           .filter((u): u is string => !!u),
       ),
     ],
-    views: finderMedias.reduce<number | null>(
+    views: liaseMedias.reduce<number | null>(
       (sum, fm) => (fm.views != null ? (sum ?? 0) + fm.views : sum),
       null,
     ),
-    likes: finderMedias.reduce<number | null>(
+    likes: liaseMedias.reduce<number | null>(
       (sum, fm) =>
         fm.numberOfLikes != null ? (sum ?? 0) + fm.numberOfLikes : sum,
       null,
     ),
-    dislikes: finderMedias.reduce<number | null>(
+    dislikes: liaseMedias.reduce<number | null>(
       (sum, fm) =>
         fm.numberOfDislikes != null ? (sum ?? 0) + fm.numberOfDislikes : sum,
       null,
     ),
-    // finderSourceIds stores plain source names for source-only GIN filtering
-    finderSourceIds: [
-      ...new Set(finderMedias.map((fm) => fm.mediaFinderSource)),
-    ],
-    // finderIds stores only 'sourceId<TAB>mediaId' composites for exact lookups
-    finderIds: [
+    // liaseSourceIds stores plain source names for source-only GIN filtering
+    liaseSourceIds: [...new Set(liaseMedias.map((fm) => fm.liaseSource))],
+    // liaseIds stores only 'sourceId<TAB>mediaId' composites for exact lookups
+    liaseIds: [
       ...new Set(
-        finderMedias.map((fm) => `${fm.mediaFinderSource}\t${String(fm.id)}`),
+        liaseMedias.map((fm) => `${fm.liaseSource}\t${String(fm.id)}`),
       ),
     ],
     hasVideo: mainFile?.hasVideo ?? null,
@@ -302,62 +300,58 @@ function buildCacheMediaValues(
 }
 
 export async function createOrUpdateCacheMedia({
-  finderId,
+  liaseId,
 }: {
-  finderId: string;
+  liaseId: string;
 }) {
   return await db.transaction(async (dbTx) => {
-    let cacheMediaFinderIds: string[];
+    let cacheMediaLiaseIds: string[];
     const [existingCacheMedia] = await dbTx
       .select()
       .from(dbSchema.cacheMedia)
-      .where(
-        sql`${dbSchema.cacheMedia.finderIds} @> ARRAY[${finderId}]::text[]`,
-      )
+      .where(sql`${dbSchema.cacheMedia.liaseIds} @> ARRAY[${liaseId}]::text[]`)
       .limit(1);
     if (existingCacheMedia) {
-      // console.log("Found existing cache media with id", existingCacheMedia.id, "and finder ids", existingCacheMedia.finderIds)
-      cacheMediaFinderIds = existingCacheMedia.finderIds;
+      // console.log("Found existing cache media with id", existingCacheMedia.id, "and liase ids", existingCacheMedia.liaseIds)
+      cacheMediaLiaseIds = existingCacheMedia.liaseIds;
     } else {
-      cacheMediaFinderIds = [finderId];
+      cacheMediaLiaseIds = [liaseId];
     }
 
-    // Use DISTINCT ON to get the most recent content per (finderId, queryId) pair,
-    // since finderQueryMediaContent stores all historical versions by contentHash.
+    // Use DISTINCT ON to get the most recent content per (liaseId, queryId) pair,
+    // since liaseQueryMediaContent stores all historical versions by contentHash.
     // Multiple saved queries may find the same media with different data, so we get
-    // the latest from each query and let buildCacheMediaValues/mergeFinderMedia merge them.
-    const allFinderMedia = await dbTx
+    // the latest from each query and let buildCacheMediaValues/mergeLiaseMedia merge them.
+    const allLiaseMedia = await dbTx
       .selectDistinctOn(
-        [dbSchema.finderQueryMedia.finderId, dbSchema.finderQueryMedia.queryId],
-        { content: dbSchema.finderQueryMediaContent.content },
+        [dbSchema.liaseQueryMedia.liaseId, dbSchema.liaseQueryMedia.queryId],
+        { content: dbSchema.liaseQueryMediaContent.content },
       )
-      .from(dbSchema.finderQueryMedia)
+      .from(dbSchema.liaseQueryMedia)
       .innerJoin(
-        dbSchema.finderQueryMediaContent,
+        dbSchema.liaseQueryMediaContent,
         eq(
-          dbSchema.finderQueryMedia.contentHash,
-          dbSchema.finderQueryMediaContent.contentHash,
+          dbSchema.liaseQueryMedia.contentHash,
+          dbSchema.liaseQueryMediaContent.contentHash,
         ),
       )
       .where(
-        sql`${dbSchema.finderQueryMedia.finderId} = ANY(ARRAY[${cacheMediaFinderIds}])`,
+        sql`${dbSchema.liaseQueryMedia.liaseId} = ANY(ARRAY[${cacheMediaLiaseIds}])`,
       )
       .orderBy(
-        dbSchema.finderQueryMedia.finderId,
-        dbSchema.finderQueryMedia.queryId,
-        desc(dbSchema.finderQueryMedia.id),
+        dbSchema.liaseQueryMedia.liaseId,
+        dbSchema.liaseQueryMedia.queryId,
+        desc(dbSchema.liaseQueryMedia.id),
       )
       .then((records) => records.map((r) => r.content));
 
-    const allSources = new Set(
-      allFinderMedia.map((media) => media.mediaFinderSource),
-    );
+    const allSources = new Set(allLiaseMedia.map((media) => media.liaseSource));
 
     for (const source of allSources.values()) {
       await ensureSource(source, dbTx);
     }
 
-    const cacheMediaValues = buildCacheMediaValues(allFinderMedia);
+    const cacheMediaValues = buildCacheMediaValues(allLiaseMedia);
 
     let status: "created" | "updated";
     let cacheMedia: dbSchema.CacheMedia | undefined;
@@ -381,7 +375,7 @@ export async function createOrUpdateCacheMedia({
 
     // Update groups
     await createOrUpdateCacheMediaGroups({
-      finderMedias: allFinderMedia,
+      liaseMedias: allLiaseMedia,
       cacheMedia,
       dbTx,
     });
@@ -391,11 +385,11 @@ export async function createOrUpdateCacheMedia({
 }
 
 export async function createOrUpdateCacheMediaGroups({
-  finderMedias,
+  liaseMedias,
   cacheMedia,
   dbTx,
 }: {
-  finderMedias: GenericMedia[];
+  liaseMedias: GenericMedia[];
   cacheMedia: dbSchema.CacheMedia;
   dbTx: DbTransaction;
 }): Promise<void> {
@@ -411,7 +405,7 @@ export async function createOrUpdateCacheMediaGroups({
     if (!rootTagsGroup) throw new Error("Failed to create root tags group");
   }
 
-  const allTags = [...new Set(finderMedias.flatMap((fm) => fm.tags || []))];
+  const allTags = [...new Set(liaseMedias.flatMap((fm) => fm.tags || []))];
 
   const groupIds: string[] = [];
   // parentMap stores id → parentId for groups we've touched, so we can compute paths without extra queries
@@ -462,14 +456,14 @@ export async function createOrUpdateCacheMediaGroups({
     .where(eq(dbSchema.cacheMedia.id, cacheMedia.id));
 }
 
-export async function getPreviousFinderQueryExecution({
+export async function getPreviousLiaseQueryExecution({
   queryId,
   currentExecutionId,
 }: {
   queryId: number;
   currentExecutionId: number;
-}): Promise<dbSchema.FinderQueryExecution | null> {
-  return db.query.finderQueryExecution
+}): Promise<dbSchema.LiaseQueryExecution | null> {
+  return db.query.liaseQueryExecution
     .findFirst({
       where: (exec, { eq, ne, and }) =>
         and(eq(exec.queryId, queryId), ne(exec.id, currentExecutionId)),
@@ -477,77 +471,6 @@ export async function getPreviousFinderQueryExecution({
     })
     .then((r) => r ?? null);
 }
-
-// type SourceMediaPair = {
-//   finderSourceId: string;
-//   finderMediaId: string;
-//   contentHash: string;
-// };
-
-// export async function getChangedPairs({
-//   currentExecutionId,
-//   previousExecutionId,
-//   previousExecutionStatus,
-// }: {
-//   currentExecutionId: number;
-//   previousExecutionId: number | null;
-//   previousExecutionStatus: string | null;
-// }): Promise<{
-//   added: SourceMediaPair[];
-//   updated: SourceMediaPair[];
-//   removed: SourceMediaPair[];
-//   unchanged: SourceMediaPair[];
-// }> {
-//   const currentPairs = await db
-//     .select({
-//       finderSourceId: dbSchema.finderQueryMedia.finderSourceId,
-//       finderMediaId: dbSchema.finderQueryMedia.finderMediaId,
-//       contentHash: dbSchema.finderQueryMedia.contentHash,
-//     })
-//     .from(dbSchema.finderQueryMedia)
-//     .where(eq(dbSchema.finderQueryMedia.queryExecutionId, currentExecutionId));
-
-//   if (!previousExecutionId) {
-//     return { addedOrUpdated: currentPairs, removed: [], unchanged: [] };
-//   }
-
-//   const previousPairs = await db
-//     .select({
-//       finderSourceId: dbSchema.finderQueryMedia.finderSourceId,
-//       finderMediaId: dbSchema.finderQueryMedia.finderMediaId,
-//       contentHash: dbSchema.finderQueryMedia.contentHash,
-//     })
-//     .from(dbSchema.finderQueryMedia)
-//     .where(eq(dbSchema.finderQueryMedia.queryExecutionId, previousExecutionId));
-
-//   const currentMap = new Map(
-//     currentPairs.map((p) => [`${p.finderSourceId}:${p.finderMediaId}`, p]),
-//   );
-//   const previousMap = new Map(
-//     previousPairs.map((p) => [`${p.finderSourceId}:${p.finderMediaId}`, p]),
-//   );
-
-//   const addedOrUpdated: SourceMediaPair[] = [];
-//   const unchanged: SourceMediaPair[] = [];
-//   const removed: SourceMediaPair[] = [];
-
-//   for (const [key, pair] of currentMap) {
-//     const prev = previousMap.get(key);
-//     if (
-//       !prev ||
-//       prev.contentHash !== pair.contentHash ||
-//       previousExecutionStatus === "failed"
-//     )
-//       addedOrUpdated.push(pair);
-//     else unchanged.push(pair);
-//   }
-
-//   for (const [key, pair] of previousMap) {
-//     if (!currentMap.has(key)) removed.push(pair);
-//   }
-
-//   return { addedOrUpdated, removed, unchanged };
-// }
 
 export async function deleteCacheMediaEntry({
   cacheMedia,
@@ -571,7 +494,7 @@ export async function deleteCacheMediaEntry({
   });
 }
 
-export async function deleteOldFinderQueryMedia({
+export async function deleteOldLiaseQueryMedia({
   queryId,
   currentExecutionId,
 }: {
@@ -579,20 +502,20 @@ export async function deleteOldFinderQueryMedia({
   currentExecutionId: number;
 }): Promise<void> {
   const oldExecutions = await db
-    .select({ id: dbSchema.finderQueryExecution.id })
-    .from(dbSchema.finderQueryExecution)
+    .select({ id: dbSchema.liaseQueryExecution.id })
+    .from(dbSchema.liaseQueryExecution)
     .where(
       and(
-        eq(dbSchema.finderQueryExecution.queryId, queryId),
-        ne(dbSchema.finderQueryExecution.id, currentExecutionId),
+        eq(dbSchema.liaseQueryExecution.queryId, queryId),
+        ne(dbSchema.liaseQueryExecution.id, currentExecutionId),
       ),
     );
 
   if (oldExecutions.length === 0) return;
 
-  await db.delete(dbSchema.finderQueryMedia).where(
+  await db.delete(dbSchema.liaseQueryMedia).where(
     inArray(
-      dbSchema.finderQueryMedia.queryExecutionId,
+      dbSchema.liaseQueryMedia.queryExecutionId,
       oldExecutions.map((r) => r.id),
     ),
   );

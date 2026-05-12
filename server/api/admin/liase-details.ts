@@ -1,9 +1,8 @@
-import { getMediaFinder } from "@@/server/lib/media-finder";
+import { getLiase } from "@@/server/lib/liase";
 import { sql } from "drizzle-orm";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 export default defineEventHandler(async () => {
-  const mediaFinder = await getMediaFinder();
+  const liase = await getLiase();
   const tags = await db
     .select({
       id: dbSchema.group.id,
@@ -22,7 +21,7 @@ export default defineEventHandler(async () => {
     .groupBy(dbSchema.group.id);
   return {
     sources: Object.fromEntries(
-      Object.values(mediaFinder.sources).map((source) => [
+      Object.values(liase.sources).map((source) => [
         source.id,
         {
           id: source.id,
@@ -30,7 +29,9 @@ export default defineEventHandler(async () => {
           requestHandlers: source.requestHandlers.map((handler) => ({
             id: handler.id,
             name: handler.displayName,
-            schema: zodToJsonSchema(handler.requestSchema),
+            schema: handler.requestSchema.toJSONSchema({
+              unrepresentable: "any",
+            }),
           })),
         },
       ]),

@@ -112,20 +112,20 @@
 </template>
 
 <script setup lang="ts">
-import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
-import { formatStatus } from "~/lib/finder-executions";
+import type { QueryExecutionTask } from "@@/server/lib/liase/execution-tasks";
+import { formatStatus } from "~/lib/liase-executions";
 
 const toast = useToast();
 
 const {
   data: queryList,
-  error: finderDetailsError,
+  error: queryListError,
   refresh: refreshQueryList,
   status: queryListStatus,
 } = await useSuperFetch("/api/admin/queries");
 
-if (finderDetailsError.value) {
-  throw finderDetailsError.value;
+if (queryListError.value) {
+  throw queryListError.value;
 }
 
 type QueryRow = NonNullable<typeof queryList.value>[number];

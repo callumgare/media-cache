@@ -10,42 +10,42 @@ export default defineEventHandler(async (event) => {
   }
 
   // Fetch execution IDs so we can cascade-delete their dependents.
-  // finderQueryExecution has a FK to finderQuery with no ON DELETE CASCADE,
+  // liaseQueryExecution has a FK to liaseQuery with no ON DELETE CASCADE,
   // so we must remove child rows before deleting the parent query.
   const executions = await db
-    .select({ id: dbSchema.finderQueryExecution.id })
-    .from(dbSchema.finderQueryExecution)
-    .where(eq(dbSchema.finderQueryExecution.queryId, id));
+    .select({ id: dbSchema.liaseQueryExecution.id })
+    .from(dbSchema.liaseQueryExecution)
+    .where(eq(dbSchema.liaseQueryExecution.queryId, id));
 
   if (executions.length > 0) {
     const executionIds = executions.map((e) => e.id);
 
-    // 1. Remove execution log entries (FK → finderQueryExecution.id)
+    // 1. Remove execution log entries (FK → liaseQueryExecution.id)
     await db
-      .delete(dbSchema.finderQueryExecutionLog)
+      .delete(dbSchema.liaseQueryExecutionLog)
       .where(
-        inArray(dbSchema.finderQueryExecutionLog.executionId, executionIds),
+        inArray(dbSchema.liaseQueryExecutionLog.executionId, executionIds),
       );
 
-    // 2. Remove finder query media linked via execution (FK → finderQueryExecution.id)
+    // 2. Remove liase query media linked via execution (FK → liaseQueryExecution.id)
     await db
-      .delete(dbSchema.finderQueryMedia)
-      .where(inArray(dbSchema.finderQueryMedia.queryExecutionId, executionIds));
+      .delete(dbSchema.liaseQueryMedia)
+      .where(inArray(dbSchema.liaseQueryMedia.queryExecutionId, executionIds));
 
-    // 3. Remove executions (FK → finderQuery.id)
+    // 3. Remove executions (FK → liaseQuery.id)
     await db
-      .delete(dbSchema.finderQueryExecution)
-      .where(eq(dbSchema.finderQueryExecution.queryId, id));
+      .delete(dbSchema.liaseQueryExecution)
+      .where(eq(dbSchema.liaseQueryExecution.queryId, id));
   }
 
-  // 4. Remove any finder query media linked directly to this query (FK → finderQuery.id)
+  // 4. Remove any liase query media linked directly to this query (FK → liaseQuery.id)
   await db
-    .delete(dbSchema.finderQueryMedia)
-    .where(eq(dbSchema.finderQueryMedia.queryId, id));
+    .delete(dbSchema.liaseQueryMedia)
+    .where(eq(dbSchema.liaseQueryMedia.queryId, id));
 
   // 5. Delete the query itself
   const result = await db
-    .delete(dbSchema.finderQuery)
-    .where(eq(dbSchema.finderQuery.id, id));
+    .delete(dbSchema.liaseQuery)
+    .where(eq(dbSchema.liaseQuery.id, id));
   return result;
 });

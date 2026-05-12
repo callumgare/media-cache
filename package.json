@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@drizzle-lab/api": "^0.30.2",
+    "@liase/core": "^1.0.3",
     "@peterbud/nuxt-query": "^1.7.0",
     "@pinia/nuxt": "^0.11.3",
     "@tanstack/vue-query": "^5.100.8",
@@ -30,7 +31,6 @@
     "fluent-ffmpeg": "^2.1.3",
     "hls.js": "^1.6.16",
     "lucide-vue-next": "^1.0.0",
-    "media-finder": "^3.13.0",
     "nuxt": "^4.4.4",
     "nuxt-superjson": "^1.0.0",
     "object-hash": "^3.0.0",
@@ -43,8 +43,7 @@
     "primevue": "^4.5.5",
     "superjson": "^2.2.6",
     "tasuku": "^2.3.0",
-    "vue": "latest",
-    "zod-to-json-schema": "^3.24.6"
+    "vue": "latest"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.8.0",

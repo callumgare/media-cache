@@ -1,18 +1,17 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import deleteQueryHandler from "@@/server/api/admin/queries/[id]/index.delete";
-import { getMediaFinder } from "@@/server/lib/media-finder";
-import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
+import { getLiase } from "@@/server/lib/liase";
+import { parseLiaseRequest } from "@@/server/lib/liase/parse-request";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { eq } from "drizzle-orm";
 import { createEvent } from "h3";
 import { beforeEach, describe, expect, it } from "vitest";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   TEST_REQUEST,
   TEST_REQUEST_WITH_COUNT,
-  createTestFinderQuery,
-  runMediaFinderQuery,
+  createTestLiaseQuery,
+  runLiaseQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
@@ -26,9 +25,9 @@ async function stripToHandlerFields(
   if (typeof source !== "string" || typeof queryType !== "string") {
     return requestOptions;
   }
-  const mediaFinder = await getMediaFinder();
-  const handler = mediaFinder.getRequestHandler(source, queryType);
-  const jsonSchema = zodToJsonSchema(handler.requestSchema) as {
+  const liase = await getLiase();
+  const handler = liase.getRequestHandler(source, queryType);
+  const jsonSchema = handler.requestSchema.toJSONSchema() as {
     properties?: Record<string, unknown>;
   };
   const knownFields = new Set([
@@ -46,7 +45,7 @@ async function stripToHandlerFields(
 beforeEach(truncateAll);
 
 async function getQuery(id: number) {
-  const row = await db.query.finderQuery.findFirst({
+  const row = await db.query.liaseQuery.findFirst({
     where: (q, { eq }) => eq(q.id, id),
   });
   if (!row) throw new Error(`Query ${id} not found`);
@@ -58,20 +57,20 @@ async function updateQueryVariations(
   queryVariations: dbSchema.QueryVariation[] | null,
 ) {
   await db
-    .update(dbSchema.finderQuery)
+    .update(dbSchema.liaseQuery)
     .set({ queryVariations, updatedAt: new Date() })
-    .where(eq(dbSchema.finderQuery.id, id));
+    .where(eq(dbSchema.liaseQuery.id, id));
 }
 
 describe("query variations — saving", () => {
   it("saves a query with no variations", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const saved = await getQuery(q.id);
     expect(saved.queryVariations).toBeNull();
   });
 
   it("saves a single variation with one field and one value", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const variations: dbSchema.QueryVariation[] = [
       { id: "var-1", fieldOverrides: { keyword: ["cats"] } },
     ];
@@ -82,7 +81,7 @@ describe("query variations — saving", () => {
   });
 
   it("saves a single variation with one field and multiple values", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const variations: dbSchema.QueryVariation[] = [
       { id: "var-1", fieldOverrides: { keyword: ["cats", "dogs", "birds"] } },
     ];
@@ -93,7 +92,7 @@ describe("query variations — saving", () => {
   });
 
   it("saves a single variation with several fields, some with multiple values", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const variations: dbSchema.QueryVariation[] = [
       {
         id: "var-1",
@@ -112,7 +111,7 @@ describe("query variations — saving", () => {
   });
 
   it("saves multiple variations each with different fields", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const variations: dbSchema.QueryVariation[] = [
       { id: "var-1", fieldOverrides: { keyword: ["cats"] } },
       { id: "var-2", fieldOverrides: { keyword: ["dogs"] } },
@@ -125,7 +124,7 @@ describe("query variations — saving", () => {
   });
 
   it("saves multiple variations where some share fields with multiple values", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const variations: dbSchema.QueryVariation[] = [
       {
         id: "var-1",
@@ -156,7 +155,7 @@ describe("query variations — saving", () => {
   });
 
   it("saves a boolean field variation limited to two values", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const variations: dbSchema.QueryVariation[] = [
       { id: "var-1", fieldOverrides: { includeAudio: [true, false] } },
     ];
@@ -167,7 +166,7 @@ describe("query variations — saving", () => {
   });
 
   it("updates variations on an existing query", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     const initial: dbSchema.QueryVariation[] = [
       { id: "var-1", fieldOverrides: { keyword: ["cats"] } },
     ];
@@ -184,7 +183,7 @@ describe("query variations — saving", () => {
   });
 
   it("clears variations by setting them to null", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     await updateQueryVariations(q.id, [
       { id: "var-1", fieldOverrides: { keyword: ["cats"] } },
     ]);
@@ -207,7 +206,7 @@ describe("query variations — saving", () => {
     ];
 
     const [row] = await db
-      .insert(dbSchema.finderQuery)
+      .insert(dbSchema.liaseQuery)
       .values({
         title: "Query with variations",
         requestOptions: TEST_REQUEST,
@@ -233,7 +232,7 @@ describe("query form — switching sources", () => {
     // Represents what the buggy form would POST: keyword is a stale field left
     // over from test-handler-with-keyword, but we are now on test-handler.
     await expect(
-      parseMediaFinderRequest({
+      parseLiaseRequest({
         source: "test-source",
         queryType: "test-handler",
         keyword: "cats",
@@ -253,7 +252,7 @@ describe("query form — switching sources", () => {
     // formattedFormValue strips to the current handler's known fields
     const stripped = await stripToHandlerFields(staleFormState);
 
-    await expect(parseMediaFinderRequest(stripped)).resolves.toMatchObject({
+    await expect(parseLiaseRequest(stripped)).resolves.toMatchObject({
       source: "test-source",
       queryType: "test-handler",
     });
@@ -269,7 +268,7 @@ describe("query form — switching sources", () => {
 
     const stripped = await stripToHandlerFields(formState);
 
-    await expect(parseMediaFinderRequest(stripped)).resolves.toMatchObject({
+    await expect(parseLiaseRequest(stripped)).resolves.toMatchObject({
       source: "test-source",
       queryType: "test-handler-with-keyword",
       keyword: "dogs",
@@ -284,10 +283,10 @@ describe("query form — switching sources", () => {
     };
 
     const stripped = await stripToHandlerFields(staleFormState);
-    const parsed = await parseMediaFinderRequest(stripped);
+    const parsed = await parseLiaseRequest(stripped);
 
     const [row] = await db
-      .insert(dbSchema.finderQuery)
+      .insert(dbSchema.liaseQuery)
       .values({
         title: "Switched handler query",
         requestOptions: parsed,
@@ -315,10 +314,10 @@ describe("query form — switching sources", () => {
     };
 
     const stripped = await stripToHandlerFields(formStateAfterSwitchBack);
-    const parsed = await parseMediaFinderRequest(stripped);
+    const parsed = await parseLiaseRequest(stripped);
 
     const [row] = await db
-      .insert(dbSchema.finderQuery)
+      .insert(dbSchema.liaseQuery)
       .values({
         title: "Switched back query",
         requestOptions: parsed,
@@ -387,7 +386,7 @@ describe("query form — field values survive switching handlers and back", () =
     // On submit, the form strips to the current handler's fields
     const submitted = await stripToHandlerFields(formState);
     expect(submitted).not.toHaveProperty("keyword");
-    await expect(parseMediaFinderRequest(submitted)).resolves.toMatchObject({
+    await expect(parseLiaseRequest(submitted)).resolves.toMatchObject({
       source: "test-source",
       queryType: "test-handler",
     });
@@ -406,7 +405,7 @@ describe("query form — field values survive switching handlers and back", () =
 
     const submitted = await stripToHandlerFields(formState);
     expect(submitted).toHaveProperty("keyword", "cats");
-    await expect(parseMediaFinderRequest(submitted)).resolves.toMatchObject({
+    await expect(parseLiaseRequest(submitted)).resolves.toMatchObject({
       source: "test-source",
       queryType: "test-handler-with-keyword",
       keyword: "cats",
@@ -465,26 +464,26 @@ function makeDeleteEvent(queryId: number) {
 
 describe("DELETE /api/admin/queries/:id", () => {
   it("deletes a query that has never been run", async () => {
-    const q = await createTestFinderQuery();
+    const q = await createTestLiaseQuery();
     await deleteQueryHandler(makeDeleteEvent(q.id));
 
-    const found = await db.query.finderQuery.findFirst({
+    const found = await db.query.liaseQuery.findFirst({
       where: (r, { eq }) => eq(r.id, q.id),
     });
     expect(found).toBeUndefined();
   });
 
   it("deletes a query that has been run (has associated execution records)", async () => {
-    // Bug: the handler only deletes the finderQuery row directly. When the
-    // query has been executed, finderQueryExecution rows exist with a FK to
-    // finderQuery.id (no ON DELETE CASCADE), so the DELETE fails with a
+    // Bug: the handler only deletes the liaseQuery row directly. When the
+    // query has been executed, liaseQueryExecution rows exist with a FK to
+    // liaseQuery.id (no ON DELETE CASCADE), so the DELETE fails with a
     // foreign-key constraint violation.
-    const q = await createTestFinderQuery();
-    await runMediaFinderQuery(q); // creates a finderQueryExecution row
+    const q = await createTestLiaseQuery();
+    await runLiaseQuery(q); // creates a liaseQueryExecution row
 
     await deleteQueryHandler(makeDeleteEvent(q.id));
 
-    const found = await db.query.finderQuery.findFirst({
+    const found = await db.query.liaseQuery.findFirst({
       where: (r, { eq }) => eq(r.id, q.id),
     });
     expect(found).toBeUndefined();
@@ -495,7 +494,7 @@ describe("query form — clearing number fields", () => {
   it("clears a number field when it has been removed from the submitted request options", async () => {
     // 1. Create a query with count explicitly set to 5.
     const [row] = await db
-      .insert(dbSchema.finderQuery)
+      .insert(dbSchema.liaseQuery)
       .values({
         title: "Query with count",
         requestOptions: { ...TEST_REQUEST_WITH_COUNT, count: 5 },
@@ -519,11 +518,11 @@ describe("query form — clearing number fields", () => {
     expect(submitted).not.toHaveProperty("count");
 
     // 3. Parse and save — mirrors what the update endpoint does.
-    const parsed = await parseMediaFinderRequest(submitted);
+    const parsed = await parseLiaseRequest(submitted);
     await db
-      .update(dbSchema.finderQuery)
+      .update(dbSchema.liaseQuery)
       .set({ requestOptions: parsed, updatedAt: new Date() })
-      .where(eq(dbSchema.finderQuery.id, row.id));
+      .where(eq(dbSchema.liaseQuery.id, row.id));
 
     // 4. The saved query should not have count.
     const saved = await getQuery(row.id);

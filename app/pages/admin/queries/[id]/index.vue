@@ -8,11 +8,11 @@
 </template>
 
 <script setup lang="ts">
-import type { FinderQuery } from "@@/server/database/schema";
+import type { LiaseQuery } from "@@/server/database/schema";
 import type { RouteLocationNormalizedLoaded } from "vue-router";
 
 type MediaQueryFormData = Omit<
-  FinderQuery,
+  LiaseQuery,
   "requestOptions" | "createdAt" | "updatedAt"
 > & {
   requestOptions: Record<string, unknown>;

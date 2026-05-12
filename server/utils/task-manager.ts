@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import {
   type QueryExecutionTask,
   queryExecutionTaskSystem,
-} from "@@/server/lib/media-finder/execution-tasks";
+} from "@@/server/lib/liase/execution-tasks";
 import type { TaskEvent, TaskProvider } from "./task-provider";
 
 export type AnyTask = QueryExecutionTask;

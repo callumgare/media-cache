@@ -22,7 +22,7 @@ _PARSED_HOST="$(node -e "const u = new URL('${_BASE_DB_URL}'); u.pathname='/medi
 export DATABASE_URL="${_PARSED_HOST}"
 
 export ENABLE_TEST_API=true
-export MEDIA_FINDER_PLUGINS="${SCRIPT_DIR}/../unit/fixtures/test-plugin.ts"
+export LIASE_PLUGINS="${SCRIPT_DIR}/../unit/fixtures/test-plugin.ts"
 
 tsx -e "import('${SCRIPT_DIR}/../setup/global-setup.ts').then(mod => mod.setup()).then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1) })"
 

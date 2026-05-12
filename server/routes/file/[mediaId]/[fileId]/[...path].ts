@@ -7,7 +7,7 @@ import {
   sendWebResponse,
 } from "h3";
 import { replaceLast } from "~/lib/string";
-import { updateFileUrl } from "../../../../lib/media-finder/update-file-url";
+import { updateFileUrl } from "../../../../lib/liase/update-file-url";
 
 export default defineEventHandler(async (event) => {
   const { mediaId: mediaIdString = "", fileId: fileType = "" } =

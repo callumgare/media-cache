@@ -9,11 +9,11 @@ import type { QueryGroupCondition } from "@@/types/query-condition";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   TEST_REQUEST,
-  createTestFinderQuery,
+  createTestLiaseQuery,
   enqueueMedia,
   makeImageMedia,
   makeMedia,
-  runMediaFinderQuery,
+  runLiaseQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
@@ -26,7 +26,7 @@ async function queryMediaWhere(condition: QueryGroupCondition) {
     .select({
       id: dbSchema.cacheMedia.id,
       title: dbSchema.cacheMedia.title,
-      finderIds: dbSchema.cacheMedia.finderIds,
+      liaseIds: dbSchema.cacheMedia.liaseIds,
     })
     .from(dbSchema.cacheMedia)
     .where(whereClause);
@@ -45,13 +45,13 @@ function makeCondition(
 }
 
 async function seedMedia() {
-  // Seed via runMediaFinderQuery so groupIds etc are correctly populated
+  // Seed via runLiaseQuery so groupIds etc are correctly populated
   enqueueMedia([
     makeMedia({ id: "vid-a", title: "Video A", tags: ["cats"] }),
     makeMedia({ id: "vid-b", title: "Video B", tags: ["dogs"] }),
     makeImageMedia({ id: "img-a", title: "Image A", tags: ["cats", "dogs"] }),
     {
-      mediaFinderSource: "test-source",
+      liaseSource: "test-source",
       id: "vid-c",
       title: "Video C (audio)",
       tags: [],
@@ -66,7 +66,7 @@ async function seedMedia() {
       ],
     },
   ]);
-  await runMediaFinderQuery();
+  await runLiaseQuery();
 }
 
 async function getGroupId(name: string): Promise<number> {

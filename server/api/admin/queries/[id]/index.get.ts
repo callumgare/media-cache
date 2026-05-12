@@ -8,15 +8,15 @@ export default defineEventHandler(
     if (Number.isNaN(id)) {
       throw createError({ statusCode: 400, statusMessage: "Invalid query ID" });
     }
-    const mediaFinderQuery = await db.query.finderQuery.findFirst({
-      where: (finderQuery, { eq }) => eq(finderQuery.id, id),
+    const liaseQuery = await db.query.liaseQuery.findFirst({
+      where: (liaseQuery, { eq }) => eq(liaseQuery.id, id),
     });
-    if (!mediaFinderQuery) {
+    if (!liaseQuery) {
       throw createError({
         statusCode: 404,
         statusMessage: `Query with ID ${id} not found`,
       });
     }
-    return mediaFinderQuery;
+    return liaseQuery;
   },
 );

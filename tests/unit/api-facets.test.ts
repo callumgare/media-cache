@@ -12,11 +12,11 @@ import type {
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   TEST_REQUEST,
-  createTestFinderQuery,
+  createTestLiaseQuery,
   enqueueMedia,
   makeImageMedia,
   makeMedia,
-  runMediaFinderQuery,
+  runLiaseQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
@@ -66,7 +66,7 @@ async function seedMedia() {
     makeMedia({ id: "vid-b", title: "Video B", tags: ["dogs"] }),
     makeImageMedia({ id: "img-a", title: "Image A", tags: ["cats", "dogs"] }),
     {
-      mediaFinderSource: "test-source",
+      liaseSource: "test-source",
       id: "vid-c",
       title: "Video C (audio)",
       tags: [],
@@ -81,7 +81,7 @@ async function seedMedia() {
       ],
     },
   ]);
-  await runMediaFinderQuery();
+  await runLiaseQuery();
 }
 
 describe("/api/media-facets — source counts", () => {
@@ -90,7 +90,7 @@ describe("/api/media-facets — source counts", () => {
     const cond = makeSourceCondition();
     const counts = await fetchFieldCounts(cond, makeBody([cond]));
     expect(counts).toHaveLength(1);
-    expect(counts[0].finderSourceId).toBe("test-source");
+    expect(counts[0].liaseSourceId).toBe("test-source");
     expect(counts[0].count).toBe(4);
   });
 
@@ -160,7 +160,7 @@ describe("/api/media-facets — tag counts", () => {
   it("addedIfRemoved=0 when removing the tag adds no extra items", async () => {
     // Seed only media with cats, so removing cats doesn't expose new items
     enqueueMedia([makeMedia({ id: "only-cats", tags: ["cats"] })]);
-    await runMediaFinderQuery();
+    await runLiaseQuery();
 
     const catsId = await getGroupId("cats");
     const cond = makeTagCondition([catsId]);

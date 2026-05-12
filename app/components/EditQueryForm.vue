@@ -237,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import type { FinderQuery, QueryVariation } from "@@/server/database/schema";
+import type { LiaseQuery, QueryVariation } from "@@/server/database/schema";
 import { useUiState } from "@@/stores/ui";
 import { Copy, Download, Plus, Split } from "lucide-vue-next";
 import JsonInput from "./forms/JsonInput.vue";
@@ -257,7 +257,7 @@ type SchemaOption = {
 
 type FormData = Partial<
   Omit<
-    FinderQuery,
+    LiaseQuery,
     "requestOptions" | "createdAt" | "updatedAt" | "queryVariations"
   >
 > & {
@@ -270,7 +270,7 @@ type FormData = Partial<
 
 const props = defineProps<{
   mediaQuery?: Omit<
-    FinderQuery,
+    LiaseQuery,
     "requestOptions" | "createdAt" | "updatedAt"
   > & {
     requestOptions: Record<string, unknown>;
@@ -285,15 +285,20 @@ const toast = useToast();
 
 const uiState = useUiState();
 
-const { data: finderDetails, error: finderDetailsError } = await useFetch(
-  "/api/admin/finder-details",
+const { data: liaseDetails, error: liaseDetailsError } = await useFetch(
+  "/api/admin/liase-details",
+  { server: false },
 );
 
-if (finderDetailsError.value) {
-  throw finderDetailsError.value;
-}
+watch(liaseDetailsError, (error) => {
+  if (!error) return;
+  console.error("Error fetching liase details:", error);
+  throw liaseDetailsError.value;
+});
 
-const sources = Object.values(finderDetails.value?.sources || {});
+const sources = computed(() =>
+  Object.values(liaseDetails.value?.sources || {}),
+);
 
 const formValue = ref<FormData>(
   props.mediaQuery
@@ -332,11 +337,11 @@ const selectedSourceId = computed(() => {
 });
 
 const requestHandlers = computed(() => {
-  return finderDetails.value?.sources[selectedSourceId.value]?.requestHandlers;
+  return liaseDetails.value?.sources[selectedSourceId.value]?.requestHandlers;
 });
 
 const requestOptions = computed<SchemaOption[]>(() => {
-  const schema = finderDetails.value?.sources[
+  const schema = liaseDetails.value?.sources[
     selectedSourceId.value
   ]?.requestHandlers.find(
     (handler) => handler.id === formValue.value.requestOptions.queryType,

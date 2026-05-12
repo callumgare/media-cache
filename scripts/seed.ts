@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getMediaFinder } from "@@/server/lib/media-finder";
+import { getLiase } from "@@/server/lib/liase";
 import { faker } from "@faker-js/faker";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -9,7 +9,7 @@ import postgres from "postgres";
 import task from "tasuku";
 import * as schema from "../server/database/schema";
 
-const mediaFinder = await getMediaFinder();
+const liase = await getLiase();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATABASE_URL =
@@ -71,12 +71,12 @@ async function main() {
     });
 
     await task("Create sources", async () => {
-      const sourceNames = mediaFinder.sources.map((s) => s.id);
+      const sourceNames = liase.sources.map((s) => s.id);
       sourceRecords = await db
         .insert(schema.source)
         .values(
-          sourceNames.map((finderSourceId) => ({
-            finderSourceId,
+          sourceNames.map((liaseSourceId) => ({
+            liaseSourceId,
             updatedAt: new Date(),
           })),
         )
@@ -162,7 +162,7 @@ function buildSingleMedia(
   });
   const mediaTags = faker.helpers.arrayElements(tagGroups, { min: 2, max: 8 });
   const creator = faker.internet.username();
-  const finderMediaId = String(index);
+  const liaseMediaId = String(index);
 
   const views = faker.number.int({ min: 0, max: 5_000_000 });
   const likes = faker.number.int({ min: 0, max: 100_000 });
@@ -186,15 +186,15 @@ function buildSingleMedia(
   const uploadedAt = faker.date.past({ years: 3 });
 
   const files: InlineFile[] = [];
-  const finderSourceId = mediaSources[0]?.finderSourceId ?? "unknown";
+  const liaseSourceId = mediaSources[0]?.liaseSourceId ?? "unknown";
 
   if (hasVideo) {
     const vid = faker.helpers.arrayElement(sampleVideos);
     files.push({
       createdAt: now,
       updatedAt: now,
-      finderSourceId,
-      finderMediaId,
+      liaseSourceId,
+      liaseMediaId,
       type: "main",
       url: vid.url,
       ext: ".mp4",
@@ -216,8 +216,8 @@ function buildSingleMedia(
     files.push({
       createdAt: now,
       updatedAt: now,
-      finderSourceId,
-      finderMediaId,
+      liaseSourceId,
+      liaseMediaId,
       type: hasVideo ? "thumbnail" : "main",
       url: faker.image.url({ width: width ?? 800, height: height ?? 600 }),
       ext: ".jpg",
@@ -240,12 +240,12 @@ function buildSingleMedia(
     return {
       createdAt: now,
       updatedAt: now,
-      finderSourceId: src.finderSourceId,
-      finderMediaId,
+      liaseSourceId: src.liaseSourceId,
+      liaseMediaId,
       uploadedAt: uploadedAt,
       title,
       description,
-      url: `https://www.${src.finderSourceId}.com/watch?v=${finderMediaId}`,
+      url: `https://www.${src.liaseSourceId}.com/watch?v=${liaseMediaId}`,
       creator,
       uploader: creator,
       views,
@@ -262,8 +262,8 @@ function buildSingleMedia(
     description,
     creators: [creator],
     uploaders: [creator],
-    finderSourceIds: mediaSources.map((s) => s.finderSourceId),
-    finderIds: mediaSources.map((s) => `${s.finderSourceId}\t${finderMediaId}`),
+    liaseSourceIds: mediaSources.map((s) => s.liaseSourceId),
+    liaseIds: mediaSources.map((s) => `${s.liaseSourceId}\t${liaseMediaId}`),
     groupIds: mediaTags.map((g) => {
       if (g.parentId === null)
         throw new Error(

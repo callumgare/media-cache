@@ -1,4 +1,4 @@
-import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
+import type { QueryExecutionTask } from "@@/server/lib/liase/execution-tasks";
 import type { TaskEvent } from "@@/server/utils/task-provider";
 import type { ToastServiceMethods } from "primevue/toastservice";
 import superjson from "superjson";

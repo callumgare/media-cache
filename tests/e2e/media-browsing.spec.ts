@@ -1,5 +1,5 @@
+import type { GenericMedia } from "@liase/core";
 import { expect, test } from "@playwright/test";
-import type { GenericMedia } from "media-finder";
 import type PhotoSwipe from "photoswipe";
 import { collectConsoleProblems } from "./helpers";
 
@@ -18,7 +18,7 @@ declare global {
 function makeImageMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
   const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {
-    mediaFinderSource: "test-source",
+    liaseSource: "test-source",
     id,
     files: [
       {
@@ -123,7 +123,7 @@ test.describe("Browsing via media page grid", () => {
     await expect(items.first()).toBeVisible({ timeout: 15_000 });
     await expect(items).toHaveCount(3, { timeout: 15_000 });
 
-    // The sidebar source dropdown is populated from /api/admin/finder-details.
+    // The sidebar source dropdown is populated from /api/admin/liase-details.
     // Target it via the QueryBuilderInputBase label text so we don't confuse it
     // with the tags or type dropdowns.
     const sidebar = page.getByTestId("page-sidebar");
@@ -134,7 +134,7 @@ test.describe("Browsing via media page grid", () => {
     await sourceSelect.click();
 
     // The overlay is teleported to <body> by PrimeVue.
-    // Verify "Test Source" is present — this confirms finder-details returned sources.
+    // Verify "Test Source" is present — this confirms liase-details returned sources.
     const overlay = page.locator(".p-select-overlay");
     await expect(overlay).toBeVisible({ timeout: 5_000 });
     const testSourceOption = overlay.locator(".p-select-option", {

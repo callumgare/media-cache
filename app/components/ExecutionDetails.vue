@@ -13,7 +13,7 @@
         data-testid="progress-section"
       >
         <div class="progress-label">
-          <template v-if="latestTask.stage === 'fetching-media-finder-results'">
+          <template v-if="latestTask.stage === 'fetching-liase-results'">
             <template v-if="expectedPages > 0">
               Indexing page {{ latestTask.pageCount }} of ~{{ expectedPages }}
             </template>
@@ -22,7 +22,7 @@
             </template>
           </template>
           <template v-else-if="latestTask.stage === 'processing-added-or-updated'">
-            Processing {{ processedInAddOrUpdate }} of {{ latestTask.finderMediaFound !== -1 ? latestTask.finderMediaFound : '?' }}
+            Processing {{ processedInAddOrUpdate }} of {{ latestTask.liaseMediaFound !== -1 ? latestTask.liaseMediaFound : '?' }}
           </template>
           <template v-else-if="latestTask.stage === 'processing-removed'">
             Processing removed media…
@@ -46,51 +46,51 @@
       <div class="stats">
         <div class="groups">
           <Fieldset
-            v-if="hasFinderMediaStats"
+            v-if="hasLiaseMediaStats"
             :legend="`Query Results${latestTask.status === 'running' ? ' (so far)' : ''}`"
           >
             <div class="contents">
               <div
-                v-if="latestTask.finderMediaFound !== -1"
+                v-if="latestTask.liaseMediaFound !== -1"
                 class="stat"
               >
                 <span>Found</span>
-                <strong>{{ latestTask.finderMediaFound }}</strong>
+                <strong>{{ latestTask.liaseMediaFound }}</strong>
               </div>
               <div
-                v-if="latestTask.finderMediaNew !== -1"
+                v-if="latestTask.liaseMediaNew !== -1"
                 class="stat"
               >
                 <span>New</span>
-                <strong>{{ latestTask.finderMediaNew }}</strong>
+                <strong>{{ latestTask.liaseMediaNew }}</strong>
               </div>
               <div
-                v-if="latestTask.finderMediaUpdated !== -1"
+                v-if="latestTask.liaseMediaUpdated !== -1"
                 class="stat"
               >
                 <span>Updated</span>
-                <strong>{{ latestTask.finderMediaUpdated }}</strong>
+                <strong>{{ latestTask.liaseMediaUpdated }}</strong>
               </div>
               <div
-                v-if="latestTask.finderMediaRemoved !== -1"
+                v-if="latestTask.liaseMediaRemoved !== -1"
                 class="stat"
               >
                 <span>Removed</span>
-                <strong>{{ latestTask.finderMediaRemoved }}</strong>
+                <strong>{{ latestTask.liaseMediaRemoved }}</strong>
               </div>
               <div
-                v-if="latestTask.finderMediaNotSuitable !== -1"
+                v-if="latestTask.liaseMediaNotSuitable !== -1"
                 class="stat"
               >
                 <span>Not Suitable</span>
-                <strong>{{ latestTask.finderMediaNotSuitable }}</strong>
+                <strong>{{ latestTask.liaseMediaNotSuitable }}</strong>
               </div>
               <div
-                v-if="latestTask.finderMediaUnchanged !== -1"
+                v-if="latestTask.liaseMediaUnchanged !== -1"
                 class="stat"
               >
                 <span>Unchanged</span>
-                <strong>{{ latestTask.finderMediaUnchanged }}</strong>
+                <strong>{{ latestTask.liaseMediaUnchanged }}</strong>
               </div>
             </div>
           </Fieldset>
@@ -144,8 +144,8 @@
 </template>
 
 <script setup lang="ts">
-import type { QueryExecutionTask } from "@@/server/lib/media-finder/execution-tasks";
-import { formatStage, formatStatus } from "~/lib/finder-executions";
+import type { QueryExecutionTask } from "@@/server/lib/liase/execution-tasks";
+import { formatStage, formatStatus } from "~/lib/liase-executions";
 import "primeicons/primeicons.css";
 
 const props = defineProps<{
@@ -156,15 +156,15 @@ const props = defineProps<{
 const latestTask = computed(() => props.executions[0] ?? null);
 const previousTask = computed(() => props.executions[1] ?? null);
 
-const hasFinderMediaStats = computed(() => {
+const hasLiaseMediaStats = computed(() => {
   if (!latestTask.value) return false;
   return [
-    latestTask.value.finderMediaFound,
-    latestTask.value.finderMediaNew,
-    latestTask.value.finderMediaUpdated,
-    latestTask.value.finderMediaRemoved,
-    latestTask.value.finderMediaNotSuitable,
-    latestTask.value.finderMediaUnchanged,
+    latestTask.value.liaseMediaFound,
+    latestTask.value.liaseMediaNew,
+    latestTask.value.liaseMediaUpdated,
+    latestTask.value.liaseMediaRemoved,
+    latestTask.value.liaseMediaNotSuitable,
+    latestTask.value.liaseMediaUnchanged,
   ].some((stat) => stat !== -1);
 });
 const hasCacheMediaStats = computed(() => {
@@ -206,12 +206,12 @@ const expectedPages = computed(() => {
 
 const processedInAddOrUpdate = computed(() => {
   if (!latestTask.value) return 0;
-  const { finderMediaNew, finderMediaUpdated, finderMediaUnchanged } =
+  const { liaseMediaNew, liaseMediaUpdated, liaseMediaUnchanged } =
     latestTask.value;
   return (
-    (finderMediaNew !== -1 ? finderMediaNew : 0) +
-    (finderMediaUpdated !== -1 ? finderMediaUpdated : 0) +
-    (finderMediaUnchanged !== -1 ? finderMediaUnchanged : 0)
+    (liaseMediaNew !== -1 ? liaseMediaNew : 0) +
+    (liaseMediaUpdated !== -1 ? liaseMediaUpdated : 0) +
+    (liaseMediaUnchanged !== -1 ? liaseMediaUnchanged : 0)
   );
 });
 
@@ -233,7 +233,7 @@ const stageProgress = computed(() => {
 
   const stage = latestTask.value.stage;
 
-  if (stage === "fetching-media-finder-results") {
+  if (stage === "fetching-liase-results") {
     if (expectedPages.value > 0) {
       return {
         percent: Math.min(
@@ -247,7 +247,7 @@ const stageProgress = computed(() => {
   }
 
   if (stage === "processing-added-or-updated") {
-    const total = latestTask.value.finderMediaFound;
+    const total = latestTask.value.liaseMediaFound;
     if (total > 0) {
       return {
         percent: Math.min(

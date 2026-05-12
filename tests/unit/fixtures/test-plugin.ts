@@ -1,4 +1,4 @@
-import type { GenericMedia, Plugin } from "media-finder";
+import type { GenericMedia, Plugin } from "@liase/core";
 import { z } from "zod";
 
 declare global {
@@ -24,7 +24,8 @@ export default {
               queryType: z.string(),
               keyword: z.string().optional(),
             })
-            .strict(),
+            // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
+            .strict() as any,
           paginationType: "none" as const,
           responses: [
             {
@@ -33,7 +34,8 @@ export default {
                   media: z.array(z.any()),
                   request: z.any(),
                 })
-                .passthrough(),
+                // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
+                .passthrough() as any,
               constructor: {
                 media: async () => {
                   const delayMs = globalThis.__testPluginDelayMs ?? 0;
@@ -59,7 +61,8 @@ export default {
               queryType: z.string(),
               count: z.number().default(100),
             })
-            .strict(),
+            // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
+            .strict() as any,
           paginationType: "none" as const,
           responses: [
             {
@@ -68,7 +71,8 @@ export default {
                   media: z.array(z.any()),
                   request: z.any(),
                 })
-                .passthrough(),
+                // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
+                .passthrough() as any,
               constructor: {
                 media: async () => {
                   const delayMs = globalThis.__testPluginDelayMs ?? 0;
@@ -92,7 +96,8 @@ export default {
               source: z.string(),
               queryType: z.string(),
             })
-            .strict(),
+            // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
+            .strict() as any,
           paginationType: "none" as const,
           responses: [
             {
@@ -101,7 +106,8 @@ export default {
                   media: z.array(z.any()),
                   request: z.any(),
                 })
-                .passthrough(),
+                // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 type compatibility
+                .passthrough() as any,
               constructor: {
                 media: async () => {
                   const delayMs = globalThis.__testPluginDelayMs ?? 0;

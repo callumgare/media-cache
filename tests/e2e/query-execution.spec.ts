@@ -1,5 +1,5 @@
+import type { GenericMedia } from "@liase/core";
 import { expect, test } from "@playwright/test";
-import type { GenericMedia } from "media-finder";
 import { collectConsoleProblems } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -9,7 +9,7 @@ import { collectConsoleProblems } from "./helpers";
 function makeMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
   const id = overrides.id ?? Math.random().toString(36).slice(2);
   return {
-    mediaFinderSource: "test-source",
+    liaseSource: "test-source",
     id,
     files: [
       {

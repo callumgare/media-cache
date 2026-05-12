@@ -97,7 +97,7 @@ export default defineEventHandler(
             .map((id) => groupNameById.get(id))
             .filter((name): name is string => name !== undefined),
           sourceDetails: (media.sources ?? []).map((src) => ({
-            sourceName: src.finderSourceId,
+            sourceName: src.liaseSourceId,
             title: src.title ?? null,
             url: src.url ?? null,
             creator: src.creator ?? null,

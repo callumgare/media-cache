@@ -1,5 +1,5 @@
 import type { QueryVariation } from "@@/server/database/schema";
-import type { GenericRequest } from "media-finder";
+import type { GenericRequest } from "@liase/core";
 
 export type QueryListResponse = Array<{
   id: number;

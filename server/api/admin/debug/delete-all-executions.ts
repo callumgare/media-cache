@@ -6,14 +6,14 @@ export default defineEventHandler(async (event) => {
 
   (async () => {
     try {
-      await eventStream.push("Deleting finderQueryMedia");
-      await db.delete(dbSchema.finderQueryMedia);
-      eventStream.push("Deleting finderQueryMediaContent");
-      await db.delete(dbSchema.finderQueryMediaContent);
-      await eventStream.push("Deleting finderQueryExecutionLog");
-      await db.delete(dbSchema.finderQueryExecutionLog);
-      await eventStream.push("Deleting finderQueryExecution");
-      await db.delete(dbSchema.finderQueryExecution);
+      await eventStream.push("Deleting liaseQueryMedia");
+      await db.delete(dbSchema.liaseQueryMedia);
+      eventStream.push("Deleting liaseQueryMediaContent");
+      await db.delete(dbSchema.liaseQueryMediaContent);
+      await eventStream.push("Deleting liaseQueryExecutionLog");
+      await db.delete(dbSchema.liaseQueryExecutionLog);
+      await eventStream.push("Deleting liaseQueryExecution");
+      await db.delete(dbSchema.liaseQueryExecution);
       await eventStream.push("done");
       await eventStream.flush();
       await eventStream.close();

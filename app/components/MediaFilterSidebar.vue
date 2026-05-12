@@ -28,13 +28,13 @@ function findFieldCounts(
   return [];
 }
 
-const { data: finderDetails, error: finderDetailsError } = await useFetch(
-  "/api/admin/finder-details",
+const { data: liaseDetails, error: liaseDetailsError } = await useFetch(
+  "/api/admin/liase-details",
   { server: false },
 );
-watch(finderDetailsError, (error) => {
+watch(liaseDetailsError, (error) => {
   if (!error) return;
-  console.error("Error fetching finder details:", error);
+  console.error("Error fetching liase details:", error);
   throw createError({
     statusCode: 500,
     message: "Internal Server Error",
@@ -42,7 +42,7 @@ watch(finderDetailsError, (error) => {
   });
 });
 const sources = computed(() =>
-  Object.values(finderDetails.value?.sources || {}),
+  Object.values(liaseDetails.value?.sources || {}),
 );
 
 const mediaQuery = useMediaQuery();
@@ -83,7 +83,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
           count: facets.value
             ? ((
                 findFieldCounts(facets.value, "source") as SourceFacetCount[]
-              ).find((f) => f.finderSourceId === s.id)?.count ?? 0)
+              ).find((f) => f.liaseSourceId === s.id)?.count ?? 0)
             : null,
         }))
         .sort(
@@ -95,7 +95,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       id: "tags",
       displayName: "Tags",
       type: "list of text",
-      availableOptions: (finderDetails.value?.tags || [])
+      availableOptions: (liaseDetails.value?.tags || [])
         .map((g) => {
           const facet = (
             findFieldCounts(facets.value, "tags") as TagFacetCount[]

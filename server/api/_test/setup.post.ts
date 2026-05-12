@@ -1,6 +1,6 @@
-import { queryExecutionTaskSystem } from "@@/server/lib/media-finder/execution-tasks";
+import { queryExecutionTaskSystem } from "@@/server/lib/liase/execution-tasks";
+import type { GenericMedia } from "@liase/core";
 import { sql } from "drizzle-orm";
-import type { GenericMedia } from "media-finder";
 
 declare global {
   var __testPluginQueue: Array<GenericMedia[]>;
@@ -26,11 +26,11 @@ export default defineEventHandler(async (event) => {
   const truncate = () =>
     db.execute(sql`
     TRUNCATE TABLE
-      finder_query_media,
-      finder_query_media_content,
-      finder_query_execution,
-      finder_query_execution_log,
-      finder_query,
+      liase_query_media,
+      liase_query_media_content,
+      liase_query_execution,
+      liase_query_execution_log,
+      liase_query,
       deleted_cache_media,
       cache_media,
       "group",

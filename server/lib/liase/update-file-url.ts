@@ -1,7 +1,7 @@
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { eq } from "drizzle-orm";
-import { getMediaQuery } from "../media-finder";
-import { finderFileToCacheFile } from "./shared";
+import { getLiaseQuery } from "../liase";
+import { liaseFileToCacheFile } from "./shared";
 
 type InlineFile = NonNullable<dbSchema.CacheMedia["files"]>[number];
 
@@ -15,7 +15,7 @@ export async function updateFileUrl({
   if (!file.urlRefreshDetails) {
     throw Error("File has no urlRefreshDetails");
   }
-  const mediaQuery = await getMediaQuery({
+  const mediaQuery = await getLiaseQuery({
     request: file.urlRefreshDetails,
     queryOptions: {
       fetchCountLimit: 3,
@@ -37,8 +37,8 @@ export async function updateFileUrl({
 
   const updatedFiles = (cacheMedia.files ?? []).map((f) => {
     if (
-      f.finderSourceId !== file.finderSourceId ||
-      f.finderMediaId !== file.finderMediaId ||
+      f.liaseSourceId !== file.liaseSourceId ||
+      f.liaseMediaId !== file.liaseMediaId ||
       f.type !== file.type
     ) {
       return f;
@@ -46,13 +46,13 @@ export async function updateFileUrl({
 
     for (const media of response?.media || []) {
       if (
-        media.id !== file.finderMediaId ||
-        media.mediaFinderSource !== file.finderSourceId
+        media.id !== file.liaseMediaId ||
+        media.liaseSource !== file.liaseSourceId
       )
         continue;
-      for (const finderFile of media.files) {
-        if (finderFile.type !== file.type) continue;
-        const refreshed = finderFileToCacheFile(finderFile);
+      for (const liaseFile of media.files) {
+        if (liaseFile.type !== file.type) continue;
+        const refreshed = liaseFileToCacheFile(liaseFile);
         newUrl = refreshed.url;
         return {
           ...f,
@@ -69,7 +69,7 @@ export async function updateFileUrl({
 
   if (!newUrl) {
     throw Error(
-      `Returned media did not contain expected file of type "${file.type}" for media ID ${file.finderMediaId}`,
+      `Returned media did not contain expected file of type "${file.type}" for media ID ${file.liaseMediaId}`,
     );
   }
 

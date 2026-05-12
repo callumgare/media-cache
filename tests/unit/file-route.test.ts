@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   enqueueMedia,
   makeMedia,
-  runMediaFinderQuery,
+  runLiaseQuery,
   truncateAll,
 } from "./fixtures/helpers";
 
@@ -26,7 +26,7 @@ function makeEvent(path: string, params: Record<string, string>) {
 
 async function seedMediaAndGetId(): Promise<number> {
   enqueueMedia([makeMedia({ id: "test-media" })]);
-  await runMediaFinderQuery();
+  await runLiaseQuery();
   const row = await db.query.cacheMedia.findFirst();
   if (!row) throw new Error("No media seeded");
   return row.id;
@@ -117,8 +117,8 @@ describe("file route handler", () => {
 describe("File URL Refresh Validation", () => {
   it("should throw descriptive error when file type not found", () => {
     const fileType = "main";
-    const finderMediaId = "media-123";
-    const expectedErrorMessage = `Returned media did not contain expected file of type "${fileType}" for media ID ${finderMediaId}`;
+    const liaseMediaId = "media-123";
+    const expectedErrorMessage = `Returned media did not contain expected file of type "${fileType}" for media ID ${liaseMediaId}`;
 
     expect(expectedErrorMessage).toContain("file of type");
     expect(expectedErrorMessage).toContain("media ID");

@@ -58,7 +58,7 @@ function _buildStandardWhere(condition: QueryCondition): SQL | null {
   const { field, value, operator } = condition;
   if (field === "source") {
     if (operator === "equals") {
-      return sql`${dbSchema.cacheMedia.finderSourceIds} @> ARRAY[${value}]::text[]`;
+      return sql`${dbSchema.cacheMedia.liaseSourceIds} @> ARRAY[${value}]::text[]`;
     }
     throw Error(`Unknown operator for source field: ${operator}`);
   }
@@ -163,7 +163,7 @@ function _buildBM25FieldParts(condition: QueryFieldCondition): {
     if (operator === "equals") {
       if (!value) return { bm25Sql: null, regularSql: null };
       return {
-        bm25Sql: sql`${dbSchema.cacheMedia.finderSourceIds} === ${value}`,
+        bm25Sql: sql`${dbSchema.cacheMedia.liaseSourceIds} === ${value}`,
         regularSql: null,
       };
     }

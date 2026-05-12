@@ -8,8 +8,8 @@ export default defineEventHandler(async (event) => {
     try {
       await eventStream.push("Deleting cacheMedia");
       await db.delete(dbSchema.cacheMedia);
-      await eventStream.push("Deleting finderQueryMedia");
-      await db.delete(dbSchema.finderQueryMedia);
+      await eventStream.push("Deleting liaseQueryMedia");
+      await db.delete(dbSchema.liaseQueryMedia);
       await eventStream.push("Deleting group");
       await db.delete(dbSchema.group);
       await eventStream.push("Deleting source");

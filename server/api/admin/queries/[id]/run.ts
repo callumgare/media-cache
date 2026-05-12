@@ -1,4 +1,4 @@
-import { startFinderQueryExecution } from "@@/server/lib/media-finder/run-query";
+import { startLiaseQueryExecution } from "@@/server/lib/liase/run-query";
 import { createError } from "h3";
 
 export default defineEventHandler(async (event) => {
@@ -7,15 +7,15 @@ export default defineEventHandler(async (event) => {
   if (Number.isNaN(id)) {
     throw createError({ statusCode: 400, statusMessage: "Invalid query ID" });
   }
-  const mediaFinderQuery = await db.query.finderQuery.findFirst({
-    where: (finderQuery, { eq }) => eq(finderQuery.id, id),
+  const liaseQuery = await db.query.liaseQuery.findFirst({
+    where: (liaseQuery, { eq }) => eq(liaseQuery.id, id),
   });
-  if (!mediaFinderQuery) {
+  if (!liaseQuery) {
     throw createError({
       statusCode: 404,
       statusMessage: `Query with ID ${id} not found`,
     });
   }
-  const { execution } = await startFinderQueryExecution(mediaFinderQuery);
+  const { execution } = await startLiaseQueryExecution(liaseQuery);
   return execution;
 });

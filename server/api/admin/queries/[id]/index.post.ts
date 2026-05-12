@@ -1,19 +1,19 @@
-import { parseMediaFinderRequest } from "@@/server/lib/media-finder/parse-request";
+import { parseLiaseRequest } from "@@/server/lib/liase/parse-request";
 import { eq } from "drizzle-orm";
 
 export default defineEventHandler(async (event) => {
   const { requestOptions, queryVariations, createdAt, updatedAt, ...other } =
     await readBody(event);
 
-  const mediaFinderQuery = await db
-    .update(dbSchema.finderQuery)
+  const liaseQuery = await db
+    .update(dbSchema.liaseQuery)
     .set({
       ...other,
-      requestOptions: await parseMediaFinderRequest(requestOptions),
+      requestOptions: await parseLiaseRequest(requestOptions),
       queryVariations: queryVariations ?? null,
       updatedAt: new Date(),
     })
-    .where(eq(dbSchema.finderQuery.id, other.id))
-    .returning({ id: dbSchema.finderQuery.id });
-  return mediaFinderQuery;
+    .where(eq(dbSchema.liaseQuery.id, other.id))
+    .returning({ id: dbSchema.liaseQuery.id });
+  return liaseQuery;
 });

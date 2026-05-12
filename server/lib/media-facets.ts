@@ -80,12 +80,12 @@ export async function fetchFieldCounts(
     const [row] = await db.execute<{
       agg: { buckets: Array<{ key: string; doc_count: number }> };
     }>(sql`
-      SELECT pdb.agg('{"terms": {"field": "finder_source_ids", "size": 500}}') AS agg
+      SELECT pdb.agg('{"terms": {"field": "liase_source_ids", "size": 500}}') AS agg
       FROM cache_media
       WHERE ${where}
     `);
     return (row?.agg?.buckets ?? []).map(
-      (b): SourceFacetCount => ({ finderSourceId: b.key, count: b.doc_count }),
+      (b): SourceFacetCount => ({ liaseSourceId: b.key, count: b.doc_count }),
     );
   }
 

@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { updateFileUrl } from "@@/server/lib/media-finder/update-file-url";
+import { updateFileUrl } from "@@/server/lib/liase/update-file-url";
 import { getPosterOfFile } from "@@/server/lib/transcoding/poster";
 import { createError } from "h3";
 

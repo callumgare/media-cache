@@ -1,7 +1,7 @@
-import type { GenericRequest } from "media-finder";
-import { getMediaFinder } from ".";
+import type { GenericRequest } from "@liase/core";
+import { getLiase } from ".";
 
-export async function parseMediaFinderRequest(
+export async function parseLiaseRequest(
   data: unknown,
 ): Promise<GenericRequest> {
   // Ensure it's an object (not an array, not null)
@@ -21,9 +21,9 @@ export async function parseMediaFinderRequest(
   const source = data.source;
   const queryType = data.queryType;
 
-  // Get MediaFinder instance and validate source/queryType exist
-  const mediaFinder = await getMediaFinder();
-  const handler = mediaFinder.getRequestHandler(source, queryType);
+  // Get Liase instance and validate source/queryType exist
+  const liase = await getLiase();
+  const handler = liase.getRequestHandler(source, queryType);
 
   // Validate against the handler's request schema, then drop any keys that
   // Zod added via defaults but were not present in the original input.
