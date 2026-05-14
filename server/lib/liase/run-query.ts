@@ -78,6 +78,11 @@ export async function startLiaseQueryExecution(
     if (savedLiaseQuery.fetchCountLimitPerVariation) {
       // Limit applies independently to each variation request
       liaseQueryOptions.fetchCountLimit = savedLiaseQuery.fetchCountLimit;
+    } else {
+      // If we have a global limit make sure our per-request limit is high enough that a single query variation could
+      // potentially make up the entire limit
+      liaseQueryOptions.fetchCountLimit =
+        savedLiaseQuery.fetchCountLimit * liaseRequests.length;
     }
     // else: limit applies across all variation requests combined — enforced
     // ourselves in the response loop via globalFetchLimit; no per-request cap.
