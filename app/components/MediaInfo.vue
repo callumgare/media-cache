@@ -21,6 +21,10 @@
           {{ paragraph }}
         </p>
       </div>
+      <dl class="fields">
+        <dt>ID</dt>
+        <dd>{{ media.id }}</dd>
+      </dl>
 
       <!-- Tags -->
       <div

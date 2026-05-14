@@ -67,6 +67,16 @@ export class PhotoSwipeCustomVideoPlugin {
         video.poster = String(posterSrc);
       }
 
+      video.addEventListener("loadedmetadata", () => {
+        const hasAudio =
+          ((video as unknown as { audioTracks?: { length: number } })
+            .audioTracks?.length ?? 0) > 0;
+        const loopThreshold = hasAudio ? 5 : 10;
+        if (video.duration < loopThreshold) {
+          video.loop = true;
+        }
+      });
+
       skin.appendChild(video);
       player.appendChild(skin);
       wrapper.appendChild(player);
