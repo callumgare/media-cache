@@ -72,7 +72,7 @@ test.describe("Query execution feedback", () => {
 
     // Initially the status column should show a skeleton (tasks not yet loaded)
     const skeleton = page.locator(".p-skeleton").first();
-    await expect(skeleton).toBeVisible();
+    await expect(skeleton).toBeVisible({ timeout: 5_000 });
 
     // Once tasks have loaded the skeleton goes away and "Never run" appears
     const badge = page.getByTestId("status-badge").first();

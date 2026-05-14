@@ -158,8 +158,10 @@ test.describe("Video player in lightbox", () => {
     const videoSkin = pswp.locator("video-minimal-skin");
     await expect(videoSkin).toBeAttached({ timeout: 5_000 });
 
-    // Wait for the opening animation to finish
-    await page.waitForTimeout(300);
+    // Wait for the opening animation to finish (same signal used by the arrow-key / backdrop tests)
+    await page.waitForFunction(() => !!window.pswp?.opener?.isOpen, {
+      timeout: 5_000,
+    });
 
     const skinBox = await videoSkin.boundingBox();
     expect(

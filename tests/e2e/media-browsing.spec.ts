@@ -207,7 +207,9 @@ test.describe("Browsing via media page grid", () => {
       // Release the request and wait for loading to settle
       release();
       await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 });
-      await page.waitForTimeout(500);
+      // Wait to confirm auto-fill does not immediately trigger a second load.
+      // 2 s gives the infinite-scroll observer enough time to fire on slow CI.
+      await page.waitForTimeout(2_000);
       await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 });
 
       const count = await items.count();
@@ -231,7 +233,8 @@ test.describe("Browsing via media page grid", () => {
       await expect(loadingIndicator).toBeVisible({ timeout: 15_000 });
       releaseFirst();
       await expect(loadingIndicator).not.toBeVisible({ timeout: 10_000 });
-      await page.waitForTimeout(500);
+      // Wait for the page to settle before scrolling; 2 s is enough on slow CI.
+      await page.waitForTimeout(2_000);
       await expect(loadingIndicator).not.toBeVisible({ timeout: 5_000 });
 
       await expect(items).toHaveCount(10, { timeout: 5_000 });
