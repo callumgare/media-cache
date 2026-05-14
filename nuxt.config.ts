@@ -13,6 +13,11 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   compatibilityDate: "2024-04-03",
   vite: {
+    server: {
+      warmup: {
+        clientFiles: ["./app/**/*.vue", "./app/**/*.ts"],
+      },
+    },
     optimizeDeps: {
       include: [
         "@vue/devtools-core",

@@ -593,10 +593,7 @@ async function handleValidateClick() {
         },
       });
       toast.add({ severity: "success", summary: "Created", life: 3000 });
-      await navigateTo("/admin/queries");
-      setTimeout(() => {
-        location.hash = `#query-${mediaQuery?.id}`;
-      }, 200);
+      await navigateTo(`/admin/queries#query-${mediaQuery?.id}`);
     } else {
       await $fetch(`/api/admin/queries/${formattedFormValue.value.id}`, {
         method: "POST",
@@ -607,10 +604,7 @@ async function handleValidateClick() {
         },
       });
       toast.add({ severity: "success", summary: "Updated", life: 6000 });
-      await navigateTo("/admin/queries");
-      setTimeout(() => {
-        location.hash = `#query-${formattedFormValue.value.id}`;
-      }, 200);
+      await navigateTo(`/admin/queries#query-${formattedFormValue.value.id}`);
     }
   } catch (error) {
     console.error(error);

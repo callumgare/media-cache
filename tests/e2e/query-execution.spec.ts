@@ -137,8 +137,10 @@ test.describe("Query execution feedback", () => {
 
     await page.getByRole("button", { name: "Save" }).click();
 
-    // Save navigates back to the query list
-    await expect(page).toHaveURL("/admin/queries", { timeout: 10_000 });
+    // Save navigates back to the query list (URL includes a #query-N anchor)
+    await expect(page).toHaveURL(/\/admin\/queries(#[^?]*)?$/, {
+      timeout: 10_000,
+    });
 
     // --- Step 4: confirm the updated keyword is visible in the Request Options column ---
     const row = page.locator(`#query-${id}`);
