@@ -22,7 +22,6 @@ export default defineNuxtConfig({
         "photoswipe/lightbox",
         "photoswipe",
         "hls.js",
-        "photoswipe-video-plugin",
         "@vueuse/gesture",
         "@vueuse/motion",
         "superjson",

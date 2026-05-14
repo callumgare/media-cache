@@ -2,6 +2,7 @@
 import PhotoSwipe from "photoswipe";
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 import "photoswipe/style.css";
+import "@videojs/html/video/minimal-skin.css";
 import { useUiState } from "@@/stores/ui";
 import { PhotoSwipeCustomVideoPlugin } from "~/lib/photo-swipe/plugins/custom-video";
 import { PhotoSwipeCustomZoomPlugin } from "~/lib/photo-swipe/plugins/custom-zoom";
@@ -139,5 +140,10 @@ const { currentMedia, panelEl } = useInfoPanel();
 <style scoped>
 .info-panel-contents {
   padding-bottom: 1rem;
+}
+</style>
+<style>
+video-player {
+  --media-border-radius: 0;
 }
 </style>

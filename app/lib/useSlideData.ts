@@ -77,6 +77,14 @@ export default function (medias: ComputedRef<z.infer<typeof APIMedia>[]>) {
             msrc:
               getSrc(file) !== posterSrc.value ? posterSrc.value : undefined,
             mediaData: media,
+            // Provide dimensions so PhotoSwipe can calculate the correct fit
+            // zoom level and center the content via its zoom-wrap transform.
+            // Without these, PhotoSwipe passes full viewport dimensions to
+            // contentResize and the SizeOnLoadPlugin applies a position:fixed
+            // CSS fallback that fights with explicit sizing.
+            ...(file.width != null && file.height != null
+              ? { width: file.width, height: file.height }
+              : {}),
           };
           cachedSlideData[media.id] = newSlide;
           return newSlide;
