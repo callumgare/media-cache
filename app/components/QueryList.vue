@@ -105,8 +105,10 @@
       </span>
       <ExecutionDetails
         v-else
-        :fetch-count-limit="slotProps.data.fetchCountLimit"
         :executions="executionsForQuery(slotProps.data.id)"
+        :fetch-count-limit="slotProps.data.fetchCountLimit"
+        :limit-per-query-variation="slotProps.data.fetchCountLimitPerVariation"
+        :query-variations="slotProps.data.queryVariations ?? null"
       />
     </template>
   </DataTable>

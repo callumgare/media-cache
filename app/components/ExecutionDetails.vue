@@ -14,15 +14,15 @@
       >
         <div class="progress-label">
           <template v-if="latestTask.stage === 'fetching-liase-results'">
-            <template v-if="expectedPages > 0">
-              Indexing page {{ latestTask.pageCount }} of ~{{ expectedPages }}
+            <template v-if="expectedPages.number > 0">
+              Indexing page {{ latestTask.pageCount }} of {{ expectedPages.formattedNumber }}
             </template>
             <template v-else>
               Running… ({{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }})
             </template>
           </template>
           <template v-else-if="latestTask.stage === 'processing-added-or-updated'">
-            Processing {{ processedInAddOrUpdate }} of {{ latestTask.liaseMediaFound !== -1 ? latestTask.liaseMediaFound : '?' }}
+            Processing {{ processedInAddOrUpdate }} new or updated of {{ latestTask.liaseMediaFound !== -1 ? latestTask.liaseMediaFound : '?' }}
           </template>
           <template v-else-if="latestTask.stage === 'processing-removed'">
             Processing removed media…
@@ -149,8 +149,10 @@ import { formatStage, formatStatus } from "~/lib/liase-executions";
 import "primeicons/primeicons.css";
 
 const props = defineProps<{
-  fetchCountLimit: number | null;
   executions: QueryExecutionTask[];
+  fetchCountLimit: number | null;
+  limitPerQueryVariation: boolean | null;
+  queryVariations: import("@@/server/database/schema").QueryVariation[] | null;
 }>();
 
 const latestTask = computed(() => props.executions[0] ?? null);
@@ -190,18 +192,46 @@ const statusIcon = computed<string[]>(() => {
   return [];
 });
 
+// The number of expanded query requests: sum of cartesian-product sizes across variations
+// (mirrors expandAllVariations in run-query.ts). Falls back to 1 when there are no variations.
+const expandedVariationCount = computed(() => {
+  const variations = props.queryVariations;
+  if (!variations || variations.length === 0) return 1;
+  return variations.reduce((sum, variation) => {
+    const entries = Object.values(variation.fieldOverrides).filter(
+      (values) => values.length > 0,
+    );
+    const cartesianSize = entries.reduce(
+      (product, values) => product * values.length,
+      1,
+    );
+    return sum + cartesianSize;
+  }, 0);
+});
+
 // Denominator for the progress bar when a query is running.
 // Use the last run's pageCount, but fall back to fetchCountLimit if the current run
 // substantially exceeds it (>1.5x), and fall back to 0 (indeterminate) if neither is available.
 const expectedPages = computed(() => {
-  if (!latestTask.value) return 0;
+  if (!latestTask.value) return { number: 0, formattedNumber: "unknown" };
   const prev = previousTask.value?.pageCount ?? -1;
-  const limit = props.fetchCountLimit ?? 0;
-  if (prev > 0) {
-    if (latestTask.value.pageCount <= prev * 1.5) return prev;
-    return limit > 0 ? limit : 0;
+  const limit =
+    props.fetchCountLimit !== null
+      ? props.fetchCountLimit *
+        (props.limitPerQueryVariation ? expandedVariationCount.value : 1)
+      : null;
+  const formattedLimit = limit !== null ? `max ${limit}` : "";
+  if (prev > 0 && latestTask.value.pageCount <= prev * 1.5) {
+    return {
+      number: prev,
+      formattedNumber: `~${prev}${formattedLimit ? ` (${formattedLimit})` : ""}`,
+    };
   }
-  return limit > 0 ? limit : 0;
+  const normalisedLimit = typeof limit === "number" && limit > 0 ? limit : 0;
+  return {
+    number: normalisedLimit,
+    formattedNumber: formattedLimit || "unknown",
+  };
 });
 
 const processedInAddOrUpdate = computed(() => {
@@ -234,11 +264,13 @@ const stageProgress = computed(() => {
   const stage = latestTask.value.stage;
 
   if (stage === "fetching-liase-results") {
-    if (expectedPages.value > 0) {
+    if (expectedPages.value.number > 0) {
       return {
         percent: Math.min(
           55,
-          Math.round((latestTask.value.pageCount / expectedPages.value) * 55),
+          Math.round(
+            (latestTask.value.pageCount / expectedPages.value.number) * 55,
+          ),
         ),
         mode: "determinate" as const,
       };
