@@ -67,10 +67,18 @@ export class PhotoSwipeCustomVideoPlugin {
         video.poster = String(posterSrc);
       }
 
+      // Prefer the server-supplied hasAudio flag from the media API; fall back
+      // to the audioTracks browser API if the slide data doesn't include it.
+      const mediaFile = (
+        content.data.mediaData?.files as
+          | import("@@/types/api-media").APIMediaData["files"]
+          | undefined
+      )?.find((f) => f.hasVideo && f.ext !== "gif");
+      const hasAudioFromMetadata = mediaFile?.hasAudio ?? null;
+
       video.addEventListener("loadedmetadata", () => {
         const hasAudio =
-          ((video as unknown as { audioTracks?: { length: number } })
-            .audioTracks?.length ?? 0) > 0;
+          hasAudioFromMetadata ?? (video.audioTracks?.length ?? 0) > 0;
         const loopThreshold = hasAudio ? 5 : 10;
         if (video.duration < loopThreshold) {
           video.loop = true;

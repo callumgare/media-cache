@@ -84,6 +84,9 @@ const {
   initialPageParam: 1,
   getNextPageParam: (page) => (page.media.length ? page.page + 1 : null),
   getPreviousPageParam: (page) => page.page - 1,
+  // Don't fetch until after mount so the initial client state matches the
+  // server-rendered HTML (both empty), preventing Vue hydration mismatches.
+  enabled: isMounted,
 });
 
 const scrollContainer = ref<HTMLElement | null>(null);
