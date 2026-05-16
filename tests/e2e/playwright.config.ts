@@ -8,7 +8,7 @@ const runTestServerPath = resolve(import.meta.dirname, "run-test-server.sh");
 // Find free port to use for the test server. The port is persisted in
 // process.env so that worker processes (which re-evaluate this file) reuse the
 // same value that the main process already bound the server to.
-if (!process.env.WEB_SERVER_PORT) {
+if (!process.env.WEB_SERVER_BASE_URL) {
   const port = await new Promise<number>((resolve) => {
     const server = createServer();
     server.listen(0, () => {
@@ -16,11 +16,9 @@ if (!process.env.WEB_SERVER_PORT) {
       server.close(() => resolve(port));
     });
   });
-  process.env.WEB_SERVER_PORT = String(port);
+  process.env.WEB_SERVER_BASE_URL = `http://127.0.0.1:${port}`;
 }
-const webServerPort = Number(process.env.WEB_SERVER_PORT);
-
-const webServerURL = `http://127.0.0.1:${webServerPort}`;
+const webServerURL = process.env.WEB_SERVER_BASE_URL;
 
 console.log(`Test web server will be available at: ${webServerURL}`);
 
@@ -35,10 +33,12 @@ export default defineConfig({
   webServer: {
     command: runTestServerPath,
     url: webServerURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: process.env.CI ? 300_000 : 120_000,
+    reuseExistingServer: true,
+    timeout: 30_000,
+    stdout: process.env.CI ? "pipe" : "ignore",
     env: {
-      PORT: String(webServerPort),
+      PORT: String(new URL(webServerURL).port),
+      HOST: new URL(webServerURL).hostname,
     },
   },
   projects: [
