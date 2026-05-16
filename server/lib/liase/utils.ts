@@ -75,7 +75,7 @@ export async function createExecutionLogEntry({
   return log;
 }
 
-export async function createLiaseQueryMedia({
+export async function createOrUpdateLiaseQueryMedia({
   dbTx,
   liaseMedia,
   liaseQueryExecution,
@@ -90,15 +90,26 @@ export async function createLiaseQueryMedia({
     .values({
       updatedAt: new Date(),
       liaseId: getIdFromLiaseMedia(liaseMedia),
-      queryExecutionId: liaseQueryExecution.id,
+      foundInLatestExecution: true,
+      queryExecutionIdCreatedOn: liaseQueryExecution.id,
       queryId: liaseQueryExecution.queryId,
       contentHash,
+    })
+    .onConflictDoUpdate({
+      target: [
+        dbSchema.liaseQueryMedia.contentHash,
+        dbSchema.liaseQueryMedia.queryId,
+      ],
+      set: {
+        updatedAt: new Date(),
+        foundInLatestExecution: true,
+      },
     })
     .returning()
     .then((result) => result[0]);
 }
 
-export async function createLiaseQueryMediaContent({
+export async function ensureLiaseQueryMediaContentExists({
   dbTx,
   liaseMedia,
 }: {
@@ -339,7 +350,10 @@ export async function createOrUpdateCacheMedia({
         ),
       )
       .where(
-        sql`${dbSchema.liaseQueryMedia.liaseId} = ANY(ARRAY[${cacheMediaLiaseIds}])`,
+        and(
+          sql`${dbSchema.liaseQueryMedia.liaseId} = ANY(ARRAY[${cacheMediaLiaseIds}])`,
+          eq(dbSchema.liaseQueryMedia.foundInLatestExecution, true),
+        ),
       )
       .orderBy(
         // DISTINCT ON requires ORDER BY to start with the same columns.
@@ -508,27 +522,15 @@ export async function deleteCacheMediaEntry({
 
 export async function deleteOldLiaseQueryMedia({
   queryId,
-  currentExecutionId,
 }: {
   queryId: number;
-  currentExecutionId: number;
 }): Promise<void> {
-  const oldExecutions = await db
-    .select({ id: dbSchema.liaseQueryExecution.id })
-    .from(dbSchema.liaseQueryExecution)
+  await db
+    .delete(dbSchema.liaseQueryMedia)
     .where(
       and(
-        eq(dbSchema.liaseQueryExecution.queryId, queryId),
-        ne(dbSchema.liaseQueryExecution.id, currentExecutionId),
+        eq(dbSchema.liaseQueryMedia.queryId, queryId),
+        eq(dbSchema.liaseQueryMedia.foundInLatestExecution, false),
       ),
     );
-
-  if (oldExecutions.length === 0) return;
-
-  await db.delete(dbSchema.liaseQueryMedia).where(
-    inArray(
-      dbSchema.liaseQueryMedia.queryExecutionId,
-      oldExecutions.map((r) => r.id),
-    ),
-  );
 }

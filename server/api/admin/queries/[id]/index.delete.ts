@@ -9,6 +9,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Invalid query ID" });
   }
 
+  await db
+    .delete(dbSchema.liaseQueryMedia)
+    .where(eq(dbSchema.liaseQueryMedia.queryId, id));
+
   // Fetch execution IDs so we can cascade-delete their dependents.
   // liaseQueryExecution has a FK to liaseQuery with no ON DELETE CASCADE,
   // so we must remove child rows before deleting the parent query.
@@ -27,21 +31,11 @@ export default defineEventHandler(async (event) => {
         inArray(dbSchema.liaseQueryExecutionLog.executionId, executionIds),
       );
 
-    // 2. Remove liase query media linked via execution (FK → liaseQueryExecution.id)
-    await db
-      .delete(dbSchema.liaseQueryMedia)
-      .where(inArray(dbSchema.liaseQueryMedia.queryExecutionId, executionIds));
-
     // 3. Remove executions (FK → liaseQuery.id)
     await db
       .delete(dbSchema.liaseQueryExecution)
       .where(eq(dbSchema.liaseQueryExecution.queryId, id));
   }
-
-  // 4. Remove any liase query media linked directly to this query (FK → liaseQuery.id)
-  await db
-    .delete(dbSchema.liaseQueryMedia)
-    .where(eq(dbSchema.liaseQueryMedia.queryId, id));
 
   // 5. Delete the query itself
   const result = await db

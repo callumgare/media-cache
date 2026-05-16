@@ -15,6 +15,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import superjson from "superjson";
@@ -353,7 +354,6 @@ export const liaseQueryExecutionRelations = relations(
       fields: [liaseQueryExecution.queryId],
       references: [liaseQuery.id],
     }),
-    liaseMedia: many(liaseQueryMedia),
     logs: many(liaseQueryExecutionLog),
   }),
 );
@@ -396,19 +396,31 @@ Liase query. To avoid duplication the actual contents of the Liase media isn't i
 here. Instead the hash of the contents is recorded and can be used to retrieve the actual contents from
 liaseQueryMediaContent.
 */
-export const liaseQueryMedia = pgTable("liase_query_media", {
-  id: serial("id").notNull().primaryKey(),
-  createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
-  liaseId: text("liase_id").notNull(),
-  contentHash: text("content_hash")
-    .notNull()
-    .references(() => liaseQueryMediaContent.contentHash),
-  queryExecutionId: integer("query_execution_id").references(
-    () => liaseQueryExecution.id,
-  ),
-  queryId: integer("query_id").references(() => liaseQuery.id),
-});
+export const liaseQueryMedia = pgTable(
+  "liase_query_media",
+  {
+    id: serial("id").notNull().primaryKey(),
+    createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+    liaseId: text("liase_id").notNull(),
+    contentHash: text("content_hash")
+      .notNull()
+      .references(() => liaseQueryMediaContent.contentHash),
+    foundInLatestExecution: boolean("found_in_latest_execution")
+      .notNull()
+      .default(true),
+    queryExecutionIdCreatedOn: integer(
+      "query_execution_id_created_on",
+    ).references(() => liaseQueryExecution.id),
+    queryId: integer("query_id").references(() => liaseQuery.id),
+  },
+  (t) => [
+    unique("liase_query_media__content_hash_query_id_unique").on(
+      t.contentHash,
+      t.queryId,
+    ),
+  ],
+);
 
 explain(liaseQueryMedia, {
   columns: {
@@ -423,10 +435,6 @@ export const liaseQueryMediaRelations = relations(
     content: one(liaseQueryMediaContent, {
       fields: [liaseQueryMedia.contentHash],
       references: [liaseQueryMediaContent.contentHash],
-    }),
-    liaseQueryExecution: one(liaseQueryExecution, {
-      fields: [liaseQueryMedia.queryExecutionId],
-      references: [liaseQueryExecution.id],
     }),
   }),
 );

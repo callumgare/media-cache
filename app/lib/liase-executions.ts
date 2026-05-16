@@ -9,6 +9,7 @@ export function formatStage(
   execution: QueryExecutionTask | null | undefined,
 ): string {
   if (!execution || !execution.stage) return "-";
+  if (execution.stage === "initialising") return "Initializing";
   if (execution.stage === "fetching-liase-results")
     return "Fetching liase results";
   if (execution.stage === "processing-added-or-updated")

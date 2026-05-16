@@ -7,18 +7,32 @@ import { getLiaseQuery } from "../liase";
 import {
   createExecutionLogEntry,
   createLiaseQueryExecution,
-  createLiaseQueryMedia,
-  createLiaseQueryMediaContent,
   createOrUpdateCacheMedia,
+  createOrUpdateLiaseQueryMedia,
   deleteCacheMediaEntry,
   deleteOldLiaseQueryMedia,
+  ensureLiaseQueryMediaContentExists,
   getCacheMedia,
   getPreviousLiaseQueryExecution,
 } from "./utils";
 
 import { db } from "@@/server/utils/drizzle";
 import { dbSchema } from "@@/server/utils/drizzle";
-import { and, eq, isNull, ne, not, notInArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  isNull,
+  max,
+  min,
+  ne,
+  not,
+  or,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 type LiaseQueryOptions = Parameters<typeof getLiaseQuery>[0]["queryOptions"];
 
@@ -137,6 +151,16 @@ export async function runLiaseQueryExecution({
   let currentLiaseRequest: GenericRequest | null = null;
   let currentLiaseId: string | null = null;
 
+  if (savedLiaseQuery) {
+    await queryExecutionTaskSystem.updateTask(executionId, {
+      stage: "initialising",
+    });
+    await db
+      .update(dbSchema.liaseQueryMedia)
+      .set({ foundInLatestExecution: false })
+      .where(eq(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id));
+  }
+
   try {
     // ----- Saving liase results to execution media table -----
     await queryExecutionTaskSystem.updateTask(executionId, {
@@ -160,8 +184,8 @@ export async function runLiaseQueryExecution({
         pageCount++;
         for (const liaseMedia of response.media) {
           await db.transaction(async (dbTx) => {
-            await createLiaseQueryMediaContent({ dbTx, liaseMedia });
-            await createLiaseQueryMedia({
+            await ensureLiaseQueryMediaContentExists({ dbTx, liaseMedia });
+            await createOrUpdateLiaseQueryMedia({
               dbTx,
               liaseMedia,
               liaseQueryExecution,
@@ -197,53 +221,109 @@ export async function runLiaseQueryExecution({
     });
 
     // Do in batches to avoid loading results into memory at once.
-    let lastId = 0;
+    let liaseIdCursor = null;
     const batchSize = 100;
     while (true) {
-      const foundLiaseMedia = await db.query.liaseQueryMedia.findMany({
-        where: (media, { eq, and, gt }) =>
-          and(gt(media.id, lastId), eq(media.queryExecutionId, executionId)),
-        limit: batchSize,
-        orderBy: (media, { asc }) => [asc(media.id)],
-      });
+      const previousOnlyLiaseMedia = alias(
+        dbSchema.liaseQueryMedia,
+        "previous_only_liase_media",
+      );
+      const foundLiaseMedia = await db
+        .select({
+          liaseId: dbSchema.liaseQueryMedia.liaseId,
+          instancesInThisExecution: count(dbSchema.liaseQueryMedia.id),
+          instancesOnlyInThisExecution:
+            sql<number>`(count(*) filter (where ${dbSchema.liaseQueryMedia.queryExecutionIdCreatedOn} = ${executionId}))::int`.as(
+              "instances_only_in_this_execution",
+            ),
+          instancesOnlyInLastExecution: count(previousOnlyLiaseMedia.id),
+          lastId: max(dbSchema.liaseQueryMedia.id),
+        })
+        .from(dbSchema.liaseQueryMedia)
+        .leftJoin(
+          previousOnlyLiaseMedia,
+          and(
+            eq(
+              previousOnlyLiaseMedia.liaseId,
+              dbSchema.liaseQueryMedia.liaseId,
+            ),
+            eq(previousOnlyLiaseMedia.foundInLatestExecution, false),
+          ),
+        )
+        .where(
+          and(
+            savedLiaseQuery
+              ? eq(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id)
+              : eq(
+                  dbSchema.liaseQueryMedia.queryExecutionIdCreatedOn,
+                  executionId,
+                ),
+            liaseIdCursor !== null
+              ? gt(dbSchema.liaseQueryMedia.liaseId, liaseIdCursor)
+              : undefined,
+            eq(dbSchema.liaseQueryMedia.foundInLatestExecution, true),
+          ),
+        )
+        .groupBy(dbSchema.liaseQueryMedia.liaseId)
+        .orderBy(dbSchema.liaseQueryMedia.liaseId)
+        .limit(batchSize);
 
       const lastInBatch = foundLiaseMedia.at(-1);
       if (!lastInBatch) break;
+      liaseIdCursor = lastInBatch.liaseId;
 
       for (const liaseMedia of foundLiaseMedia) {
         currentLiaseId = liaseMedia.liaseId;
-        // Check if found in previous saved query execution
-        const foundLiaseMediaFromPreviousExecution =
-          previousExecution && previousExecution.status !== "failed"
-            ? await db
-                .select({
-                  liaseId: dbSchema.liaseQueryMedia.liaseId,
-                  contentHash: dbSchema.liaseQueryMedia.contentHash,
-                })
-                .from(dbSchema.liaseQueryMedia)
-                .where(
-                  and(
-                    eq(dbSchema.liaseQueryMedia.liaseId, liaseMedia.liaseId),
-                    eq(
-                      dbSchema.liaseQueryMedia.queryExecutionId,
-                      previousExecution.id,
-                    ),
-                  ),
-                )
-            : [];
 
-        if (foundLiaseMediaFromPreviousExecution.length) {
-          // found previous execution
-          const contentHashMatches = foundLiaseMediaFromPreviousExecution.some(
-            (m) => m.contentHash === liaseMedia.contentHash,
-          );
-          if (contentHashMatches) {
+        const instancesOnlyInLastExecution =
+          liaseMedia.instancesOnlyInLastExecution;
+        let instancesOnlyInThisExecution =
+          liaseMedia.instancesOnlyInThisExecution;
+        let instancesInThisExecution = liaseMedia.instancesInThisExecution;
+        let instancesInBothExecutions =
+          instancesInThisExecution - instancesOnlyInThisExecution;
+        let instancesInLastExecution =
+          instancesInBothExecutions + instancesOnlyInLastExecution;
+
+        // If the previous execution failed we can't trust that cache media was correctly added/updated so we treat
+        // all media as changed.
+        if (previousExecution?.status === "failed") {
+          instancesOnlyInThisExecution +=
+            instancesInBothExecutions + instancesInLastExecution;
+          instancesInThisExecution +=
+            instancesInBothExecutions + instancesInLastExecution;
+          instancesInBothExecutions = 0;
+          instancesInLastExecution = 0;
+        }
+
+        const instancesUnchanged = instancesInBothExecutions;
+        const instancesAdded = Math.max(
+          0,
+          instancesOnlyInThisExecution - instancesOnlyInLastExecution,
+        );
+        const instancesRemoved = Math.max(
+          0,
+          instancesOnlyInLastExecution - instancesOnlyInThisExecution,
+        );
+        const instancesChanged = Math.min(
+          instancesOnlyInThisExecution,
+          instancesOnlyInLastExecution,
+        );
+
+        liaseMediaUnchanged += instancesUnchanged;
+        liaseMediaUpdated += instancesChanged;
+        liaseMediaNew += instancesAdded;
+        liaseMediaRemoved += instancesRemoved;
+
+        if (instancesInLastExecution) {
+          if (
+            instancesOnlyInLastExecution === 0 &&
+            instancesOnlyInThisExecution === 0
+          ) {
             // unchanged
-            liaseMediaUnchanged++;
             cacheMediaUnchanged++;
           } else {
             // changed
-            liaseMediaUpdated++;
             const { status } = await createOrUpdateCacheMedia({
               liaseId: liaseMedia.liaseId,
             });
@@ -265,7 +345,6 @@ export async function runLiaseQueryExecution({
           }
         } else {
           // not found in previous execution (or previous execution failed so we don't trust it)
-          liaseMediaNew++;
           const { status } = await createOrUpdateCacheMedia({
             liaseId: liaseMedia.liaseId,
           });
@@ -290,36 +369,43 @@ export async function runLiaseQueryExecution({
         cacheMediaUpdated,
         cacheMediaUnchanged,
       });
-
-      lastId = lastInBatch.id;
     }
 
     // ----- Removing media that was previously found but is no longer present -----
 
-    if (previousExecution) {
+    if (savedLiaseQuery) {
       await queryExecutionTaskSystem.updateTask(executionId, {
         stage: "processing-removed",
       });
 
+      const otherQueriesMedia = alias(
+        dbSchema.liaseQueryMedia,
+        "other_queries_media",
+      );
       const removedMedias = await db
-        .select()
+        .select({
+          liaseId: dbSchema.liaseQueryMedia.liaseId,
+          inOtherQueries: sql<boolean>`bool_or(${otherQueriesMedia.id} IS NOT NULL)`,
+          count: count(dbSchema.liaseQueryMedia.id),
+        })
         .from(dbSchema.liaseQueryMedia)
-        .where(
+        .leftJoin(
+          otherQueriesMedia,
           and(
-            eq(dbSchema.liaseQueryMedia.queryExecutionId, previousExecution.id),
-            notInArray(
-              dbSchema.liaseQueryMedia.liaseId,
-              db
-                .select({ liaseId: dbSchema.liaseQueryMedia.liaseId })
-                .from(dbSchema.liaseQueryMedia)
-                .where(
-                  eq(dbSchema.liaseQueryMedia.queryExecutionId, executionId),
-                ),
-            ),
+            eq(otherQueriesMedia.liaseId, dbSchema.liaseQueryMedia.liaseId),
+            eq(otherQueriesMedia.foundInLatestExecution, true),
           ),
+        )
+        .where(eq(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id))
+        .groupBy(dbSchema.liaseQueryMedia.liaseId)
+        .having(
+          sql`bool_or(${dbSchema.liaseQueryMedia.foundInLatestExecution}) = false`,
         );
 
-      liaseMediaRemoved = removedMedias.length;
+      liaseMediaRemoved += removedMedias.reduce(
+        (sum, media) => sum + media.count,
+        0,
+      );
 
       await queryExecutionTaskSystem.updateTask(executionId, {
         liaseMediaRemoved,
@@ -327,25 +413,7 @@ export async function runLiaseQueryExecution({
 
       for (const removedMedia of removedMedias) {
         currentLiaseId = removedMedia.liaseId;
-        const otherExecutionMedia = await db
-          .select({
-            id: dbSchema.liaseQueryMedia.id,
-            queryExecutionId: dbSchema.liaseQueryMedia.queryExecutionId,
-          })
-          .from(dbSchema.liaseQueryMedia)
-          .where(
-            and(
-              eq(dbSchema.liaseQueryMedia.liaseId, removedMedia.liaseId),
-              savedLiaseQuery?.id
-                ? or(
-                    ne(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id),
-                    isNull(dbSchema.liaseQueryMedia.queryId),
-                  )
-                : undefined,
-              not(eq(dbSchema.liaseQueryMedia.queryExecutionId, executionId)),
-            ),
-          );
-        if (otherExecutionMedia.length === 0) {
+        if (!removedMedia.inOtherQueries) {
           // delete - no other instances
           const cacheMedia = await getCacheMedia({
             liaseId: removedMedia.liaseId,
@@ -405,7 +473,6 @@ export async function runLiaseQueryExecution({
 
       await deleteOldLiaseQueryMedia({
         queryId: savedLiaseQuery.id,
-        currentExecutionId: executionId,
       });
     }
 

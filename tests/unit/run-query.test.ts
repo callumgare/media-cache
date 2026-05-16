@@ -132,10 +132,29 @@ describe("runLiaseQuery — update", () => {
     await runLiaseQuery(q);
 
     const execs = await getLiaseQueryExecutionAll();
-    const second = execs.sort((a, b) => b.id - a.id)[0];
-    if (!second) throw new Error("Expected at least one execution");
-    expect(second.liaseMediaUpdated).toBe(1);
-    expect(second.liaseMediaNew).toBe(0);
+    const firstExec = execs.sort((a, b) => a.id - b.id)[0];
+    const secondExec = execs.sort((a, b) => a.id - b.id)[1];
+    if (!firstExec || !secondExec)
+      throw new Error("Expected at least two executions");
+    expect(firstExec.liaseMediaFound).toBe(1);
+    expect(firstExec.liaseMediaNew).toBe(1);
+    expect(firstExec.liaseMediaUpdated).toBe(0);
+    expect(firstExec.liaseMediaRemoved).toBe(0);
+    expect(firstExec.liaseMediaUnchanged).toBe(0);
+    expect(firstExec.cacheMediaCreated).toBe(1);
+    expect(firstExec.cacheMediaUpdated).toBe(0);
+    expect(firstExec.cacheMediaUnchanged).toBe(0);
+    expect(firstExec.cacheMediaDeleted).toBe(0);
+
+    expect(secondExec.liaseMediaFound).toBe(1);
+    expect(secondExec.liaseMediaNew).toBe(0);
+    expect(secondExec.liaseMediaUpdated).toBe(1);
+    expect(secondExec.liaseMediaRemoved).toBe(0);
+    expect(secondExec.liaseMediaUnchanged).toBe(0);
+    expect(secondExec.cacheMediaCreated).toBe(0);
+    expect(secondExec.cacheMediaUpdated).toBe(1);
+    expect(secondExec.cacheMediaUnchanged).toBe(0);
+    expect(secondExec.cacheMediaDeleted).toBe(0);
   });
 });
 
@@ -294,7 +313,7 @@ describe("runLiaseQuery — cleanup", () => {
     const execs = await getLiaseQueryExecutionAll();
     const latest = execs.sort((a, b) => b.id - a.id)[0];
     if (!latest) throw new Error("Expected at least one execution");
-    expect(afterSecond[0].queryExecutionId).toBe(latest.id);
+    expect(afterSecond[0].foundInLatestExecution).toBe(true);
   });
 
   it("retains the current execution's liase_query_media row after a single run", async () => {
@@ -490,6 +509,115 @@ describe("runLiaseQuery — fetchCountLimit", () => {
 
     const execs = await getLiaseQueryExecutionAll();
     expect(execs[0].pageCount).toBe(1);
+  });
+});
+
+describe("runLiaseQuery — cross-query isolation", () => {
+  it("does not inflate liaseMediaUnchanged/liaseMediaRemoved when a second query also holds rows for the same liaseId", async () => {
+    // Q1 first run: finds M1 at version v1
+    const q1 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "cross", title: "v1" })]);
+    await runLiaseQuery(q1);
+
+    // Q2 also finds the same liaseId (same version)
+    const q2 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "cross", title: "v1" })]);
+    await runLiaseQuery(q2);
+
+    // Q1 second run: finds M1 at version v2 (changed)
+    enqueueMedia([makeMedia({ id: "cross", title: "v2" })]);
+    await runLiaseQuery(q1);
+
+    const allExecs = await getLiaseQueryExecutionAll();
+    const q1SecondExec = allExecs
+      .filter((e) => e.queryId === q1.id)
+      .sort((a, b) => a.id - b.id)[1];
+    if (!q1SecondExec) throw new Error("Expected a second execution for q1");
+
+    // Q2's liaseQueryMedia rows must not inflate these counts
+    expect(q1SecondExec.liaseMediaUpdated).toBe(1);
+    expect(q1SecondExec.liaseMediaUnchanged).toBe(0);
+    expect(q1SecondExec.liaseMediaRemoved).toBe(0);
+  });
+
+  it("does not inflate cacheMediaUnchanged when a second query holds rows for the same liaseId", async () => {
+    const q1 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "cross2", title: "v1" })]);
+    await runLiaseQuery(q1);
+
+    const q2 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "cross2", title: "v1" })]);
+    await runLiaseQuery(q2);
+
+    // Q1 second run: same content (no change) — cacheMediaUnchanged should be 1, not inflated
+    enqueueMedia([makeMedia({ id: "cross2", title: "v1" })]);
+    await runLiaseQuery(q1);
+
+    const allExecs = await getLiaseQueryExecutionAll();
+    const q1SecondExec = allExecs
+      .filter((e) => e.queryId === q1.id)
+      .sort((a, b) => a.id - b.id)[1];
+    if (!q1SecondExec) throw new Error("Expected a second execution for q1");
+
+    expect(q1SecondExec.cacheMediaUnchanged).toBe(1);
+    expect(q1SecondExec.cacheMediaUpdated).toBe(0);
+    expect(q1SecondExec.liaseMediaUnchanged).toBe(1);
+    expect(q1SecondExec.liaseMediaUpdated).toBe(0);
+  });
+});
+
+describe("runLiaseQuery — cross-query property merging, same liaseId", () => {
+  it("merges properties from two queries: newer query title wins, older query description is preserved", async () => {
+    // q1 runs first with both a title and a description
+    const q1 = await createTestLiaseQuery();
+    enqueueMedia([
+      makeMedia({ id: "merge-1", title: "abc", description: "xyz" }),
+    ]);
+    await runLiaseQuery(q1);
+
+    // Back-date q1's row so q2's row is strictly newer
+    await db
+      .update(dbSchema.liaseQueryMedia)
+      .set({ updatedAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(dbSchema.liaseQueryMedia.queryId, q1.id));
+
+    // q2 runs with a different title but no description
+    const q2 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "merge-1", title: "123" })]);
+    await runLiaseQuery(q2);
+
+    const all = await getCacheMediaAll();
+    expect(all).toHaveLength(1);
+    // newer query's title wins
+    expect(all[0].title).toBe("123");
+    // older query's description is preserved because the newer query had none
+    expect(all[0].description).toBe("xyz");
+  });
+
+  it("merges properties from two queries: older query title is preserved when newer query has no title", async () => {
+    // q1 runs first with a title
+    const q1 = await createTestLiaseQuery();
+    enqueueMedia([
+      makeMedia({ id: "merge-2", title: "keep-me", description: "overriden" }),
+    ]);
+    await runLiaseQuery(q1);
+
+    await db
+      .update(dbSchema.liaseQueryMedia)
+      .set({ updatedAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(dbSchema.liaseQueryMedia.queryId, q1.id));
+
+    // q2 runs with a description but no title (key absent, not undefined)
+    const q2 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "merge-2", description: "new-desc" })]);
+    await runLiaseQuery(q2);
+
+    const all = await getCacheMediaAll();
+    expect(all).toHaveLength(1);
+    // older query's title is preserved because the newer query had none
+    expect(all[0].title).toBe("keep-me");
+    // newer query's description wins
+    expect(all[0].description).toBe("new-desc");
   });
 });
 

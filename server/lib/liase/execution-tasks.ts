@@ -13,6 +13,7 @@ export type QueryExecutionTask = {
   queryId: number | null;
   status: dbSchema.Status;
   stage?:
+    | "initialising"
     | "fetching-liase-results"
     | "processing-added-or-updated"
     | "processing-removed"
