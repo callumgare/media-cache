@@ -50,7 +50,7 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
 
   private publishTaskUpdated = throttleLeadingTrailing(
     (event: TaskEvent) => this.emit("event", event),
-    1000,
+    300,
   );
 
   private runStartupRecovery(): Promise<void> {

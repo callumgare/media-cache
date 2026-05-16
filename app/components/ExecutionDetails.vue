@@ -3,7 +3,33 @@
     <template v-if="latestTask">
       <span class="status">
         <div>
-          {{ formatStatus(latestTask) }}
+          <template v-if="latestTask.status === 'running'">
+            Started
+            <span
+              v-memo="[executionTimestampTooltip.value]"
+              class="with-tooltip"
+              v-tooltip.top="executionTimestampTooltip"
+            ><RelativeTime :date="latestTask.startedAt" /></span>
+          </template>
+          <template v-else-if="latestTask.status === 'completed'">
+            Finished
+            <span
+              v-memo="[executionTimestampTooltip.value]"
+              class="with-tooltip"
+              v-tooltip.top="executionTimestampTooltip"
+            ><RelativeTime :date="latestTask.finishedAt ?? latestTask.startedAt" /></span>
+          </template>
+          <template v-else-if="latestTask.status === 'failed'">
+            Failed
+            <span
+              v-memo="[executionTimestampTooltip.value]"
+              class="with-tooltip"
+              v-tooltip.top="executionTimestampTooltip"
+            ><RelativeTime :date="latestTask.finishedAt ?? latestTask.startedAt" /></span>
+          </template>
+          <template v-else>
+            {{ latestTask.status }}
+          </template>
         </div>
         <div v-if="statusIcon.length" :class="['pi', ...statusIcon]" />
       </span>
@@ -166,6 +192,22 @@ const props = defineProps<{
 
 const latestTask = computed(() => props.executions[0] ?? null);
 const previousTask = computed(() => props.executions[1] ?? null);
+
+function formatExactDateTime(date: Date): string {
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+const executionTimestampTooltip = computed(() => {
+  if (!latestTask.value) return { value: "", escape: true };
+  const lines = [`Started: ${formatExactDateTime(latestTask.value.startedAt)}`];
+  if (latestTask.value.finishedAt) {
+    lines.push(`Finished: ${formatExactDateTime(latestTask.value.finishedAt)}`);
+  }
+  return { value: lines.join("<br>"), escape: false };
+});
 
 const hasLiaseMediaStats = computed(() => {
   if (!latestTask.value) return false;
@@ -399,5 +441,11 @@ const stageProgress = computed(() => {
   .never-run {
     color: var(--p-text-muted-color);
     font-style: italic;
+  }
+
+  .with-tooltip {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
   }
 </style>

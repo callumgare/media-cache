@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
         .where(
           notInArray(
             dbSchema.liaseQueryMediaContent.contentHash,
+            // Since referencedHashes is not awaited it becomes a subquery
             referencedHashes,
           ),
         )
