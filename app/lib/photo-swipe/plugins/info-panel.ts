@@ -200,10 +200,22 @@ export class PhotoSwipeInfoPanelPlugin {
     }
 
     // When the panel is open, Escape should close only the panel, not the lightbox.
+    // Up arrow opens the panel; down arrow closes the panel (if open) or the lightbox.
     pswp.on("keydown", (e) => {
-      if (e.originalEvent.key === "Escape" && isOpen.value) {
+      const key = e.originalEvent.key;
+      if (key === "Escape" && isOpen.value) {
         e.preventDefault();
         setOpen(false);
+      } else if (key === "ArrowUp" && !isOpen.value) {
+        e.preventDefault();
+        setOpen(true);
+      } else if (key === "ArrowDown") {
+        e.preventDefault();
+        if (isOpen.value) {
+          setOpen(false);
+        } else {
+          pswp.close();
+        }
       }
     });
 
