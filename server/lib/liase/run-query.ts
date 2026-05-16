@@ -94,12 +94,6 @@ export async function startLiaseQueryExecution(
     liaseQueryOptions,
     savedLiaseQuery,
   });
-  executionPromise.catch((err) => {
-    console.error(
-      `Query execution ${execution.id} promise rejected unexpectedly:`,
-      err,
-    );
-  });
   return { execution, executionPromise };
 }
 
@@ -487,5 +481,6 @@ export async function runLiaseQueryExecution({
       .where(eq(dbSchema.liaseQueryExecution.id, executionId));
 
     await queryExecutionTaskSystem.updateTask(executionId, updatedTaskValues);
+    throw err;
   }
 }

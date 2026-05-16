@@ -16,6 +16,10 @@ export default defineEventHandler(async (event) => {
       statusMessage: `Query with ID ${id} not found`,
     });
   }
-  const { execution } = await startLiaseQueryExecution(liaseQuery);
+  const { execution, executionPromise } =
+    await startLiaseQueryExecution(liaseQuery);
+  executionPromise.catch((err) => {
+    console.error(`Query execution ${execution.id} failed:`, err);
+  });
   return execution;
 });

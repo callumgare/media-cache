@@ -72,7 +72,14 @@ async function createAndRunQuery({
         const tasks = (
           (await tasksRes.json()) as { json: Array<{ status: string }> }
         ).json;
-        if (tasks.every((t) => t.status !== "running")) return;
+        if (tasks.every((t) => t.status !== "running")) {
+          const failed = tasks.filter((t) => t.status === "failed");
+          if (failed.length > 0)
+            throw new Error(
+              `Query execution failed: ${JSON.stringify(failed)}`,
+            );
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     })(),

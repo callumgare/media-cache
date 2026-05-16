@@ -27,4 +27,4 @@ export LIASE_PLUGINS="${SCRIPT_DIR}/../unit/fixtures/test-plugin.ts"
 tsx -e "import('${SCRIPT_DIR}/../setup/global-setup.ts').then(mod => mod.setup()).then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1) })"
 
 cd "$PROJECT_ROOT"
-npx nuxt dev --port 3001
+npx nuxt dev

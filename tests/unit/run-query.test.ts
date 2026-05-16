@@ -12,6 +12,7 @@ import {
   runLiaseQuery,
   truncateAll,
 } from "@@/tests/unit/fixtures/helpers";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 beforeEach(truncateAll);
@@ -489,5 +490,33 @@ describe("runLiaseQuery — fetchCountLimit", () => {
 
     const execs = await getLiaseQueryExecutionAll();
     expect(execs[0].pageCount).toBe(1);
+  });
+});
+
+describe("runLiaseQuery — multiple independent queries, same media", () => {
+  it("prefers values from most recently found query when same liase id is found by two independent queries", async () => {
+    // q1 finds the media first
+    const q1 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "shared", title: "Old Title" })]);
+    await runLiaseQuery(q1);
+
+    // Back-date q1's liaseQueryMedia row to guarantee q2's will have a strictly later updatedAt,
+    // since DB round-trips may complete within the same millisecond.
+    await db
+      .update(dbSchema.liaseQueryMedia)
+      .set({ updatedAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(dbSchema.liaseQueryMedia.queryId, q1.id));
+
+    // q2 finds the same liase id with newer data
+    const q2 = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "shared", title: "New Title" })]);
+    await runLiaseQuery(q2);
+
+    // Only one cache_media entry should exist (same liase id)
+    const all = await getCacheMediaAll();
+    expect(all).toHaveLength(1);
+
+    // The most recently found version's values should win
+    expect(all[0].title).toBe("New Title");
   });
 });

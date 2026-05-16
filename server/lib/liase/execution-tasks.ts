@@ -41,36 +41,40 @@ export type QueryExecutionTask = {
 
 class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   private inMemoryTasks: Map<number, QueryExecutionTask> = new Map();
-  private startupRecovery: Promise<void> | null = null;
+  // Eagerly started so it completes before any test can create a new execution
+  // and trigger getTasks() — otherwise the lazy first-call approach would race
+  // and mark the newly-created execution as failed.
+  private startupRecovery: Promise<void> = this.runStartupRecovery();
+
+  private runStartupRecovery(): Promise<void> {
+    // Mark any executions left as 'running' from a previous server process as failed,
+    // and add a log entry to each explaining why.
+    return db
+      .update(dbSchema.liaseQueryExecution)
+      .set({
+        status: "failed",
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(dbSchema.liaseQueryExecution.status, "running"))
+      .returning()
+      .then(async (rows) => {
+        if (rows.length === 0) return;
+        await db.insert(dbSchema.liaseQueryExecutionLog).values(
+          rows.map(
+            (row) =>
+              ({
+                executionId: row.id,
+                level: "fatal-error",
+                message:
+                  "Execution was interrupted by a server restart and did not complete.",
+              }) as const,
+          ),
+        );
+      });
+  }
 
   async getTasks(): Promise<QueryExecutionTask[]> {
-    if (!this.startupRecovery) {
-      // Mark any executions left as 'running' from a previous server process as failed,
-      // and add a log entry to each explaining why.
-      this.startupRecovery = db
-        .update(dbSchema.liaseQueryExecution)
-        .set({
-          status: "failed",
-          finishedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(dbSchema.liaseQueryExecution.status, "running"))
-        .returning()
-        .then(async (rows) => {
-          if (rows.length === 0) return;
-          await db.insert(dbSchema.liaseQueryExecutionLog).values(
-            rows.map(
-              (row) =>
-                ({
-                  executionId: row.id,
-                  level: "fatal-error",
-                  message:
-                    "Execution was interrupted by a server restart and did not complete.",
-                }) as const,
-            ),
-          );
-        });
-    }
     await this.startupRecovery; // Make sure startup recovery tasks have completed before returning the tasks
     const tasks: QueryExecutionTask[] = [];
 

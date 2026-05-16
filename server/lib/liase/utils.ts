@@ -325,7 +325,10 @@ export async function createOrUpdateCacheMedia({
     const allLiaseMedia = await dbTx
       .selectDistinctOn(
         [dbSchema.liaseQueryMedia.liaseId, dbSchema.liaseQueryMedia.queryId],
-        { content: dbSchema.liaseQueryMediaContent.content },
+        {
+          content: dbSchema.liaseQueryMediaContent.content,
+          updatedAt: dbSchema.liaseQueryMedia.updatedAt,
+        },
       )
       .from(dbSchema.liaseQueryMedia)
       .innerJoin(
@@ -339,11 +342,20 @@ export async function createOrUpdateCacheMedia({
         sql`${dbSchema.liaseQueryMedia.liaseId} = ANY(ARRAY[${cacheMediaLiaseIds}])`,
       )
       .orderBy(
+        // DISTINCT ON requires ORDER BY to start with the same columns.
+        // desc(updatedAt) picks the most-recently-updated row within each
+        // (liaseId, queryId) group.
         dbSchema.liaseQueryMedia.liaseId,
         dbSchema.liaseQueryMedia.queryId,
-        desc(dbSchema.liaseQueryMedia.id),
+        desc(dbSchema.liaseQueryMedia.updatedAt),
       )
-      .then((records) => records.map((r) => r.content));
+      .then((records) =>
+        // Sort oldest→newest by updatedAt so that when groups are deep-merged
+        // the most recently updated query's data wins (last write wins).
+        records
+          .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+          .map((r) => r.content),
+      );
 
     const allSources = new Set(allLiaseMedia.map((media) => media.liaseSource));
 
