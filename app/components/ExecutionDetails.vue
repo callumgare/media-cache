@@ -114,18 +114,18 @@
                 <strong>{{ latestTask.cacheMediaUpdated }}</strong>
               </div>
               <div
-                v-if="latestTask.cacheMediaUnchanged !== -1"
-                class="stat"
-              >
-                <span>Unchanged</span>
-                <strong>{{ latestTask.cacheMediaUnchanged }}</strong>
-              </div>
-              <div
                 v-if="latestTask.cacheMediaDeleted !== -1"
                 class="stat"
               >
                 <span>Deleted</span>
                 <strong>{{ latestTask.cacheMediaDeleted }}</strong>
+              </div>
+              <div
+                v-if="latestTask.cacheMediaUnchanged !== -1"
+                class="stat"
+              >
+                <span>Unchanged</span>
+                <strong>{{ latestTask.cacheMediaUnchanged }}</strong>
               </div>
             </div>
           </Fieldset>
