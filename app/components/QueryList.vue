@@ -205,20 +205,24 @@ function formatOptionValue(value: unknown): string {
 
 const expandedRows = ref<Record<string, boolean>>({});
 
-watch(tasksLoaded, (loaded) => {
-  if (!loaded) return;
-  const runningIds = (queryList.value ?? [])
-    .filter((query) =>
-      executionsForQuery(query.id).some((e) => e.status === "running"),
-    )
-    .map((query) => String(query.id));
-  if (runningIds.length) {
-    expandedRows.value = {
-      ...expandedRows.value,
-      ...Object.fromEntries(runningIds.map((id) => [id, true])),
-    };
-  }
-});
+watch(
+  tasksLoaded,
+  (loaded) => {
+    if (!loaded) return;
+    const runningIds = (queryList.value ?? [])
+      .filter((query) =>
+        executionsForQuery(query.id).some((e) => e.status === "running"),
+      )
+      .map((query) => String(query.id));
+    if (runningIds.length) {
+      expandedRows.value = {
+        ...expandedRows.value,
+        ...Object.fromEntries(runningIds.map((id) => [id, true])),
+      };
+    }
+  },
+  { immediate: true },
+);
 
 async function runQuery(query: QueryRow) {
   try {
