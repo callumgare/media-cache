@@ -39,26 +39,7 @@
         data-testid="progress-section"
       >
         <div class="progress-label">
-          <template v-if="latestTask.stage === 'fetching-liase-results'">
-            <template v-if="expectedPages.number > 0">
-              Indexing page {{ latestTask.pageCount }} of {{ expectedPages.formattedNumber }}
-            </template>
-            <template v-else>
-              Running… ({{ latestTask.pageCount }} page{{ latestTask.pageCount === 1 ? '' : 's' }})
-            </template>
-          </template>
-          <template v-else-if="latestTask.stage === 'processing-added-or-updated'">
-            Processing {{ processedInAddOrUpdate }} new or updated of {{ latestTask.liaseMediaFound !== -1 ? latestTask.liaseMediaFound : '?' }}
-          </template>
-          <template v-else-if="latestTask.stage === 'processing-removed'">
-            Processing removed media…
-          </template>
-          <template v-else-if="latestTask.stage === 'removing-previous-execution-results'">
-            Removing previous execution results…
-          </template>
-          <template v-else>
-            Stage: {{ formatStage(latestTask) }}
-          </template>
+          {{ formatProgressLabel(latestTask, expectedPages) }}
         </div>
         <ProgressBar
           :value="stageProgress.percent"
@@ -180,7 +161,14 @@
 
 <script setup lang="ts">
 import type { QueryExecutionTask } from "@@/server/lib/liase/execution-tasks";
-import { formatStage, formatStatus } from "~/lib/liase-executions";
+import {
+  calculateExpectedPages,
+  calculateProcessedInAddOrUpdate,
+  calculateStageProgress,
+  formatProgressLabel,
+  formatStage,
+  formatStatus,
+} from "~/lib/liase-executions";
 import "primeicons/primeicons.css";
 
 const props = defineProps<{
@@ -243,57 +231,17 @@ const statusIcon = computed<string[]>(() => {
   return [];
 });
 
-// The number of expanded query requests: sum of cartesian-product sizes across variations
-// (mirrors expandAllVariations in run-query.ts). Falls back to 1 when there are no variations.
-const expandedVariationCount = computed(() => {
-  const variations = props.queryVariations;
-  if (!variations || variations.length === 0) return 1;
-  return variations.reduce((sum, variation) => {
-    const entries = Object.values(variation.fieldOverrides).filter(
-      (values) => values.length > 0,
-    );
-    const cartesianSize = entries.reduce(
-      (product, values) => product * values.length,
-      1,
-    );
-    return sum + cartesianSize;
-  }, 0);
-});
-
 // Denominator for the progress bar when a query is running.
 // Use the last run's pageCount, but fall back to fetchCountLimit if the current run
 // substantially exceeds it (>1.5x), and fall back to 0 (indeterminate) if neither is available.
 const expectedPages = computed(() => {
   if (!latestTask.value) return { number: 0, formattedNumber: "unknown" };
-  const prev = previousTask.value?.pageCount ?? -1;
-  const limit =
-    props.fetchCountLimit !== null
-      ? props.fetchCountLimit *
-        (props.limitPerQueryVariation ? expandedVariationCount.value : 1)
-      : null;
-  const formattedLimit = limit !== null ? `max ${limit}` : "";
-  if (prev > 0 && latestTask.value.pageCount <= prev * 1.5) {
-    return {
-      number: prev,
-      formattedNumber: `~${prev}${formattedLimit ? ` (${formattedLimit})` : ""}`,
-    };
-  }
-  const normalisedLimit = typeof limit === "number" && limit > 0 ? limit : 0;
-  return {
-    number: normalisedLimit,
-    formattedNumber: formattedLimit || "unknown",
-  };
-});
-
-const processedInAddOrUpdate = computed(() => {
-  if (!latestTask.value) return 0;
-  const { liaseMediaNew, liaseMediaUpdated, liaseMediaUnchanged } =
-    latestTask.value;
-  return (
-    (liaseMediaNew !== -1 ? liaseMediaNew : 0) +
-    (liaseMediaUpdated !== -1 ? liaseMediaUpdated : 0) +
-    (liaseMediaUnchanged !== -1 ? liaseMediaUnchanged : 0)
-  );
+  return calculateExpectedPages(latestTask.value, {
+    previousPageCount: previousTask.value?.pageCount,
+    fetchCountLimit: props.fetchCountLimit,
+    limitPerQueryVariation: props.limitPerQueryVariation,
+    queryVariations: props.queryVariations,
+  });
 });
 
 function formatDuration(task: QueryExecutionTask): string {
@@ -309,50 +257,11 @@ function formatDuration(task: QueryExecutionTask): string {
   return `${+hours.toFixed(1)} hour${+hours.toFixed(1) === 1 ? "" : "s"}`;
 }
 
-const stageProgress = computed(() => {
-  if (!latestTask.value) return { percent: 0, mode: "indeterminate" as const };
-
-  const stage = latestTask.value.stage;
-
-  if (stage === "fetching-liase-results") {
-    if (expectedPages.value.number > 0) {
-      return {
-        percent: Math.min(
-          55,
-          Math.round(
-            (latestTask.value.pageCount / expectedPages.value.number) * 55,
-          ),
-        ),
-        mode: "determinate" as const,
-      };
-    }
-    return { percent: 0, mode: "indeterminate" as const };
-  }
-
-  if (stage === "processing-added-or-updated") {
-    const total = latestTask.value.liaseMediaFound;
-    if (total > 0) {
-      return {
-        percent: Math.min(
-          90,
-          Math.round(55 + (processedInAddOrUpdate.value / total) * 35),
-        ),
-        mode: "determinate" as const,
-      };
-    }
-    return { percent: 55, mode: "determinate" as const };
-  }
-
-  if (stage === "processing-removed") {
-    return { percent: 90, mode: "determinate" as const };
-  }
-
-  if (stage === "removing-previous-execution-results") {
-    return { percent: 95, mode: "determinate" as const };
-  }
-
-  return { percent: 0, mode: "indeterminate" as const };
-});
+const stageProgress = computed(() =>
+  latestTask.value
+    ? calculateStageProgress(latestTask.value, expectedPages.value.number)
+    : { percent: 0, mode: "indeterminate" as const },
+);
 </script>
 
 <style scoped>
