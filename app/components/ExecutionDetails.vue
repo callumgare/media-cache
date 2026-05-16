@@ -135,6 +135,15 @@
         v-if="latestTask.logs.length"
         :logs="latestTask.logs"
       />
+      <details v-if="previousTask">
+        <summary>Previous Run</summary>
+        <ExecutionDetails
+          :executions="[previousTask]"
+          :fetchCountLimit="fetchCountLimit"
+          :limitPerQueryVariation="limitPerQueryVariation"
+          :queryVariations="queryVariations"
+        />
+      </details>
     </template>
 
     <template v-else>
