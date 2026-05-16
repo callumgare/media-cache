@@ -18,8 +18,17 @@ const db = drizzle(queryClient, {
   logger: Boolean(process.env.QUERY_LOGGING),
 });
 
+// Separate client for migrations (used by nuxt-drizzle-migrations via useDrizzle()).
+// NOTICE messages from migration SQL are suppressed here; they are noisy and expected.
+const migrationClient = postgres(process.env.DATABASE_URL, {
+  onnotice: (notice) => {
+    if (notice.severity !== "NOTICE") console.warn(notice);
+  },
+});
+const migrationDb = drizzle(migrationClient);
+
 export function useDrizzle() {
-  return db;
+  return migrationDb;
 }
 
 export { db, dbSchema };

@@ -28,6 +28,9 @@ export async function setup() {
 
   const migrateClient = postgres(withDatabase(baseUrl, "media_cache_test"), {
     max: 1,
+    onnotice: (notice) => {
+      if (notice.severity !== "NOTICE") console.warn(notice);
+    },
   });
   try {
     const db = drizzle(migrateClient);
