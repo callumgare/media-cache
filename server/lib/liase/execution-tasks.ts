@@ -1,6 +1,7 @@
 import EventEmitter from "node:events";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import type { TaskEvent, TaskProvider } from "@@/server/utils/task-provider";
+import { throttleLeadingTrailing } from "@@/server/utils/throttle";
 import { eq, inArray, lte, sql } from "drizzle-orm";
 
 export type QueryExecutionTask = {
@@ -46,6 +47,11 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   // and trigger getTasks() — otherwise the lazy first-call approach would race
   // and mark the newly-created execution as failed.
   private startupRecovery: Promise<void> = this.runStartupRecovery();
+
+  private publishTaskUpdated = throttleLeadingTrailing(
+    (event: TaskEvent) => this.emit("event", event),
+    1000,
+  );
 
   private runStartupRecovery(): Promise<void> {
     // Mark any executions left as 'running' from a previous server process as failed,
@@ -218,7 +224,11 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   }
 
   publish(event: TaskEvent): void {
-    this.emit("event", event);
+    if (event.type !== "task.updated") {
+      this.emit("event", event);
+      return;
+    }
+    this.publishTaskUpdated(event);
   }
 }
 

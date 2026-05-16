@@ -192,11 +192,12 @@ export async function runLiaseQueryExecution({
             });
           });
           liaseMediaFound++;
+
+          await queryExecutionTaskSystem.updateTask(executionId, {
+            pageCount,
+            liaseMediaFound,
+          });
         }
-        await queryExecutionTaskSystem.updateTask(executionId, {
-          pageCount,
-          liaseMediaFound,
-        });
         if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
           break;
         }
@@ -356,19 +357,19 @@ export async function runLiaseQueryExecution({
             status satisfies never;
           }
         }
+        await queryExecutionTaskSystem.updateTask(executionId, {
+          pageCount,
+          liaseMediaFound,
+          liaseMediaNew,
+          liaseMediaUpdated,
+          liaseMediaUnchanged,
+          cacheMediaCreated,
+          cacheMediaUpdated,
+          cacheMediaUnchanged,
+        });
       }
-      currentLiaseId = null;
 
-      await queryExecutionTaskSystem.updateTask(executionId, {
-        pageCount,
-        liaseMediaFound,
-        liaseMediaNew,
-        liaseMediaUpdated,
-        liaseMediaUnchanged,
-        cacheMediaCreated,
-        cacheMediaUpdated,
-        cacheMediaUnchanged,
-      });
+      currentLiaseId = null;
     }
 
     // ----- Removing media that was previously found but is no longer present -----
@@ -455,14 +456,15 @@ export async function runLiaseQueryExecution({
             status satisfies never;
           }
         }
-      }
-      currentLiaseId = null;
 
-      await queryExecutionTaskSystem.updateTask(executionId, {
-        cacheMediaDeleted,
-        cacheMediaUpdated,
-        cacheMediaCreated,
-      });
+        await queryExecutionTaskSystem.updateTask(executionId, {
+          cacheMediaDeleted,
+          cacheMediaUpdated,
+          cacheMediaCreated,
+        });
+      }
+
+      currentLiaseId = null;
     }
 
     // ----- Cleanup -----
