@@ -192,6 +192,10 @@ function handleMouseLeave() {
     </div>
   </div>
   <div v-else>
+    <details v-if="uiState.debugMode">
+      <summary>Details</summary>
+      <pre>{{ JSON.stringify(media, null, 2) }}</pre>
+    </details>
     file not valid
   </div>
 </template>

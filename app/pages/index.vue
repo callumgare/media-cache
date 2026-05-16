@@ -121,7 +121,9 @@ function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
 }
 
 function openMediaInSlideShow(media: z.infer<typeof APIMedia>) {
-  const slideIndex = medias.value.findIndex((m) => m === media);
+  const slideIndex = slideData.value.findIndex(
+    (slide) => slide.mediaData?.id === media.id,
+  );
   if (slideIndex === -1) {
     console.error(`Failed to get index for media: ${media.id}`);
     return;
