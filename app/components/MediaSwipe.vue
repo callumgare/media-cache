@@ -9,6 +9,7 @@ import { PhotoSwipeCustomZoomPlugin } from "~/lib/photo-swipe/plugins/custom-zoo
 import { PhotoSwipeDebugPlugin } from "~/lib/photo-swipe/plugins/debug";
 import { PhotoSwipeInfoPanelPlugin } from "~/lib/photo-swipe/plugins/info-panel";
 import { PhotoSwipePenAsMousePlugin } from "~/lib/photo-swipe/plugins/pen-as-mouse";
+import { PhotoSwipeScrollToThumbPlugin } from "~/lib/photo-swipe/plugins/scroll-to-thumb";
 import { PhotoSwipeSizeOnLoadPlugin } from "~/lib/photo-swipe/plugins/size-on-load";
 
 export type PhotoSwipeSlide = {
@@ -77,6 +78,7 @@ onMounted(() => {
   new PhotoSwipeCustomZoomPlugin(photoSwipe.value);
   new PhotoSwipePenAsMousePlugin(photoSwipe.value);
   new PhotoSwipeInfoPanelPlugin(photoSwipe.value);
+  new PhotoSwipeScrollToThumbPlugin(photoSwipe.value);
 
   photoSwipe.value.addFilter("numItems", (numItems) => {
     return typeof props.total === "number" ? props.total : numItems;
