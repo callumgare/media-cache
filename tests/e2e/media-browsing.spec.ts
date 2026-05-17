@@ -1,6 +1,6 @@
 import type { GenericMedia } from "@liase/core";
-import { expect, test } from "@playwright/test";
 import type PhotoSwipe from "photoswipe";
+import { expect, test } from "./fixtures";
 import { collectConsoleProblems } from "./helpers";
 
 // window.pswp is set by the PhotoSwipeDebugPlugin when debug mode is on,
@@ -116,7 +116,7 @@ test.describe("Browsing via media page grid", () => {
 
   test("use filters to filter media", async ({ page }) => {
     const problems = collectConsoleProblems(page);
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     // Wait for media items to appear (all 3 from test-source)
     const items = page.locator("[data-media-id]");
@@ -196,7 +196,7 @@ test.describe("Browsing via media page grid", () => {
       page,
     }) => {
       const release = await holdNextMediaRequest(page);
-      await page.goto("/");
+      await page.goto("/media/grid");
 
       const items = page.locator("[data-media-id]");
       const loadingIndicator = page.getByTestId("page").getByText("Loading...");
@@ -224,7 +224,7 @@ test.describe("Browsing via media page grid", () => {
       page,
     }) => {
       const releaseFirst = await holdNextMediaRequest(page);
-      await page.goto("/");
+      await page.goto("/media/grid");
 
       const items = page.locator("[data-media-id]");
       const loadingIndicator = page.getByTestId("page").getByText("Loading...");
@@ -273,7 +273,7 @@ test.describe("Lightbox view", () => {
   test("clicking a media item opens it in the PhotoSwipe lightbox", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     // Wait for media items to appear
     const firstItem = page.locator("[data-media-id] img").first();
@@ -289,7 +289,7 @@ test.describe("Lightbox view", () => {
   });
 
   test("arrow keys navigate between slides", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     // Wait for media items and open the lightbox on the first one
     const firstItem = page.locator("[data-media-id] img").first();
@@ -321,7 +321,7 @@ test.describe("Lightbox view", () => {
   });
 
   test("clicking the backdrop closes the lightbox", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     const firstItem = page.locator("[data-media-id] img").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
@@ -348,7 +348,7 @@ test.describe("Lightbox view", () => {
   });
 
   test("clicking the image zooms in", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     const firstItem = page.locator("[data-media-id] img").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });

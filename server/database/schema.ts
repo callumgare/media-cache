@@ -53,6 +53,9 @@ const liaseMedia = customType<{
 const statusEnum = pgEnum("status", ["running", "completed", "failed"]);
 export type Status = (typeof statusEnum)["enumValues"][number];
 
+const videoFitEnum = pgEnum("video_fit", ["contain", "cover"]);
+export type VideoFit = (typeof videoFitEnum)["enumValues"][number];
+
 const logLevelEnum = pgEnum("log_level", [
   "debug",
   "info",
@@ -75,6 +78,43 @@ export const user = pgTable("user", {
 });
 
 export type User = typeof user.$inferSelect;
+
+/*
+userPreferences
+
+Persistent user preferences for Media Cache
+*/
+export const userPreferences = pgTable("user_preferences", {
+  id: serial("id").notNull().primaryKey(),
+  createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id),
+  loopVideo: boolean("loop_video").notNull().default(false),
+  muteVideo: boolean("mute_video").notNull().default(true),
+  videoFit: videoFitEnum("video_fit").notNull().default("cover"),
+});
+
+export const userRelations = relations(user, ({ one }) => ({
+  preferences: one(userPreferences, {
+    fields: [user.id],
+    references: [userPreferences.userId],
+  }),
+}));
+
+export const userPreferencesRelations = relations(
+  userPreferences,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userPreferences.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+export type UserPreferences = typeof userPreferences.$inferSelect;
 
 /*
 source

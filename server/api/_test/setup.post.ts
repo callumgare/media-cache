@@ -34,7 +34,9 @@ export default defineEventHandler(async (event) => {
       deleted_cache_media,
       cache_media,
       "group",
-      source
+      source,
+      user_preferences,
+      "user"
     CASCADE
   `);
 
@@ -50,6 +52,12 @@ export default defineEventHandler(async (event) => {
 
   // Clear any in-memory running states from previous tests
   queryExecutionTaskSystem.clearInMemoryTasks();
+
+  // Seed a default user so that preferences API works in tests
+  await db.insert(dbSchema.user).values({
+    updatedAt: new Date(),
+    username: "test-user",
+  });
 
   // Seed the test plugin queue
   globalThis.__testPluginQueue = body.media ?? [];

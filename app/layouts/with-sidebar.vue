@@ -164,6 +164,9 @@ async function toggleSidebar() {
 
 <template>
   <NuxtLayout name="base">
+    <template #header-center>
+      <slot name="header-center" />
+    </template>
     <template #header-buttons>
       <button
         class="toggle-sidebar"
@@ -199,7 +202,7 @@ async function toggleSidebar() {
         class="page"
         data-testid="page"
       >
-        <NuxtPage />
+        <slot />
       </div>
     </div>
   </NuxtLayout>

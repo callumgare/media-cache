@@ -7,6 +7,7 @@ export const useUiState = defineStore("ui", {
       randomSeed: Math.floor(Math.random() * (100000 - 1)),
       debugMode: false,
       mediaBlurred: false,
+      lastMediaView: "grid",
     };
   },
   actions: {

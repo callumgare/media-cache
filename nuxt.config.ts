@@ -2,6 +2,10 @@ import Aura from "@primevue/themes/aura";
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+  // Allow per-worker override during e2e testing to avoid cache conflicts
+  // between parallel nuxt dev instances.
+  buildDir: process.env.NUXT_BUILD_DIR ?? ".nuxt",
+  css: ["@videojs/html/video/minimal-skin.css"],
   modules: [
     "@primevue/nuxt-module",
     "@peterbud/nuxt-query",
@@ -41,6 +45,14 @@ export default defineNuxtConfig({
       theme: {
         preset: Aura,
       },
+    },
+  },
+  vue: {
+    compilerOptions: {
+      isCustomElement: (tag) =>
+        tag.startsWith("media-") ||
+        tag.startsWith("video-") ||
+        tag.startsWith("audio-"),
     },
   },
 });

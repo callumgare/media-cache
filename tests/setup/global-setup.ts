@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -8,7 +9,7 @@ const migrationsFolder = resolve(
   "../../server/database/migrations",
 );
 
-function withDatabase(url: string, dbName: string): string {
+export function withDatabase(url: string, dbName: string): string {
   const parsed = new URL(url);
   parsed.pathname = `/${dbName}`;
   return parsed.toString();
@@ -18,15 +19,21 @@ export async function setup() {
   const baseUrl = process.env.DATABASE_URL;
   if (!baseUrl) throw new Error("DATABASE_URL is not set");
 
-  const adminClient = postgres(withDatabase(baseUrl, "postgres"), { max: 1 });
+  const runId = randomUUID().replace(/-/g, "").slice(0, 16);
+  const templateDbName = `media_cache_test_${runId}_tmpl`;
+
+  process.env.TEST_RUN_ID = runId;
+  process.env.TEST_TEMPLATE_DB = templateDbName;
+
+  const adminUrl = withDatabase(baseUrl, "postgres");
+  const adminClient = postgres(adminUrl, { max: 1 });
   try {
-    await adminClient`DROP DATABASE IF EXISTS media_cache_test`;
-    await adminClient`CREATE DATABASE media_cache_test`;
+    await adminClient.unsafe(`CREATE DATABASE "${templateDbName}"`);
   } finally {
     await adminClient.end();
   }
 
-  const migrateClient = postgres(withDatabase(baseUrl, "media_cache_test"), {
+  const migrateClient = postgres(withDatabase(baseUrl, templateDbName), {
     max: 1,
     onnotice: (notice) => {
       if (notice.severity !== "NOTICE") console.warn(notice);
@@ -37,6 +44,28 @@ export async function setup() {
     await migrate(db, { migrationsFolder });
   } finally {
     await migrateClient.end();
+  }
+}
+
+export async function teardown() {
+  const baseUrl = process.env.DATABASE_URL;
+  const runId = process.env.TEST_RUN_ID;
+  if (!baseUrl || !runId) return;
+
+  const adminUrl = withDatabase(baseUrl, "postgres");
+  const adminClient = postgres(adminUrl, { max: 1 });
+  try {
+    const dbs = await adminClient<{ datname: string }[]>`
+      SELECT datname FROM pg_database
+      WHERE datname LIKE ${`media_cache_test_${runId}_%`}
+    `;
+    for (const { datname } of dbs) {
+      await adminClient.unsafe(
+        `DROP DATABASE IF EXISTS "${datname}" WITH (FORCE)`,
+      );
+    }
+  } finally {
+    await adminClient.end();
   }
 }
 

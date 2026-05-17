@@ -134,6 +134,13 @@
       "when": 1778930617446,
       "tag": "0018_add_found_in_latest_execution",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779026072603,
+      "tag": "0019_add_user_preferences",
+      "breakpoints": true
     }
   ]
 }

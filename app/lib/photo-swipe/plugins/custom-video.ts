@@ -1,5 +1,7 @@
 import type PhotoSwipeLightbox from "photoswipe/lightbox";
 import type { PhotoSwipe } from "photoswipe/lightbox";
+import { createApp, h, ref as vueRef } from "vue";
+import VideoMinimalSkin from "~/components/VideoMinimalSkin.vue";
 
 type Options = Record<never, never>;
 
@@ -22,6 +24,7 @@ export class PhotoSwipeCustomVideoPlugin {
   }
 
   options: Options;
+  #skinApps = new WeakMap<HTMLElement, ReturnType<typeof createApp>>();
 
   #initLightboxEvents(lightbox: PhotoSwipeLightbox) {
     lightbox.on("contentLoad", (e) => {
@@ -37,8 +40,6 @@ export class PhotoSwipeCustomVideoPlugin {
       wrapper.style.cssText = "position:absolute;left:0;top:0;";
 
       const player = document.createElement("video-player");
-      const skin = document.createElement("video-minimal-skin");
-      // skin.classList.add("pswp__img");
 
       // Stop the controls from showing when first opening. If the user is active after the first second then let them show
       let suppressVisible = true;
@@ -51,21 +52,8 @@ export class PhotoSwipeCustomVideoPlugin {
         }
       });
 
-      const video = document.createElement("video");
-      video.classList.add("pswp__img");
-      video.style.height = "100%";
-      video.style.width = "100%";
-      video.setAttribute("playsinline", "");
-
       const videoSrc = content.data.videoSrc;
-      if (videoSrc) {
-        video.src = String(videoSrc);
-      }
-
       const posterSrc = content.data.msrc;
-      if (posterSrc) {
-        video.poster = String(posterSrc);
-      }
 
       // Prefer the server-supplied hasAudio flag from the media API; fall back
       // to the audioTracks browser API if the slide data doesn't include it.
@@ -76,21 +64,36 @@ export class PhotoSwipeCustomVideoPlugin {
       )?.find((f) => f.hasVideo && f.ext !== "gif");
       const hasAudioFromMetadata = mediaFile?.hasAudio ?? null;
 
-      video.addEventListener("loadedmetadata", () => {
-        const hasAudio =
-          hasAudioFromMetadata ?? (video.audioTracks?.length ?? 0) > 0;
-        const loopThreshold = hasAudio ? 5 : 10;
-        if (video.duration < loopThreshold) {
-          video.loop = true;
-        }
+      const videoRef = vueRef<HTMLVideoElement | null>(null);
+      const app = createApp({
+        render: () =>
+          h(VideoMinimalSkin, null, {
+            default: () =>
+              h("video", {
+                ref: videoRef,
+                class: "pswp__img",
+                style: "height:100%;width:100%",
+                playsinline: "",
+                ...(videoSrc ? { src: String(videoSrc) } : {}),
+                ...(posterSrc ? { poster: String(posterSrc) } : {}),
+                onLoadedmetadata: () => {
+                  const video = videoRef.value;
+                  if (!video) return;
+                  const hasAudio =
+                    hasAudioFromMetadata ??
+                    (video.audioTracks?.length ?? 0) > 0;
+                  if (video.duration < (hasAudio ? 5 : 10)) {
+                    video.loop = true;
+                  }
+                },
+              }),
+          }),
       });
+      app.mount(player);
+      this.#skinApps.set(wrapper, app);
 
-      skin.appendChild(video);
-      player.appendChild(skin);
       wrapper.appendChild(player);
-
       content.element = wrapper;
-      // content.element = player;
 
       // Signal loaded once poster is ready (or immediately if no poster)
       if (posterSrc) {
@@ -108,7 +111,10 @@ export class PhotoSwipeCustomVideoPlugin {
 
     lightbox.on("contentDestroy", ({ content }) => {
       if (!isVideoContent(content)) return;
-      // Custom element cleanup is handled by disconnectedCallback
+      if (content.element) {
+        this.#skinApps.get(content.element)?.unmount();
+        this.#skinApps.delete(content.element);
+      }
     });
 
     lightbox.on("contentActivate", ({ content }) => {
@@ -142,8 +148,9 @@ export class PhotoSwipeCustomVideoPlugin {
         content.element.style.width = `${width}px`;
         content.element.style.height = `${height}px`;
 
-        const skin =
-          content.element.querySelector<HTMLElement>("video-minimal-skin");
+        const skin = content.element.querySelector<HTMLElement>(
+          "media-container.media-minimal-skin",
+        );
         if (skin) {
           skin.style.width = `${width}px`;
           skin.style.height = `${height}px`;

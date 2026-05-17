@@ -1,5 +1,5 @@
 import type { GenericMedia } from "@liase/core";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { collectConsoleProblems } from "./helpers";
 
 // ---------------------------------------------------------------------------

@@ -4,12 +4,6 @@ import { defineConfig } from "vitest/config";
 
 loadEnv();
 
-function toTestDbUrl(url: string): string {
-  const parsed = new URL(url);
-  parsed.pathname = "/media_cache_test";
-  return parsed.toString();
-}
-
 const projectRoot = resolve(import.meta.dirname, "../..");
 
 export default defineConfig({
@@ -18,12 +12,15 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
     include: ["tests/unit/**/*.test.ts"],
     globalSetup: [resolve(import.meta.dirname, "../setup/global-setup.ts")],
+    // unit-worker-setup.ts runs before each test file (Vitest re-evaluates
+    // setupFiles per file with isolate:true). It creates a per-file DB from the
+    // migrated template and overrides DATABASE_URL before db.ts is imported.
+    setupFiles: [resolve(import.meta.dirname, "../setup/unit-worker-setup.ts")],
     env: {
-      DATABASE_URL: toTestDbUrl(process.env.DATABASE_URL ?? ""),
       LIASE_PLUGINS: resolve(import.meta.dirname, "./fixtures/test-plugin.ts"),
     },
     pool: "forks",
-    fileParallelism: false,
+    fileParallelism: true,
     onConsoleLog() {
       return false;
     },

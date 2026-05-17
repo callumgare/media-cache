@@ -1,5 +1,5 @@
 import type { GenericMedia } from "@liase/core";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { collectConsoleProblems } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ test.describe("Video player in lightbox", () => {
     page,
   }) => {
     const problems = collectConsoleProblems(page);
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     // Wait for the video item to appear in the grid (attached to DOM)
     const videoItem = page.locator("[data-media-id] video").first();
@@ -152,7 +152,7 @@ test.describe("Video player in lightbox", () => {
     // Use a viewport where the 1280×720 video must be scaled down (letterboxed),
     // which makes centering clearly measurable.
     await page.setViewportSize({ width: 800, height: 500 });
-    await page.goto("/");
+    await page.goto("/media/grid");
 
     const videoItem = page.locator("[data-media-id] video").first();
     await videoItem.waitFor({ state: "attached", timeout: 15_000 });
@@ -162,7 +162,7 @@ test.describe("Video player in lightbox", () => {
     await expect(pswp).toBeVisible({ timeout: 5_000 });
     await expect(pswp).toHaveClass(/pswp--open/, { timeout: 5_000 });
 
-    const videoSkin = pswp.locator("video-minimal-skin");
+    const videoSkin = pswp.locator("media-container.media-minimal-skin");
     await expect(videoSkin).toBeAttached({ timeout: 5_000 });
 
     // Wait for the opening animation to finish (same signal used by the arrow-key / backdrop tests)

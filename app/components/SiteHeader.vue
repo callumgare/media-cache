@@ -9,7 +9,7 @@ const props = defineProps<{
 const items = ref([
   {
     label: "Media",
-    route: "/",
+    route: "/media",
   },
   {
     label: "Groups",
@@ -18,7 +18,7 @@ const items = ref([
         label: "Tags",
       },
     ],
-    route: "/",
+    route: "/groups",
   },
   {
     label: "Settings",
@@ -27,6 +27,11 @@ const items = ref([
 ]);
 
 const route = useRoute();
+
+function isNavItemActive(item: MenuItem) {
+  if (!item.route) return false;
+  return route.path === item.route || route.path.startsWith(`${item.route}/`);
+}
 
 const uiState = useUiState();
 
@@ -63,7 +68,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 <template>
   <div class="root">
     <div class="site-nav">
-      <Menubar :model="items">
+      <Menubar :model="items" breakpoint="480px">
         <template #item="{ item, props: itemProps, hasSubmenu }">
           <NuxtLink
             v-if="item.route"
@@ -75,6 +80,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
               v-ripple
               :href="href"
               v-bind="itemProps.action"
+              :class="{ 'nav-item-active': isNavItemActive(item) }"
               @click="navigate"
             >
               <span
@@ -103,6 +109,9 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
           </a>
         </template>
       </Menubar>
+      <div class="header-center">
+        <slot name="center" />
+      </div>
       <div class="right-side">
         <ExecutionIndicator />
         <button
@@ -117,7 +126,6 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         <slot name="header-buttons" />
       </div>
     </div>
-    <hr>
     <div
       v-if="breadcrumbItems.length"
       class="page-header"
@@ -164,11 +172,12 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 
 <style scoped>
   .root {
+    background: var(--p-content-background-opaque);
     .site-nav {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: 0.5em 1em;
+      padding: 0.5em 1em;
       gap: 1em;
 
       .p-menubar {
@@ -176,12 +185,17 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         padding: 0;
 
         & :deep(.p-menubar-root-list) {
-          font-size: 1.3em;
+          font-size: 1em;
           width: auto;
         }
 
         & :deep(.p-menubar-item-content):hover {
           background-color: transparent;
+        }
+
+        & :deep(.nav-item-active) {
+          color: var(--p-primary-color);
+          font-weight: 600;
         }
       }
 
@@ -190,6 +204,12 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
         justify-content: space-between;
         align-items: center;
         gap: 0.5em;
+      }
+
+      .header-center {
+        flex: 1;
+        display: flex;
+        justify-content: center;
       }
 
     }
@@ -204,6 +224,13 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 
     .page-header {
       margin: 1em 0 0;
+    }
+  }
+
+  /* Shrink nav link text before collapsing to hamburger */
+  @media (max-width: 680px) {
+    .site-nav .p-menubar :deep(.p-menubar-root-list) {
+      font-size: 0.875em;
     }
   }
 </style>

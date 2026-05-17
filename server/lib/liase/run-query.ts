@@ -276,7 +276,7 @@ export async function runLiaseQueryExecution({
       for (const liaseMedia of foundLiaseMedia) {
         currentLiaseId = liaseMedia.liaseId;
 
-        const instancesOnlyInLastExecution =
+        let instancesOnlyInLastExecution =
           liaseMedia.instancesOnlyInLastExecution;
         let instancesOnlyInThisExecution =
           liaseMedia.instancesOnlyInThisExecution;
@@ -295,6 +295,7 @@ export async function runLiaseQueryExecution({
             instancesInBothExecutions + instancesInLastExecution;
           instancesInBothExecutions = 0;
           instancesInLastExecution = 0;
+          instancesOnlyInLastExecution = 0;
         }
 
         const instancesUnchanged = instancesInBothExecutions;

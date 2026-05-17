@@ -4,14 +4,27 @@
     :class="{ 'blur-media': uiState.mediaBlurred }"
   >
     <Toast />
-    <SiteHeader
-      :breadcrumbs="breadcrumbs"
-      class="site-header"
+    <div
+      :class="[headerHiddenByDefault ? ['hideable', { expanded: headerExpanded }] : '']"
     >
-      <template #header-buttons>
-        <slot name="header-buttons" />
-      </template>
-    </SiteHeader>
+      <SiteHeader :breadcrumbs="breadcrumbs" class="site-header">
+        <template #center><slot name="header-center" /></template>
+        <template #header-buttons><slot name="header-buttons" /></template>
+      </SiteHeader>
+      <button
+        v-if="headerHiddenByDefault"
+        class="chevron-handle"
+        :class="{ 'is-expanded': headerExpanded }"
+        :aria-label="headerExpanded ? 'Hide header' : 'Show header'"
+        data-testid="feed-header-chevron"
+        @click="headerExpanded = !headerExpanded"
+      >
+        <i
+          class="chevron-icon"
+          :class="headerExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+        />
+      </button>
+    </div>
     <div class="base-layout-contents">
       <slot />
     </div>
@@ -19,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import "primeicons/primeicons.css";
 import { useUiState } from "@@/stores/ui";
 import type { MenuItem } from "primevue/menuitem";
 
@@ -41,6 +55,9 @@ const breadcrumbs = computed(() => {
 });
 
 const uiState = useUiState();
+
+const headerHiddenByDefault = computed(() => !!route.meta.hideHeader);
+const headerExpanded = ref(false);
 </script>
 
 <style scoped>
@@ -63,6 +80,59 @@ const uiState = useUiState();
       flex: 1 1 auto;
     }
   }
+
+  .hideable {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    transform: translateY(calc(-100% + 2.5rem));
+    transition: transform 0.3s ease;
+
+    &.expanded {
+      transform: translateY(0);
+    }
+
+    &:hover .chevron-handle {
+      opacity: 1;
+    }
+    .chevron-handle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 2.5rem;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+
+      &.is-expanded {
+        opacity: 1;
+      }
+      .chevron-icon {
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.45);
+        transition: transform 0.15s ease, color 0.15s ease;
+      }
+      &:hover .chevron-icon {
+        color: rgba(255, 255, 255, 0.85);
+      }
+
+      &:not(.is-expanded):hover .chevron-icon {
+        transform: translateY(3px);
+      }
+
+      &.is-expanded:hover .chevron-icon {
+        transform: translateY(-3px);
+      }
+    }
+  }
+
+
+
 </style>
 
 <style>
@@ -103,7 +173,7 @@ const uiState = useUiState();
   .p-button {
     line-height: normal;
   }
-  
+
   :root, :host {
     /* The page has a background so we make most things transparent with the exception of surfaces that overlap other surfaces */
     --p-content-background: transparent;
@@ -112,7 +182,7 @@ const uiState = useUiState();
     @media (prefers-color-scheme: dark) {
       --p-content-background-opaque: var(--p-surface-900);
     }
-    
+
     --p-menubar-submenu-background: var(--p-content-background-opaque);
   }
 

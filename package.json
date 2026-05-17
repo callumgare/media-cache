@@ -23,6 +23,7 @@
     "@peterbud/nuxt-query": "^1.7.0",
     "@pinia/nuxt": "^0.11.3",
     "@tanstack/vue-query": "^5.100.8",
+    "@tanstack/vue-virtual": "^3.13.24",
     "@videojs/html": "^10.0.0-beta.23",
     "@vueuse/core": "^14.3.0",
     "@vueuse/gesture": "^2.0.0",
