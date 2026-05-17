@@ -5,6 +5,11 @@ export default defineNuxtConfig({
   // Allow per-worker override during e2e testing to avoid cache conflicts
   // between parallel nuxt dev instances.
   buildDir: process.env.NUXT_BUILD_DIR ?? ".nuxt",
+  nitro: {
+    output: {
+      dir: process.env.NITRO_OUTPUT_DIR,
+    },
+  },
   css: ["@videojs/html/video/minimal-skin.css"],
   modules: [
     "@primevue/nuxt-module",
@@ -41,6 +46,33 @@ export default defineNuxtConfig({
     autoImports: ["useQuery", "useInfiniteQuery"],
   },
   primevue: {
+    components: {
+      include: [
+        "Breadcrumb",
+        "Button",
+        "Checkbox",
+        "Column",
+        "ConfirmDialog",
+        "DataTable",
+        "Dialog",
+        "Fieldset",
+        "Inplace",
+        "InputGroup",
+        "InputGroupAddon",
+        "InputNumber",
+        "InputText",
+        "Menubar",
+        "MultiSelect",
+        "Popover",
+        "ProgressBar",
+        "ProgressSpinner",
+        "Select",
+        "SelectButton",
+        "Skeleton",
+        "Textarea",
+        "Toast",
+      ],
+    },
     options: {
       theme: {
         preset: Aura,

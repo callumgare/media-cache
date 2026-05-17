@@ -10,6 +10,7 @@
 import { execFileSync, execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
+  cpSync,
   createReadStream,
   existsSync,
   mkdirSync,
@@ -61,6 +62,13 @@ export default async function globalSetup(_config: FullConfig) {
   );
 
   if (buildCacheTmpDir && outputTmpDir) {
+    // Seed the temp .nuxt dir with the project's existing build cache to avoid cold starts
+    const sourceDotNuxt = resolve(projectRoot, ".nuxt");
+    const destDotNuxt = join(buildCacheTmpDir, ".nuxt");
+    if (existsSync(sourceDotNuxt)) {
+      cpSync(sourceDotNuxt, destDotNuxt, { recursive: true });
+    }
+
     console.log("\n[e2e] Building Nuxt app (set SKIP_BUILD=true to skip)...\n");
     const buildStart = Date.now();
     try {
