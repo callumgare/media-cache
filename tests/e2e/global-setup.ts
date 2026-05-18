@@ -9,8 +9,7 @@
 
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
@@ -26,6 +25,7 @@ import {
 } from "../shared/media-fixtures";
 
 const projectRoot = resolve(import.meta.dirname, "../..");
+const e2eRoot = import.meta.dirname;
 const migrationsFolder = resolve(projectRoot, "server/database/migrations");
 
 function withDatabase(url: string, dbName: string): string {
@@ -44,12 +44,16 @@ export default async function globalSetup(_config: FullConfig) {
   // Build the Nuxt app so workers can start a fast production server.
   // Each run builds into its own temp directory so parallel runs don't conflict.
   // Override with SKIP_BUILD=true to reuse an existing build from .output.
+  if (!process.env.SKIP_BUILD) {
+    mkdirSync(join(e2eRoot, ".builds"), { recursive: true });
+    mkdirSync(join(e2eRoot, ".results"), { recursive: true });
+  }
   const buildCacheTmpDir = process.env.SKIP_BUILD
     ? null
-    : mkdtempSync(join(tmpdir(), "nuxt-e2e-cache-"));
+    : mkdtempSync(join(e2eRoot, ".builds", "nuxt-e2e-cache-"));
   const outputTmpDir = process.env.SKIP_BUILD
     ? null
-    : mkdtempSync(join(tmpdir(), "nuxt-e2e-output-"));
+    : mkdtempSync(join(e2eRoot, ".results", "nuxt-e2e-output-"));
   process.env.TEST_SERVER_OUTPUT_DIR = outputTmpDir
     ? join(outputTmpDir, ".output")
     : resolve(projectRoot, ".output");

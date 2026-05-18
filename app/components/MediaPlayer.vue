@@ -13,6 +13,7 @@
         :muted="muted"
         :data-testid="videoTestId"
         @loadedmetadata="emit('loadedmetadata')"
+        @resize="emit('resize')"
         @ended="emit('ended')"
       />
     </VideoMinimalSkin>
@@ -54,6 +55,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: "loadedmetadata"): void;
+  (e: "resize"): void;
   (e: "ended"): void;
 }>();
 

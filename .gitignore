@@ -22,6 +22,8 @@ logs
 .local
 test-results/
 tests/.cache/
+tests/e2e/.builds/
+tests/e2e/.results/
 *.tsbuildinfo
 
 

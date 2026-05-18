@@ -359,6 +359,11 @@ test.describe("HLS video in lightbox – navigation", () => {
     // Navigate to the adjacent HLS video slide
     await page.keyboard.press("ArrowRight");
 
+    // Wait for PhotoSwipe to complete navigation to slide index 1 (the HLS video).
+    // The counter changes to "2 / N" once the slide change is committed.
+    const counter = pswp.locator(".pswp__counter");
+    await expect(counter).toContainText("2 /", { timeout: 5_000 });
+
     // Wait until the HLS video's real dimensions are written into the current slide
     await page.waitForFunction(() => (window.pswp?.currSlide?.width ?? 0) > 0, {
       timeout: 15_000,

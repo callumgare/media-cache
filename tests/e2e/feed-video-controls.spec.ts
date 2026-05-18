@@ -551,37 +551,34 @@ test.describe("Feed video – drag to adjust seek speed", () => {
     if (!box) throw new Error("Cannot get media area bounding box");
 
     const { x, y } = await getZonePosition(slide, "left");
+    const indicator = slide.getByTestId("feed-slide-rate-indicator");
 
+    // Enter hold mode on the left zone and read the baseline rate from the
+    // rate indicator. Rewind uses a setInterval rather than video.playbackRate,
+    // so we read the displayed label instead of time-based measurement to avoid
+    // flakiness caused by setInterval timer jitter.
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.waitForTimeout(350);
+    await expect(indicator).toBeVisible({ timeout: 1_000 });
+    const baselineText = await indicator.textContent();
 
-    // Measure how far the video rewinds per 300 ms without dragging
-    const t1 = await getVideoTime(page);
-    await page.waitForTimeout(300);
-    const t2 = await getVideoTime(page);
-    const rewindRateBaseline = t1 - t2; // positive number = rewinding
-
-    // Reset position and hold again
-    await page.mouse.up();
-    await setVideoTime(page, 35);
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.waitForTimeout(350);
-
-    // Drag right – should reduce the rewind rate
+    // Drag right – should reduce the absolute rewind rate (slower rewind)
     await page.mouse.move(x + box.width * 0.12, y, { steps: 8 });
     await page.waitForTimeout(100);
-
-    const t3 = await getVideoTime(page);
-    await page.waitForTimeout(300);
-    const t4 = await getVideoTime(page);
-    const rewindRateAfterDrag = t3 - t4;
+    const afterDragText = await indicator.textContent();
 
     await page.mouse.up();
 
-    // After dragging right the rewind should be slower (smaller delta per unit time)
-    expect(rewindRateAfterDrag).toBeLessThan(rewindRateBaseline);
+    // Parse the numeric rate magnitude from the indicator label (e.g. "−1.5x" → 1.5)
+    const parseRate = (text: string | null) =>
+      Number.parseFloat((text ?? "").replace(/[^\d.]/g, ""));
+
+    const baselineRate = parseRate(baselineText);
+    const afterDragRate = parseRate(afterDragText);
+
+    // After dragging right the absolute rewind rate should be smaller (slower rewind)
+    expect(afterDragRate).toBeLessThan(baselineRate);
   });
 });
 

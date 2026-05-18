@@ -21,9 +21,7 @@ export default defineConfig({
     },
     pool: "forks",
     fileParallelism: true,
-    onConsoleLog() {
-      return false;
-    },
+    silent: "passed-only",
   },
   resolve: {
     // Default here: https://nuxt.com/docs/4.x/api/nuxt-config#alias
