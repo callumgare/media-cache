@@ -450,6 +450,11 @@ export async function runLiaseQueryExecution({
                 dbSchema.liaseQueryMedia.liaseId,
               ),
               eq(previousOnlyLiaseMedia.foundInLatestExecution, false),
+              // Restrict to the same query so rows from other queries don't
+              // contaminate instancesOnlyInLastExecution.
+              savedLiaseQuery
+                ? eq(previousOnlyLiaseMedia.queryId, savedLiaseQuery.id)
+                : sql`false`,
             ),
           )
           .where(
@@ -481,7 +486,7 @@ export async function runLiaseQueryExecution({
             liaseMedia.instancesOnlyInLastExecution;
           let instancesOnlyInThisExecution =
             liaseMedia.instancesOnlyInThisExecution;
-          let instancesInThisExecution = liaseMedia.instancesInThisExecution;
+          const instancesInThisExecution = liaseMedia.instancesInThisExecution;
           let instancesInBothExecutions =
             instancesInThisExecution - instancesOnlyInThisExecution;
           let instancesInLastExecution =
@@ -490,10 +495,9 @@ export async function runLiaseQueryExecution({
           // If the previous execution failed we can't trust that cache media was correctly added/updated so we treat
           // all media as changed.
           if (previousExecution?.status === "failed") {
-            instancesOnlyInThisExecution +=
-              instancesInBothExecutions + instancesInLastExecution;
-            instancesInThisExecution +=
-              instancesInBothExecutions + instancesInLastExecution;
+            // Promote the "in both" instances to "only in this execution" so
+            // everything goes through the create/update path below.
+            instancesOnlyInThisExecution += instancesInBothExecutions;
             instancesInBothExecutions = 0;
             instancesInLastExecution = 0;
             instancesOnlyInLastExecution = 0;
@@ -564,6 +568,7 @@ export async function runLiaseQueryExecution({
             liaseMediaFound,
             liaseMediaNew,
             liaseMediaUpdated,
+            liaseMediaRemoved,
             liaseMediaUnchanged,
             cacheMediaCreated,
             cacheMediaUpdated,
@@ -577,7 +582,17 @@ export async function runLiaseQueryExecution({
       if (savedLiaseQuery) {
         await db
           .update(dbSchema.liaseQueryExecution)
-          .set({ resumeStage: "processing-removed", updatedAt: new Date() })
+          .set({
+            resumeStage: "processing-removed",
+            liaseMediaNew,
+            liaseMediaUpdated,
+            liaseMediaUnchanged,
+            liaseMediaRemoved,
+            cacheMediaCreated,
+            cacheMediaUpdated,
+            cacheMediaUnchanged,
+            updatedAt: new Date(),
+          })
           .where(eq(dbSchema.liaseQueryExecution.id, executionId));
       }
     }
@@ -679,6 +694,10 @@ export async function runLiaseQueryExecution({
         .update(dbSchema.liaseQueryExecution)
         .set({
           resumeStage: "removing-previous-execution-results",
+          liaseMediaRemoved,
+          cacheMediaDeleted,
+          cacheMediaUpdated,
+          cacheMediaCreated,
           updatedAt: new Date(),
         })
         .where(eq(dbSchema.liaseQueryExecution.id, executionId));

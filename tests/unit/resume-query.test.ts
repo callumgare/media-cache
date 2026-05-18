@@ -6,7 +6,7 @@ import {
 } from "@@/server/lib/liase/run-query";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TEST_REQUEST_PAGINATED_CURSOR,
   TEST_REQUEST_PAGINATED_OFFSET,
@@ -472,6 +472,106 @@ describe("stat counters carry forward on resume", () => {
     expect(execRow?.liaseMediaNew).toBe(4);
     expect(execRow?.cacheMediaCreated).toBe(4);
     expect(execRow?.status).toBe("completed");
+  });
+
+  it("saves all stats at the processing-added-or-updated → processing-removed transition", async () => {
+    const q = await createTestLiaseQuery(TEST_REQUEST_PAGINATED_OFFSET);
+
+    // Execution resumes at processing-added-or-updated (fetching already done).
+    // No stats are pre-seeded — they must be written by the stage transition itself.
+    const exec = await createExecutionWithCheckpoint(q.id, {
+      resumeStage: "processing-added-or-updated",
+      liaseMediaFound: 3,
+    });
+    for (let i = 1; i <= 3; i++) {
+      await insertLiaseQueryMedia(
+        q.id,
+        exec.id,
+        makeMedia({ id: `item-${i}` }),
+        true,
+      );
+    }
+
+    // Intercept updateTask when processing-removed announces itself — this fires
+    // immediately after the transition write, so the DB row reflects exactly
+    // what the transition persisted.
+    let rowAtTransition: dbSchema.LiaseQueryExecution | undefined;
+    const originalUpdateTask = queryExecutionTaskSystem.updateTask.bind(
+      queryExecutionTaskSystem,
+    );
+    vi.spyOn(queryExecutionTaskSystem, "updateTask").mockImplementation(
+      async (executionId, updates) => {
+        if (updates.stage === "processing-removed" && executionId === exec.id) {
+          rowAtTransition = await db.query.liaseQueryExecution.findFirst({
+            where: eq(dbSchema.liaseQueryExecution.id, exec.id),
+          });
+        }
+        return originalUpdateTask(executionId, updates);
+      },
+    );
+
+    await resumeExecution(exec, q);
+    vi.restoreAllMocks();
+
+    // The transition write must have flushed these stats to the DB.
+    // Without the fix these are still -1 (DB default) or 0.
+    expect(rowAtTransition?.resumeStage).toBe("processing-removed");
+    expect(rowAtTransition?.liaseMediaNew).toBe(3);
+    expect(rowAtTransition?.cacheMediaCreated).toBe(3);
+    expect(rowAtTransition?.liaseMediaUpdated).toBe(0);
+    expect(rowAtTransition?.liaseMediaUnchanged).toBe(0);
+    expect(rowAtTransition?.cacheMediaUpdated).toBe(0);
+    expect(rowAtTransition?.cacheMediaUnchanged).toBe(0);
+  });
+
+  it("saves all stats at the processing-removed → removing-previous-execution-results transition", async () => {
+    const q = await createTestLiaseQuery(TEST_REQUEST_PAGINATED_OFFSET);
+
+    // First execution creates a cache_media entry that the second execution will remove.
+    enqueueMedia([makeMedia({ id: "will-be-removed" })]);
+    await runLiaseQuery(q);
+
+    // Second execution: item is absent from the new fetch → foundInLatestExecution=false.
+    // No stats pre-seeded — they must come from what processing-removed accumulates
+    // and then writes at its own stage transition.
+    await db
+      .update(dbSchema.liaseQueryMedia)
+      .set({ foundInLatestExecution: false });
+    const exec = await createExecutionWithCheckpoint(q.id, {
+      resumeStage: "processing-removed",
+    });
+
+    // Intercept updateTask when removing-previous-execution-results announces itself
+    // — fires right after the processing-removed → removing-previous-execution-results
+    // transition write.
+    let rowAtTransition: dbSchema.LiaseQueryExecution | undefined;
+    const originalUpdateTask = queryExecutionTaskSystem.updateTask.bind(
+      queryExecutionTaskSystem,
+    );
+    vi.spyOn(queryExecutionTaskSystem, "updateTask").mockImplementation(
+      async (executionId, updates) => {
+        if (
+          updates.stage === "removing-previous-execution-results" &&
+          executionId === exec.id
+        ) {
+          rowAtTransition = await db.query.liaseQueryExecution.findFirst({
+            where: eq(dbSchema.liaseQueryExecution.id, exec.id),
+          });
+        }
+        return originalUpdateTask(executionId, updates);
+      },
+    );
+
+    await resumeExecution(exec, q);
+    vi.restoreAllMocks();
+
+    // The transition write must have flushed these stats.
+    // Without the fix these are still -1 (DB default) or 0.
+    expect(rowAtTransition?.resumeStage).toBe(
+      "removing-previous-execution-results",
+    );
+    expect(rowAtTransition?.liaseMediaRemoved).toBe(1);
+    expect(rowAtTransition?.cacheMediaDeleted).toBe(1);
   });
 });
 
