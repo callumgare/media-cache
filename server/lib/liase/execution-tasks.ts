@@ -45,40 +45,63 @@ class QueryExecutionTaskSystem extends EventEmitter implements TaskProvider {
   private inMemoryTasks: Map<number, QueryExecutionTask> = new Map();
   // Eagerly started so it completes before any test can create a new execution
   // and trigger getTasks() — otherwise the lazy first-call approach would race
-  // and mark the newly-created execution as failed.
+  // before startup recovery has a chance to identify resumable executions.
   private startupRecovery: Promise<void> = this.runStartupRecovery();
+
+  // IDs of executions that were still 'running' when the server last exited.
+  // The resume-executions plugin reads these and attempts to resume each one.
+  private runningExecutionIds: number[] = [];
+
+  // Per-execution callbacks invoked by the signal handler to flush the
+  // in-memory page checkpoint to the DB before the process exits.
+  private checkpointSavers = new Map<number, () => Promise<void>>();
 
   private publishTaskUpdated = throttleLeadingTrailing(
     (event: TaskEvent) => this.emit("event", event),
     300,
   );
 
+  handleSignal = async () => {
+    await Promise.allSettled(
+      [...this.checkpointSavers.values()].map((fn) => fn()),
+    );
+  };
+
   private runStartupRecovery(): Promise<void> {
-    // Mark any executions left as 'running' from a previous server process as failed,
-    // and add a log entry to each explaining why.
+    // Collect executions that were still running when the server last exited so
+    // the resume-executions plugin can attempt to resume them.
     return db
-      .update(dbSchema.liaseQueryExecution)
-      .set({
-        status: "failed",
-        finishedAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .select({ id: dbSchema.liaseQueryExecution.id })
+      .from(dbSchema.liaseQueryExecution)
       .where(eq(dbSchema.liaseQueryExecution.status, "running"))
-      .returning()
-      .then(async (rows) => {
-        if (rows.length === 0) return;
-        await db.insert(dbSchema.liaseQueryExecutionLog).values(
-          rows.map(
-            (row) =>
-              ({
-                executionId: row.id,
-                level: "fatal-error",
-                message:
-                  "Execution was interrupted by a server restart and did not complete.",
-              }) as const,
-          ),
-        );
+      .then((rows) => {
+        this.runningExecutionIds = rows.map((r) => r.id);
       });
+  }
+
+  /** Expose the startup-recovery promise so the resume plugin can wait for it. */
+  awaitStartupRecovery(): Promise<void> {
+    return this.startupRecovery;
+  }
+
+  /** Returns the IDs of executions that were running when the server last exited. */
+  getRunningExecutionIds(): number[] {
+    return [...this.runningExecutionIds];
+  }
+
+  /**
+   * Register a callback that flushes the in-memory fetch checkpoint to the DB.
+   * Called by the signal handler so progress is preserved on graceful shutdown.
+   */
+  registerCheckpointSaver(
+    executionId: number,
+    saver: () => Promise<void>,
+  ): void {
+    this.checkpointSavers.set(executionId, saver);
+  }
+
+  unregisterCheckpointSaver(executionId: number): void {
+    this.checkpointSavers.delete(executionId);
   }
 
   async getTasks(): Promise<QueryExecutionTask[]> {
@@ -239,6 +262,11 @@ declare global {
 
 if (!globalThis.__queryExecutionTaskSystem__) {
   globalThis.__queryExecutionTaskSystem__ = new QueryExecutionTaskSystem();
+  // Register signal handlers once (outside the class to avoid re-registration on HMR).
+  // These are best-effort: they start async checkpoint saves before shutdown.
+  const system = globalThis.__queryExecutionTaskSystem__;
+  process.prependListener("SIGTERM", () => void system.handleSignal());
+  process.prependListener("SIGINT", () => void system.handleSignal());
 }
 
 export const queryExecutionTaskSystem: QueryExecutionTaskSystem =

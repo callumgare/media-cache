@@ -508,12 +508,15 @@ export async function deleteCacheMediaEntry({
   mergedIntoCacheMediaId?: number;
 }): Promise<void> {
   return await db.transaction(async (dbTx) => {
-    await dbTx.insert(dbSchema.deletedCacheMedia).values({
-      updatedAt: new Date(),
-      cacheMediaId: cacheMedia.id,
-      deletionReason,
-      mergedIntoCacheMediaId: mergedIntoCacheMediaId ?? null,
-    });
+    await dbTx
+      .insert(dbSchema.deletedCacheMedia)
+      .values({
+        updatedAt: new Date(),
+        cacheMediaId: cacheMedia.id,
+        deletionReason,
+        mergedIntoCacheMediaId: mergedIntoCacheMediaId ?? null,
+      })
+      .onConflictDoNothing();
     await dbTx
       .delete(dbSchema.cacheMedia)
       .where(eq(dbSchema.cacheMedia.id, cacheMedia.id));

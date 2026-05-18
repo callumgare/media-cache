@@ -141,6 +141,13 @@
       "when": 1779026072603,
       "tag": "0019_add_user_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779073829973,
+      "tag": "0020_add_resume_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -385,6 +385,17 @@ export const liaseQueryExecution = pgTable("liase_query_execution", {
   cacheMediaUpdated: integer("cache_media_updated").notNull().default(-1),
   cacheMediaUnchanged: integer("cache_media_unchanged").notNull().default(-1),
   cacheMediaDeleted: integer("cache_media_deleted").notNull().default(-1),
+
+  // Checkpoint fields written at stage transitions and flushed by signal handlers so
+  // a running execution can be resumed after an unexpected server restart.
+  resumeStage: text("resume_stage"),
+  resumeVariationIndex: integer("resume_variation_index").notNull().default(0),
+  resumePageNumber: integer("resume_page_number"),
+  resumeCursor: jsonb("resume_cursor"),
+  resumePagesFetched: integer("resume_pages_fetched").notNull().default(0),
+  resumeVariationPagesFetched: integer("resume_variation_pages_fetched")
+    .notNull()
+    .default(0),
 });
 
 export const liaseQueryExecutionRelations = relations(

@@ -34,7 +34,35 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-type LiaseQueryOptions = Parameters<typeof getLiaseQuery>[0]["queryOptions"];
+export type LiaseQueryOptions = Parameters<
+  typeof getLiaseQuery
+>[0]["queryOptions"];
+
+// Stages that can be persisted as a resume checkpoint.
+// The value means "this stage has not yet completed – resume from here".
+export type ResumeStage =
+  | "fetching-liase-results"
+  | "processing-added-or-updated"
+  | "processing-removed"
+  | "removing-previous-execution-results";
+
+const resumeStageOrder: ResumeStage[] = [
+  "fetching-liase-results",
+  "processing-added-or-updated",
+  "processing-removed",
+  "removing-previous-execution-results",
+];
+
+/** Returns true when `stage` is at or after `resumeFrom` in the pipeline. */
+function shouldRunStage(
+  stage: ResumeStage,
+  resumeFrom: ResumeStage | null,
+): boolean {
+  if (!resumeFrom) return true;
+  return (
+    resumeStageOrder.indexOf(stage) >= resumeStageOrder.indexOf(resumeFrom)
+  );
+}
 
 function cartesianProduct<T>(arrays: T[][]): T[][] {
   return arrays.reduce<T[][]>(
@@ -65,7 +93,7 @@ function expandVariation(
   });
 }
 
-function expandAllVariations(
+export function expandAllVariations(
   savedLiaseQuery: dbSchema.LiaseQuery,
 ): GenericRequest[] {
   const base = savedLiaseQuery.requestOptions;
@@ -79,6 +107,32 @@ function expandAllVariations(
   return allRequests;
 }
 
+/**
+ * Builds the LiaseQueryOptions for a saved query.
+ * Exported so the resume-executions plugin can reconstruct options without
+ * duplicating this logic.
+ */
+export function buildLiaseQueryOptions(
+  savedLiaseQuery: dbSchema.LiaseQuery,
+  liaseRequests: GenericRequest[],
+): LiaseQueryOptions {
+  const options: LiaseQueryOptions = {};
+  if (savedLiaseQuery.fetchCountLimit !== null) {
+    if (savedLiaseQuery.fetchCountLimitPerVariation) {
+      // Limit applies independently to each variation request
+      options.fetchCountLimit = savedLiaseQuery.fetchCountLimit;
+    } else {
+      // If we have a global limit make sure our per-request limit is high enough that a single query variation could
+      // potentially make up the entire limit
+      options.fetchCountLimit =
+        savedLiaseQuery.fetchCountLimit * liaseRequests.length;
+    }
+    // else: limit applies across all variation requests combined — enforced
+    // ourselves in the response loop via globalFetchLimit; no per-request cap.
+  }
+  return options;
+}
+
 export async function startLiaseQueryExecution(
   savedLiaseQuery: dbSchema.LiaseQuery,
 ): Promise<{
@@ -87,20 +141,10 @@ export async function startLiaseQueryExecution(
 }> {
   const execution = await createLiaseQueryExecution({ savedLiaseQuery });
   const liaseRequests = expandAllVariations(savedLiaseQuery);
-  const liaseQueryOptions: LiaseQueryOptions = {};
-  if (savedLiaseQuery.fetchCountLimit !== null) {
-    if (savedLiaseQuery.fetchCountLimitPerVariation) {
-      // Limit applies independently to each variation request
-      liaseQueryOptions.fetchCountLimit = savedLiaseQuery.fetchCountLimit;
-    } else {
-      // If we have a global limit make sure our per-request limit is high enough that a single query variation could
-      // potentially make up the entire limit
-      liaseQueryOptions.fetchCountLimit =
-        savedLiaseQuery.fetchCountLimit * liaseRequests.length;
-    }
-    // else: limit applies across all variation requests combined — enforced
-    // ourselves in the response loop via globalFetchLimit; no per-request cap.
-  }
+  const liaseQueryOptions = buildLiaseQueryOptions(
+    savedLiaseQuery,
+    liaseRequests,
+  );
   // Run the actual execution in the background without blocking the caller
   const executionPromise = runLiaseQueryExecution({
     liaseQueryExecution: execution,
@@ -125,7 +169,16 @@ export async function runLiaseQueryExecution({
   const executionId = liaseQueryExecution.id;
   const queryId = savedLiaseQuery?.id ?? null;
 
-  let pageCount = 0;
+  // --- Resume state ---
+  const resumeStage = liaseQueryExecution.resumeStage as ResumeStage | null;
+  const resumeVariationIndex = liaseQueryExecution.resumeVariationIndex;
+  const resumePageNumber = liaseQueryExecution.resumePageNumber ?? null;
+  const resumeCursor =
+    (liaseQueryExecution.resumeCursor as string | number | null) ?? null;
+
+  // When fetching, pageCount tracks total pages fetched. On resume, seed it from
+  // the DB so the global fetch-count limit check stays accurate.
+  let pageCount = liaseQueryExecution.resumePagesFetched;
 
   // When fetchCountLimitPerVariation is false the limit applies across all
   // variation requests combined (counted in pages); we track the running total here.
@@ -136,22 +189,34 @@ export async function runLiaseQueryExecution({
       ? savedLiaseQuery.fetchCountLimit
       : null;
 
-  let liaseMediaFound = 0;
-  let liaseMediaNew = 0;
-  let liaseMediaUpdated = 0;
-  let liaseMediaRemoved = 0;
+  // Seed stats from the DB so that a resumed execution carries forward the progress
+  // from the interrupted run. The schema defaults these to -1 ("not yet run"), so
+  // Math.max(0, …) normalises both the "fresh execution" case and any hard-crash
+  // where stats were never written before the process exited.
+  let liaseMediaFound = Math.max(0, liaseQueryExecution.liaseMediaFound);
+  let liaseMediaNew = Math.max(0, liaseQueryExecution.liaseMediaNew);
+  let liaseMediaUpdated = Math.max(0, liaseQueryExecution.liaseMediaUpdated);
+  let liaseMediaRemoved = Math.max(0, liaseQueryExecution.liaseMediaRemoved);
   const liaseMediaNotSuitable = -1; // not used at the moment
-  let liaseMediaUnchanged = 0;
+  let liaseMediaUnchanged = Math.max(
+    0,
+    liaseQueryExecution.liaseMediaUnchanged,
+  );
 
-  let cacheMediaCreated = 0;
-  let cacheMediaUpdated = 0;
-  let cacheMediaUnchanged = 0;
-  let cacheMediaDeleted = 0;
+  let cacheMediaCreated = Math.max(0, liaseQueryExecution.cacheMediaCreated);
+  let cacheMediaUpdated = Math.max(0, liaseQueryExecution.cacheMediaUpdated);
+  let cacheMediaUnchanged = Math.max(
+    0,
+    liaseQueryExecution.cacheMediaUnchanged,
+  );
+  let cacheMediaDeleted = Math.max(0, liaseQueryExecution.cacheMediaDeleted);
 
   let currentLiaseRequest: GenericRequest | null = null;
   let currentLiaseId: string | null = null;
 
-  if (savedLiaseQuery) {
+  // ----- Stage: initialising -----
+  // Only runs on a fresh (non-resumed) execution.
+  if (savedLiaseQuery && !resumeStage) {
     await queryExecutionTaskSystem.updateTask(executionId, {
       stage: "initialising",
     });
@@ -159,51 +224,187 @@ export async function runLiaseQueryExecution({
       .update(dbSchema.liaseQueryMedia)
       .set({ foundInLatestExecution: false })
       .where(eq(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id));
+
+    // Persist stage transition so that if interrupted before any page is fetched
+    // we still know initialising is done and can skip it on the next resume.
+    await db
+      .update(dbSchema.liaseQueryExecution)
+      .set({ resumeStage: "fetching-liase-results", updatedAt: new Date() })
+      .where(eq(dbSchema.liaseQueryExecution.id, executionId));
   }
 
   try {
-    // ----- Saving liase results to execution media table -----
-    await queryExecutionTaskSystem.updateTask(executionId, {
-      stage: "fetching-liase-results",
-      pageCount,
-    });
-    for (const liaseRequest of liaseRequests) {
-      liaseQueryOptions.secrets = {
-        ...liaseQueryOptions.secrets,
-        ...(await getSecrets(liaseRequest)),
+    // ----- Stage: fetching-liase-results -----
+    if (shouldRunStage("fetching-liase-results", resumeStage)) {
+      // In-memory checkpoint updated after each committed page.
+      // The signal handler flushes this to the DB so the next startup can resume
+      // from the right page rather than re-fetching from the beginning.
+      const checkpoint = {
+        variationIndex: resumeVariationIndex,
+        pageNumber: resumePageNumber,
+        cursor: resumeCursor,
+        variationPagesFetched: liaseQueryExecution.resumeVariationPagesFetched,
       };
 
-      currentLiaseRequest = liaseRequest;
-
-      const liaseQuery = await getLiaseQuery({
-        request: liaseRequest,
-        queryOptions: liaseQueryOptions,
-      });
-
-      for await (const response of liaseQuery) {
-        pageCount++;
-        for (const liaseMedia of response.media) {
-          await db.transaction(async (dbTx) => {
-            await ensureLiaseQueryMediaContentExists({ dbTx, liaseMedia });
-            await createOrUpdateLiaseQueryMedia({
-              dbTx,
-              liaseMedia,
-              liaseQueryExecution,
-            });
-          });
-          liaseMediaFound++;
-
-          await queryExecutionTaskSystem.updateTask(executionId, {
-            pageCount,
+      const saveCheckpoint = async () => {
+        await db
+          .update(dbSchema.liaseQueryExecution)
+          .set({
+            resumeStage: "fetching-liase-results",
+            resumeVariationIndex: checkpoint.variationIndex,
+            resumePageNumber: checkpoint.pageNumber,
+            resumeCursor: checkpoint.cursor,
+            resumePagesFetched: pageCount,
+            resumeVariationPagesFetched: checkpoint.variationPagesFetched,
             liaseMediaFound,
+            liaseMediaNew,
+            liaseMediaUpdated,
+            liaseMediaRemoved,
+            liaseMediaUnchanged,
+            cacheMediaCreated,
+            cacheMediaUpdated,
+            cacheMediaUnchanged,
+            cacheMediaDeleted,
+            updatedAt: new Date(),
+          })
+          .where(eq(dbSchema.liaseQueryExecution.id, executionId));
+      };
+
+      queryExecutionTaskSystem.registerCheckpointSaver(
+        executionId,
+        saveCheckpoint,
+      );
+      try {
+        await queryExecutionTaskSystem.updateTask(executionId, {
+          stage: "fetching-liase-results",
+          pageCount,
+        });
+
+        for (let varIdx = 0; varIdx < liaseRequests.length; varIdx++) {
+          // Skip variations already completed in a previous run.
+          if (varIdx < resumeVariationIndex) continue;
+
+          // varIdx is always in-bounds because the for-loop condition is varIdx < liaseRequests.length
+          const liaseRequestBase = liaseRequests[varIdx];
+          if (liaseRequestBase === undefined)
+            throw new Error(`No liase request at variation index ${varIdx}`);
+          let liaseRequest = liaseRequestBase;
+
+          // For the variation that was in-progress when the server shut down,
+          // apply the saved page/cursor offset so we don't re-fetch from page 1.
+          const isResumedVariation =
+            varIdx === resumeVariationIndex &&
+            resumeStage === "fetching-liase-results";
+          if (isResumedVariation && resumePageNumber !== null) {
+            liaseRequest = { ...liaseRequest, pageNumber: resumePageNumber };
+          } else if (isResumedVariation && resumeCursor !== null) {
+            liaseRequest = { ...liaseRequest, cursor: resumeCursor };
+          }
+
+          liaseQueryOptions.secrets = {
+            ...liaseQueryOptions.secrets,
+            ...(await getSecrets(liaseRequest)),
+          };
+          currentLiaseRequest = liaseRequest;
+
+          // Reduce the fetch limit for the resumed variation by the pages already
+          // fetched in it so we don't exceed the original intent.
+          const variationOptions = { ...liaseQueryOptions };
+          const resumeVariationPagesFetched =
+            liaseQueryExecution.resumeVariationPagesFetched;
+          if (
+            isResumedVariation &&
+            resumeVariationPagesFetched > 0 &&
+            variationOptions.fetchCountLimit !== undefined
+          ) {
+            variationOptions.fetchCountLimit = Math.max(
+              1,
+              variationOptions.fetchCountLimit - resumeVariationPagesFetched,
+            );
+          }
+
+          const liaseQuery = await getLiaseQuery({
+            request: liaseRequest,
+            queryOptions: variationOptions,
           });
+
+          // Per-variation page counter (reset for each new variation).
+          let variationPagesFetched = isResumedVariation
+            ? resumeVariationPagesFetched
+            : 0;
+
+          for await (const response of liaseQuery) {
+            pageCount++;
+            variationPagesFetched++;
+
+            for (const liaseMedia of response.media) {
+              await db.transaction(async (dbTx) => {
+                await ensureLiaseQueryMediaContentExists({ dbTx, liaseMedia });
+                await createOrUpdateLiaseQueryMedia({
+                  dbTx,
+                  liaseMedia,
+                  liaseQueryExecution,
+                });
+              });
+              liaseMediaFound++;
+
+              await queryExecutionTaskSystem.updateTask(executionId, {
+                pageCount,
+                liaseMediaFound,
+              });
+            }
+
+            // All media from this page committed – advance the in-memory checkpoint
+            // so the signal handler can persist it with the correct next-page value.
+            if (response.page) {
+              if ("pageNumber" in response.page) {
+                checkpoint.pageNumber = response.page.pageNumber + 1;
+                checkpoint.cursor = null;
+              } else if ("nextCursor" in response.page) {
+                checkpoint.cursor = response.page.nextCursor;
+                checkpoint.pageNumber = null;
+              }
+            }
+            checkpoint.variationIndex = varIdx;
+            checkpoint.variationPagesFetched = variationPagesFetched;
+
+            if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
+              break;
+            }
+          }
+
+          // Variation completed – advance the checkpoint index and reset per-variation state.
+          checkpoint.variationIndex = varIdx + 1;
+          checkpoint.variationPagesFetched = 0;
+          checkpoint.pageNumber = null;
+          checkpoint.cursor = null;
+
+          if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
+            break;
+          }
         }
-        if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
-          break;
-        }
+      } finally {
+        queryExecutionTaskSystem.unregisterCheckpointSaver(executionId);
       }
-      if (globalFetchLimit !== null && pageCount >= globalFetchLimit) {
-        break;
+
+      // Fetching stage complete – persist stage transition so processing stages
+      // can be resumed without re-fetching. Also persist liaseMediaFound so that
+      // if the server restarts before processing completes the resumed run can
+      // display the correct found-count without re-fetching.
+      if (savedLiaseQuery) {
+        await db
+          .update(dbSchema.liaseQueryExecution)
+          .set({
+            resumeStage: "processing-added-or-updated",
+            resumeVariationIndex: 0,
+            resumePageNumber: null,
+            resumeCursor: null,
+            resumePagesFetched: 0,
+            resumeVariationPagesFetched: 0,
+            liaseMediaFound,
+            updatedAt: new Date(),
+          })
+          .where(eq(dbSchema.liaseQueryExecution.id, executionId));
       }
     }
 
@@ -215,167 +416,174 @@ export async function runLiaseQueryExecution({
         })
       : null;
 
-    // ----- Adding or updating cache media for found liase media -----
+    // ----- Stage: processing-added-or-updated -----
+    if (shouldRunStage("processing-added-or-updated", resumeStage)) {
+      await queryExecutionTaskSystem.updateTask(executionId, {
+        stage: "processing-added-or-updated",
+      });
 
-    await queryExecutionTaskSystem.updateTask(executionId, {
-      stage: "processing-added-or-updated",
-    });
+      // Do in batches to avoid loading results into memory at once.
+      let liaseIdCursor = null;
+      const batchSize = 100;
+      while (true) {
+        const previousOnlyLiaseMedia = alias(
+          dbSchema.liaseQueryMedia,
+          "previous_only_liase_media",
+        );
+        const foundLiaseMedia = await db
+          .select({
+            liaseId: dbSchema.liaseQueryMedia.liaseId,
+            instancesInThisExecution: count(dbSchema.liaseQueryMedia.id),
+            instancesOnlyInThisExecution:
+              sql<number>`(count(*) filter (where ${dbSchema.liaseQueryMedia.queryExecutionIdCreatedOn} = ${executionId}))::int`.as(
+                "instances_only_in_this_execution",
+              ),
+            instancesOnlyInLastExecution: count(previousOnlyLiaseMedia.id),
+            lastId: max(dbSchema.liaseQueryMedia.id),
+          })
+          .from(dbSchema.liaseQueryMedia)
+          .leftJoin(
+            previousOnlyLiaseMedia,
+            and(
+              eq(
+                previousOnlyLiaseMedia.liaseId,
+                dbSchema.liaseQueryMedia.liaseId,
+              ),
+              eq(previousOnlyLiaseMedia.foundInLatestExecution, false),
+            ),
+          )
+          .where(
+            and(
+              savedLiaseQuery
+                ? eq(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id)
+                : eq(
+                    dbSchema.liaseQueryMedia.queryExecutionIdCreatedOn,
+                    executionId,
+                  ),
+              liaseIdCursor !== null
+                ? gt(dbSchema.liaseQueryMedia.liaseId, liaseIdCursor)
+                : undefined,
+              eq(dbSchema.liaseQueryMedia.foundInLatestExecution, true),
+            ),
+          )
+          .groupBy(dbSchema.liaseQueryMedia.liaseId)
+          .orderBy(dbSchema.liaseQueryMedia.liaseId)
+          .limit(batchSize);
 
-    // Do in batches to avoid loading results into memory at once.
-    let liaseIdCursor = null;
-    const batchSize = 100;
-    while (true) {
-      const previousOnlyLiaseMedia = alias(
-        dbSchema.liaseQueryMedia,
-        "previous_only_liase_media",
-      );
-      const foundLiaseMedia = await db
-        .select({
-          liaseId: dbSchema.liaseQueryMedia.liaseId,
-          instancesInThisExecution: count(dbSchema.liaseQueryMedia.id),
-          instancesOnlyInThisExecution:
-            sql<number>`(count(*) filter (where ${dbSchema.liaseQueryMedia.queryExecutionIdCreatedOn} = ${executionId}))::int`.as(
-              "instances_only_in_this_execution",
-            ),
-          instancesOnlyInLastExecution: count(previousOnlyLiaseMedia.id),
-          lastId: max(dbSchema.liaseQueryMedia.id),
-        })
-        .from(dbSchema.liaseQueryMedia)
-        .leftJoin(
-          previousOnlyLiaseMedia,
-          and(
-            eq(
-              previousOnlyLiaseMedia.liaseId,
-              dbSchema.liaseQueryMedia.liaseId,
-            ),
-            eq(previousOnlyLiaseMedia.foundInLatestExecution, false),
-          ),
-        )
-        .where(
-          and(
-            savedLiaseQuery
-              ? eq(dbSchema.liaseQueryMedia.queryId, savedLiaseQuery.id)
-              : eq(
-                  dbSchema.liaseQueryMedia.queryExecutionIdCreatedOn,
+        const lastInBatch = foundLiaseMedia.at(-1);
+        if (!lastInBatch) break;
+        liaseIdCursor = lastInBatch.liaseId;
+
+        for (const liaseMedia of foundLiaseMedia) {
+          currentLiaseId = liaseMedia.liaseId;
+
+          let instancesOnlyInLastExecution =
+            liaseMedia.instancesOnlyInLastExecution;
+          let instancesOnlyInThisExecution =
+            liaseMedia.instancesOnlyInThisExecution;
+          let instancesInThisExecution = liaseMedia.instancesInThisExecution;
+          let instancesInBothExecutions =
+            instancesInThisExecution - instancesOnlyInThisExecution;
+          let instancesInLastExecution =
+            instancesInBothExecutions + instancesOnlyInLastExecution;
+
+          // If the previous execution failed we can't trust that cache media was correctly added/updated so we treat
+          // all media as changed.
+          if (previousExecution?.status === "failed") {
+            instancesOnlyInThisExecution +=
+              instancesInBothExecutions + instancesInLastExecution;
+            instancesInThisExecution +=
+              instancesInBothExecutions + instancesInLastExecution;
+            instancesInBothExecutions = 0;
+            instancesInLastExecution = 0;
+            instancesOnlyInLastExecution = 0;
+          }
+
+          const instancesUnchanged = instancesInBothExecutions;
+          const instancesAdded = Math.max(
+            0,
+            instancesOnlyInThisExecution - instancesOnlyInLastExecution,
+          );
+          const instancesRemoved = Math.max(
+            0,
+            instancesOnlyInLastExecution - instancesOnlyInThisExecution,
+          );
+          const instancesChanged = Math.min(
+            instancesOnlyInThisExecution,
+            instancesOnlyInLastExecution,
+          );
+
+          liaseMediaUnchanged += instancesUnchanged;
+          liaseMediaUpdated += instancesChanged;
+          liaseMediaNew += instancesAdded;
+          liaseMediaRemoved += instancesRemoved;
+
+          if (instancesInLastExecution) {
+            if (
+              instancesOnlyInLastExecution === 0 &&
+              instancesOnlyInThisExecution === 0
+            ) {
+              // unchanged
+              cacheMediaUnchanged++;
+            } else {
+              // changed
+              const { status } = await createOrUpdateCacheMedia({
+                liaseId: liaseMedia.liaseId,
+              });
+              if (status === "updated") {
+                // updated
+                cacheMediaUpdated++;
+              } else if (status === "created") {
+                cacheMediaCreated++;
+                await createExecutionLogEntry({
                   executionId,
-                ),
-            liaseIdCursor !== null
-              ? gt(dbSchema.liaseQueryMedia.liaseId, liaseIdCursor)
-              : undefined,
-            eq(dbSchema.liaseQueryMedia.foundInLatestExecution, true),
-          ),
-        )
-        .groupBy(dbSchema.liaseQueryMedia.liaseId)
-        .orderBy(dbSchema.liaseQueryMedia.liaseId)
-        .limit(batchSize);
-
-      const lastInBatch = foundLiaseMedia.at(-1);
-      if (!lastInBatch) break;
-      liaseIdCursor = lastInBatch.liaseId;
-
-      for (const liaseMedia of foundLiaseMedia) {
-        currentLiaseId = liaseMedia.liaseId;
-
-        let instancesOnlyInLastExecution =
-          liaseMedia.instancesOnlyInLastExecution;
-        let instancesOnlyInThisExecution =
-          liaseMedia.instancesOnlyInThisExecution;
-        let instancesInThisExecution = liaseMedia.instancesInThisExecution;
-        let instancesInBothExecutions =
-          instancesInThisExecution - instancesOnlyInThisExecution;
-        let instancesInLastExecution =
-          instancesInBothExecutions + instancesOnlyInLastExecution;
-
-        // If the previous execution failed we can't trust that cache media was correctly added/updated so we treat
-        // all media as changed.
-        if (previousExecution?.status === "failed") {
-          instancesOnlyInThisExecution +=
-            instancesInBothExecutions + instancesInLastExecution;
-          instancesInThisExecution +=
-            instancesInBothExecutions + instancesInLastExecution;
-          instancesInBothExecutions = 0;
-          instancesInLastExecution = 0;
-          instancesOnlyInLastExecution = 0;
-        }
-
-        const instancesUnchanged = instancesInBothExecutions;
-        const instancesAdded = Math.max(
-          0,
-          instancesOnlyInThisExecution - instancesOnlyInLastExecution,
-        );
-        const instancesRemoved = Math.max(
-          0,
-          instancesOnlyInLastExecution - instancesOnlyInThisExecution,
-        );
-        const instancesChanged = Math.min(
-          instancesOnlyInThisExecution,
-          instancesOnlyInLastExecution,
-        );
-
-        liaseMediaUnchanged += instancesUnchanged;
-        liaseMediaUpdated += instancesChanged;
-        liaseMediaNew += instancesAdded;
-        liaseMediaRemoved += instancesRemoved;
-
-        if (instancesInLastExecution) {
-          if (
-            instancesOnlyInLastExecution === 0 &&
-            instancesOnlyInThisExecution === 0
-          ) {
-            // unchanged
-            cacheMediaUnchanged++;
+                  queryId,
+                  level: "warning",
+                  message:
+                    "Media found in previous execution so expected cache media to exist but it does not. Re-created it.",
+                });
+              } else {
+                status satisfies never;
+              }
+            }
           } else {
-            // changed
+            // not found in previous execution (or previous execution failed so we don't trust it)
             const { status } = await createOrUpdateCacheMedia({
               liaseId: liaseMedia.liaseId,
             });
-            if (status === "updated") {
-              // updated
-              cacheMediaUpdated++;
-            } else if (status === "created") {
+            if (status === "created") {
               cacheMediaCreated++;
-              await createExecutionLogEntry({
-                executionId,
-                queryId,
-                level: "warning",
-                message:
-                  "Media found in previous execution so expected cache media to exist but it does not. Re-created it.",
-              });
+            } else if (status === "updated") {
+              cacheMediaUpdated++;
             } else {
               status satisfies never;
             }
           }
-        } else {
-          // not found in previous execution (or previous execution failed so we don't trust it)
-          const { status } = await createOrUpdateCacheMedia({
-            liaseId: liaseMedia.liaseId,
+          await queryExecutionTaskSystem.updateTask(executionId, {
+            pageCount,
+            liaseMediaFound,
+            liaseMediaNew,
+            liaseMediaUpdated,
+            liaseMediaUnchanged,
+            cacheMediaCreated,
+            cacheMediaUpdated,
+            cacheMediaUnchanged,
           });
-          if (status === "created") {
-            cacheMediaCreated++;
-          } else if (status === "updated") {
-            cacheMediaUpdated++;
-          } else {
-            status satisfies never;
-          }
         }
-        await queryExecutionTaskSystem.updateTask(executionId, {
-          pageCount,
-          liaseMediaFound,
-          liaseMediaNew,
-          liaseMediaUpdated,
-          liaseMediaUnchanged,
-          cacheMediaCreated,
-          cacheMediaUpdated,
-          cacheMediaUnchanged,
-        });
+
+        currentLiaseId = null;
       }
 
-      currentLiaseId = null;
+      if (savedLiaseQuery) {
+        await db
+          .update(dbSchema.liaseQueryExecution)
+          .set({ resumeStage: "processing-removed", updatedAt: new Date() })
+          .where(eq(dbSchema.liaseQueryExecution.id, executionId));
+      }
     }
 
-    // ----- Removing media that was previously found but is no longer present -----
-
-    if (savedLiaseQuery) {
+    // ----- Stage: processing-removed -----
+    if (savedLiaseQuery && shouldRunStage("processing-removed", resumeStage)) {
       await queryExecutionTaskSystem.updateTask(executionId, {
         stage: "processing-removed",
       });
@@ -466,10 +674,21 @@ export async function runLiaseQueryExecution({
       }
 
       currentLiaseId = null;
+
+      await db
+        .update(dbSchema.liaseQueryExecution)
+        .set({
+          resumeStage: "removing-previous-execution-results",
+          updatedAt: new Date(),
+        })
+        .where(eq(dbSchema.liaseQueryExecution.id, executionId));
     }
 
-    // ----- Cleanup -----
-    if (savedLiaseQuery) {
+    // ----- Stage: removing-previous-execution-results -----
+    if (
+      savedLiaseQuery &&
+      shouldRunStage("removing-previous-execution-results", resumeStage)
+    ) {
       await queryExecutionTaskSystem.updateTask(executionId, {
         stage: "removing-previous-execution-results",
       });
