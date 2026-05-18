@@ -1,7 +1,7 @@
 import type PhotoSwipeLightbox from "photoswipe/lightbox";
 import type { PhotoSwipe } from "photoswipe/lightbox";
-import { createApp, h, ref as vueRef } from "vue";
-import VideoMinimalSkin from "~/components/VideoMinimalSkin.vue";
+import { createApp, defineComponent, h, onMounted, ref as vueRef } from "vue";
+import MediaPlayer from "~/components/MediaPlayer.vue";
 
 type Options = Record<never, never>;
 
@@ -25,6 +25,10 @@ export class PhotoSwipeCustomVideoPlugin {
 
   options: Options;
   #skinApps = new WeakMap<HTMLElement, ReturnType<typeof createApp>>();
+  #playerRefs = new WeakMap<
+    HTMLElement,
+    import("vue").Ref<InstanceType<typeof MediaPlayer> | null>
+  >();
 
   #initLightboxEvents(lightbox: PhotoSwipeLightbox) {
     lightbox.on("contentLoad", (e) => {
@@ -36,63 +40,106 @@ export class PhotoSwipeCustomVideoPlugin {
 
       content.state = "loading";
 
+      const mediaData = content.data.mediaData as
+        | import("@@/types/api-media").APIMediaData
+        | undefined;
+      if (!mediaData) {
+        content.onLoaded();
+        return;
+      }
+
+      const posterSrc = content.data.msrc;
+
       const wrapper = document.createElement("div");
       wrapper.style.cssText = "position:absolute;left:0;top:0;";
 
-      const player = document.createElement("video-player");
-
-      // Stop the controls from showing when first opening. If the user is active after the first second then let them show
-      let suppressVisible = true;
-      setTimeout(() => {
-        suppressVisible = false;
-      }, 1000);
-      player.store.subscribe(() => {
-        if (player.store.controlsVisible && suppressVisible) {
-          player.store.toggleControls();
-        }
-      });
-
-      const videoSrc = content.data.videoSrc;
-      const posterSrc = content.data.msrc;
+      const loop = vueRef(false);
+      const playerRef = vueRef<InstanceType<typeof MediaPlayer> | null>(null);
 
       // Prefer the server-supplied hasAudio flag from the media API; fall back
       // to the audioTracks browser API if the slide data doesn't include it.
-      const mediaFile = (
-        content.data.mediaData?.files as
-          | import("@@/types/api-media").APIMediaData["files"]
-          | undefined
-      )?.find((f) => f.hasVideo && f.ext !== "gif");
-      const hasAudioFromMetadata = mediaFile?.hasAudio ?? null;
+      const hasAudioFromMetadata =
+        mediaData.files.find((f) => f.hasVideo && f.ext !== "gif")?.hasAudio ??
+        null;
 
-      const videoRef = vueRef<HTMLVideoElement | null>(null);
-      const app = createApp({
-        render: () =>
-          h(VideoMinimalSkin, null, {
-            default: () =>
-              h("video", {
-                ref: videoRef,
-                class: "pswp__img",
-                style: "height:100%;width:100%",
-                playsinline: "",
-                ...(videoSrc ? { src: String(videoSrc) } : {}),
-                ...(posterSrc ? { poster: String(posterSrc) } : {}),
+      const app = createApp(
+        defineComponent({
+          setup() {
+            onMounted(() => {
+              // Stop the controls from showing when first opening. If the user
+              // is active after the first second then let them show.
+              const playerEl = wrapper.querySelector("video-player") as
+                | (Element & {
+                    store?: {
+                      controlsVisible: boolean;
+                      toggleControls: () => void;
+                      subscribe: (cb: () => void) => void;
+                    };
+                  })
+                | null;
+              if (playerEl?.store) {
+                const store = playerEl.store;
+                let suppressVisible = true;
+                setTimeout(() => {
+                  suppressVisible = false;
+                }, 1000);
+                store.subscribe(() => {
+                  if (store.controlsVisible && suppressVisible) {
+                    store.toggleControls();
+                  }
+                });
+              }
+            });
+
+            return () =>
+              h(MediaPlayer, {
+                ref: playerRef,
+                media: mediaData,
+                loop: loop.value,
                 onLoadedmetadata: () => {
-                  const video = videoRef.value;
-                  if (!video) return;
+                  const player = playerRef.value;
+                  if (!player) return;
+
+                  // Auto-loop short videos.
                   const hasAudio =
                     hasAudioFromMetadata ??
-                    (video.audioTracks?.length ?? 0) > 0;
-                  if (video.duration < (hasAudio ? 5 : 10)) {
-                    video.loop = true;
+                    (player.audioTracks?.length ?? 0) > 0;
+                  if (player.duration < (hasAudio ? 5 : 10)) {
+                    loop.value = true;
+                  }
+
+                  // Update slide dimensions from the video's actual metadata so
+                  // PhotoSwipe can immediately center the content. Without this,
+                  // HLS videos (whose DB file records have no pre-computed
+                  // width/height) rely solely on the poster image loading, which
+                  // requires a server-side ffmpeg extraction and can take seconds.
+                  if (!content.data.width && !content.data.height) {
+                    const w = player.videoWidth;
+                    const h = player.videoHeight;
+                    if (w && h) {
+                      content.data.width = w;
+                      content.data.height = h;
+                      content.width = w;
+                      content.height = h;
+                      if (content.slide) {
+                        content.slide.width = w;
+                        content.slide.height = h;
+                        content.slide.currZoomLevel =
+                          content.slide.zoomLevels.initial;
+                        content.slide.resize();
+                      }
+                      lightbox.pswp?.updateSize(true);
+                    }
                   }
                 },
-              }),
-          }),
-      });
-      app.mount(player);
-      this.#skinApps.set(wrapper, app);
+              });
+          },
+        }),
+      );
 
-      wrapper.appendChild(player);
+      app.mount(wrapper);
+      this.#skinApps.set(wrapper, app);
+      this.#playerRefs.set(wrapper, playerRef);
       content.element = wrapper;
 
       // Signal loaded once poster is ready (or immediately if no poster)
@@ -114,21 +161,27 @@ export class PhotoSwipeCustomVideoPlugin {
       if (content.element) {
         this.#skinApps.get(content.element)?.unmount();
         this.#skinApps.delete(content.element);
+        this.#playerRefs.delete(content.element);
       }
     });
 
     lightbox.on("contentActivate", ({ content }) => {
       if (!isVideoContent(content)) return;
-      const video = content.element?.querySelector("video");
-      video?.play().catch(() => {
-        // Autoplay may be blocked by browser policy — ignore silently
-      });
+      if (content.element) {
+        this.#playerRefs
+          .get(content.element)
+          ?.value?.play()
+          ?.catch(() => {
+            // Autoplay may be blocked by browser policy — ignore silently
+          });
+      }
     });
 
     lightbox.on("contentDeactivate", ({ content }) => {
       if (!isVideoContent(content)) return;
-      const video = content.element?.querySelector("video");
-      video?.pause();
+      if (content.element) {
+        this.#playerRefs.get(content.element)?.value?.pause();
+      }
     });
 
     lightbox.on("contentAppend", (e) => {
@@ -213,8 +266,9 @@ export class PhotoSwipeCustomVideoPlugin {
         pswp.options.showHideAnimationType = "fade";
       }
 
-      const video = content.element?.querySelector("video");
-      video?.pause();
+      if (content.element) {
+        this.#playerRefs.get(content.element)?.value?.pause();
+      }
     });
   }
 }

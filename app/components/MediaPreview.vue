@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useUiState } from "@@/stores/ui";
-import Hls from "hls.js";
 import type { z } from "zod";
 
 import type { APIMedia, APIMediaFile } from "@@/types/api-media";
@@ -34,11 +33,15 @@ const files = computed(() =>
   props.media.files.toSorted((a, b) => fileSortWeight(a) - fileSortWeight(b)),
 );
 
-const displayElement = computed(() =>
-  files.value.some((file) => file.hasVideo && file.ext !== "gif")
-    ? "video"
-    : "image",
-);
+const displayElement = computed(() => {
+  if (files.value.some((file) => file.hasVideo && file.ext === "m3u8")) {
+    return "hls-video";
+  }
+  if (files.value.some((file) => file.hasVideo && file.ext !== "gif")) {
+    return "video";
+  }
+  return "image";
+});
 const videoFile = computed(() =>
   files.value.find((file) => file.hasVideo && file.ext !== "gif"),
 );
@@ -58,29 +61,6 @@ const posterSrc = computed(() => {
   }
 
   return "";
-});
-
-const hls = ref<Hls | null>(null);
-
-onMounted(() => {
-  const file = videoFile.value;
-
-  if (!file || videoRef.value === null) {
-    return;
-  }
-
-  const videoSrc = getSrc(file);
-  if (file.ext === "m3u8") {
-    if (videoRef.value.canPlayType("application/vnd.apple.mpegurl")) {
-      videoRef.value.src = videoSrc;
-    } else if (Hls.isSupported()) {
-      hls.value = new Hls();
-    } else {
-      throw Error("Browser can't play HLS");
-    }
-  } else {
-    videoRef.value.src = videoSrc;
-  }
 });
 
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -126,34 +106,27 @@ onMounted(() => {
   }
 });
 
-function playHlsVideo() {
-  const file = videoFile.value;
-  if (!file || videoRef.value === null || !hls.value) {
-    return;
-  }
-
-  try {
-    const videoSrc = getSrc(file);
-    hls.value.loadSource(videoSrc);
-    hls.value?.attachMedia(videoRef.value);
-  } catch (error) {
-    console.error("Failed to load HLS video:", error);
-  }
-}
 const hoverOverPlayCountdown = ref<NodeJS.Timeout | null>(null);
 function handleMouseEnter() {
-  hoverOverPlayCountdown.value = setTimeout(() => videoRef.value?.play(), 500);
+  // Due to the way <hls-video /> bridges events to the inner <video> mouseover events fire twice, so we disregard if
+  // there's already a pending countdown to play the video.
+  if (hoverOverPlayCountdown.value !== null) return;
+  // We add a delay to avoid starting to play and then immediately pausing lots of videos if the user quickly moves the cursor across the page
+  hoverOverPlayCountdown.value = setTimeout(() => {
+    videoRef.value?.play();
+  }, 500);
 }
 function handleMouseLeave() {
   if (hoverOverPlayCountdown.value) clearTimeout(hoverOverPlayCountdown.value);
   videoRef.value?.pause();
+  hoverOverPlayCountdown.value = null;
 }
 </script>
 
 <template>
   <div
     v-if="videoFile || imageFile"
-    class="item"
+    class="media-preview"
     :class="{ 'size-placeholder': !naturalSizeLoaded }"
   >
     <Skeleton v-if="!naturalSizeLoaded" class="media-loading-skeleton" />
@@ -167,15 +140,17 @@ function handleMouseLeave() {
     >
       File Link
     </a>
-    <video
-      v-if="displayElement === 'video'"
+    <component
+      v-if="displayElement.endsWith('video')"
+      :is="displayElement"
+      :src="videoFile ? getSrc(videoFile) : ''"
       ref="videoRef"
       :poster="posterSrc"
       preload="none"
       playsinline="true"
       muted="true"
+      :loop="true"
       @loadedmetadata="onMediaLoaded"
-      @play="playHlsVideo"
       @click.prevent="(event: Event) => { handleMouseLeave(); emits('mediaClick', media) }"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
@@ -201,86 +176,91 @@ function handleMouseLeave() {
 </template>
 
 <style scoped>
-  .item {
+  .media-preview {
     position: relative;
 
     --play-button-size: 70px;
-  }
 
-  .size-placeholder {
-    width: 300px;
-    height: 300px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .media-loading-skeleton {
-    /* !important is required to override the inline styles added by the Skeleton component */
-    width: 100% !important;
-    height: 100% !important;
-    position: absolute !important;
-    z-index: -1;
-  }
-
-  img, video {
-    max-height: 300px;
-    max-width: 100%;
-    display: block;
-  }
-
-  .info {
-    min-width: 100px;
-    max-width: 200px;
-  }
-
-  a {
-    display: block;
-
-    pre {
-      overflow: auto;
+    &.size-placeholder {
+      width: 300px;
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+
+    .media-loading-skeleton {
+      /* !important is required to override the inline styles added by the Skeleton component */
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute !important;
+      z-index: -1;
+    }
+
+    img, video, hls-video::part(video) {
+      max-height: 300px;
+      max-width: 100%;
+      display: block;
+    }
+
+    .info {
+      min-width: 100px;
+      max-width: 200px;
+    }
+
+    a {
+      display: block;
+
+      pre {
+        overflow: auto;
+      }
+    }
+
+
+    &:has(video, hls-video) {
+      &::before, &::after {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        content: '';
+        transition: opacity 0.1s, transform 0.05s ease-in;
+      }
+
+      &::before {
+        color: white;
+        background-color: rgb(0 0 0 / 60%); /* Semi-transparent dark background */
+        border-radius: 50%; /* Circular shape */
+        pointer-events: none; /* Ensures button does not interfere with video controls */
+
+        --circle-diameter: var(--play-button-size);
+
+        width: var(--circle-diameter);
+        height: var(--circle-diameter);
+        line-height: var(--circle-diameter);
+        display: block;
+      }
+
+      &::after {
+        border-color: transparent transparent transparent white;
+        will-change: border-width;
+        border-style: solid;
+
+        --height: calc(var(--play-button-size) * 0.437);
+        --width: calc(var(--height) * 0.8);
+
+        margin-left: calc(var(--width) * 0.15);
+        border-width: calc(var(--height) * 0.5) 0 calc(var(--height) * 0.5) var(--width);
+      }
+
+      /* Hover effect: Slightly grow the play button */
+      &:hover::before, &:hover::after {
+        transition: opacity 1s 0.5s;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.05); /* Scale the play button */
+      }
+    }
+
   }
 
-  .item:has(video)::before, .item:has(video)::after {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    content: '';
-    transition: opacity 0.1s, transform 0.05s ease-in;
-  }
-
-  .item:has(video)::before {
-    color: white;
-    background-color: rgb(0 0 0 / 60%); /* Semi-transparent dark background */
-    border-radius: 50%; /* Circular shape */
-    pointer-events: none; /* Ensures button does not interfere with video controls */
-
-    --circle-diameter: var(--play-button-size);
-
-    width: var(--circle-diameter);
-    height: var(--circle-diameter);
-    line-height: var(--circle-diameter);
-    display: block;
-  }
-
-  .item:has(video)::after {
-    border-color: transparent transparent transparent white;
-    will-change: border-width;
-    border-style: solid;
-
-    --height: calc(var(--play-button-size) * 0.437);
-    --width: calc(var(--height) * 0.8);
-
-    margin-left: calc(var(--width) * 0.15);
-    border-width: calc(var(--height) * 0.5) 0 calc(var(--height) * 0.5) var(--width);
-  }
-
-  /* Hover effect: Slightly grow the play button */
-  .item:has(video):hover::before, .item:has(video):hover::after {
-    transition: opacity 1s 0.5s;
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.05); /* Scale the play button */
-  }
 </style>

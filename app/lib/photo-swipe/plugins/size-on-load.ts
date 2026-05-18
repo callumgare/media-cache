@@ -113,7 +113,15 @@ export class PhotoSwipeSizeOnLoadPlugin {
   }
 
   centerLoadingSlideMedia({ content }: { content: Content }) {
-    const sizeKnown = Boolean(content.data.width || content.data.height);
+    // content.data.width may not be set when item data is a read-only Vue proxy
+    // (the assignment silently fails); fall back to content.width which is always
+    // writable and is set directly on the Content instance by our onLoadedmetadata handler.
+    const sizeKnown = Boolean(
+      content.data.width ||
+        content.data.height ||
+        content.width ||
+        content.height,
+    );
 
     if (sizeKnown) {
       const opener = Reflect.get(content.instance, "opener");

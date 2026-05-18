@@ -13,27 +13,17 @@
     >
       <!-- Video -->
       <template v-if="isVideo && isNearby">
-        <video-player
+        <MediaPlayer
           ref="playerRef"
+          :media="media"
+          :loop="prefs.loopVideo"
+          :muted="prefs.muteVideo"
           class="video-player-el"
           data-testid="feed-slide-video-player"
-        >
-          <VideoMinimalSkin ref="skinRef">
-            <video
-              ref="videoRef"
-              playsinline
-              :src="videoSrc ?? undefined"
-              :poster="posterSrc ?? undefined"
-              preload="metadata"
-              :loop="prefs.loopVideo"
-              :muted="prefs.muteVideo"
-              class="media-video"
-              data-testid="feed-slide-video"
-              @loadedmetadata="onMetadataLoaded"
-              @ended="onEnded"
-            />
-          </VideoMinimalSkin>
-        </video-player>
+          video-test-id="feed-slide-video"
+          @loadedmetadata="onMetadataLoaded"
+          @ended="onEnded"
+        />
       </template>
 
       <!-- Image (or video poster when not nearby) -->
@@ -114,7 +104,7 @@
 import { useUserPreferences } from "@@/stores/user-preferences";
 import type { APIMedia } from "@@/types/api-media";
 import type { z } from "zod";
-import type VideoMinimalSkin from "~/components/VideoMinimalSkin.vue";
+import type MediaPlayer from "~/components/MediaPlayer.vue";
 
 const props = defineProps<{
   media: z.infer<typeof APIMedia>;
@@ -143,13 +133,8 @@ function fileSrc(type: string, filename: string) {
   return `/file/${props.media.id}/${type}/${filename}`;
 }
 
-const videoSrc = computed(() =>
-  videoFile.value
-    ? fileSrc(videoFile.value.type, videoFile.value.filename)
-    : null,
-);
-
-const posterSrc = computed(() => {
+// Poster/thumbnail used for the <img> fallback when the video isn't nearby.
+const imageSrc = computed(() => {
   if (imageFile.value)
     return fileSrc(imageFile.value.type, imageFile.value.filename);
   if (videoFile.value)
@@ -157,17 +142,9 @@ const posterSrc = computed(() => {
   return null;
 });
 
-const imageSrc = computed(() =>
-  imageFile.value
-    ? fileSrc(imageFile.value.type, imageFile.value.filename)
-    : posterSrc.value,
-);
+// ─── Player ref ────────────────────────────────────────────────────────────
 
-// ─── Player refs ───────────────────────────────────────────────────────────
-
-const videoRef = ref<HTMLVideoElement | null>(null);
-const playerRef = ref<Element | null>(null);
-const skinRef = ref<InstanceType<typeof VideoMinimalSkin> | null>(null);
+const playerRef = ref<InstanceType<typeof MediaPlayer> | null>(null);
 
 // ─── Video controls registration ──────────────────────────────────────────
 
@@ -175,16 +152,16 @@ const { register, unregisterById } = useCurrentVideoControls();
 const controlsId = Symbol();
 
 watch(
-  () => [props.isCurrent, skinRef.value] as const,
-  ([current, skin]) => {
-    if (current && skin) {
+  () => [props.isCurrent, playerRef.value] as const,
+  ([current, player]) => {
+    if (current && player) {
       register(controlsId, {
-        seekForward: () => skin.seekForward(),
-        seekBackward: () => skin.seekBackward(),
-        startFastForward: () => skin.startFastForward(),
-        startRewind: () => skin.startRewind(),
-        stopFastSeek: () => skin.stopFastSeek(),
-        togglePlayPause: () => skin.togglePlayPause(),
+        seekForward: () => player.seekForward(),
+        seekBackward: () => player.seekBackward(),
+        startFastForward: () => player.startFastForward(),
+        startRewind: () => player.startRewind(),
+        stopFastSeek: () => player.stopFastSeek(),
+        togglePlayPause: () => player.togglePlayPause(),
       });
     }
   },
@@ -200,12 +177,10 @@ onUnmounted(() => {
 watch(
   () => props.isCurrent,
   (current) => {
-    const video = videoRef.value;
-    if (!video) return;
     if (current) {
-      video.play().catch(() => {});
+      playerRef.value?.play()?.catch(() => {});
     } else {
-      video.pause();
+      playerRef.value?.pause();
     }
   },
 );
@@ -246,11 +221,9 @@ watch(
 );
 
 function onMetadataLoaded() {
-  const video = videoRef.value;
-  if (!video) return;
   // Auto-play if this is already the current slide when metadata loads
   if (props.isCurrent) {
-    video.play().catch(() => {});
+    playerRef.value?.play()?.catch(() => {});
   }
 }
 

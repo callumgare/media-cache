@@ -224,15 +224,15 @@ useEventListener("keyup", (e: KeyboardEvent) => {
 </script>
 
 <style>
-#app-root.hide-header {
+#app-root:has(.feed-scroller) {
   max-height: none;
   height: auto;
   background: #000;
+}
 
-  .base-layout-contents {
-    overflow: visible;
-    flex: none;
-  }
+#app-root:has(.feed-scroller) .base-layout-contents {
+  overflow: visible;
+  flex: none;
 }
 </style>
 

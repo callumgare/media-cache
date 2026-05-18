@@ -61,26 +61,6 @@ const headerExpanded = ref(false);
 </script>
 
 <style scoped>
-  #app-root {
-    max-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-
-    .site-header {
-      /* Ensure any header menus are placed on-top of the sidebar */
-      z-index: 5;
-    }
-
-    .base-layout-contents {
-      overflow: auto;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      flex: 1 1 auto;
-    }
-  }
-
   .hideable {
     position: fixed;
     top: 0;
@@ -136,6 +116,26 @@ const headerExpanded = ref(false);
 </style>
 
 <style>
+  #app-root {
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  #app-root .site-header {
+    /* Ensure any header menus are placed on-top of the sidebar */
+    z-index: 5;
+  }
+
+  #app-root .base-layout-contents {
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    flex: 1 1 auto;
+  }
+
   @layer reset;
 
   /********************

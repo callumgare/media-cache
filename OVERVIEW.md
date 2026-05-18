@@ -9,7 +9,6 @@ Media Cache is a personal media aggregation and browsing app. It pulls media (im
 - **Drizzle ORM** — type-safe queries and migrations
 - **PrimeVue 4** — UI components
 - **PhotoSwipe 5** — full-screen media gallery
-- **hls.js** — HLS video playback in browser
 - **FFmpeg** (via fluent-ffmpeg) — video poster/thumbnail generation
 
 ## How It Works

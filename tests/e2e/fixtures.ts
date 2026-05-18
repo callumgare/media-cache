@@ -39,7 +39,7 @@ function findFreePort(): Promise<number> {
   });
 }
 
-async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
+async function waitForServer(url: string, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -158,7 +158,14 @@ export const test = base.extend<
       }
 
       try {
-        await waitForServer(serverUrl);
+        try {
+          await waitForServer(serverUrl);
+        } catch (err) {
+          const logs = _serverLogBuffer.join("");
+          throw new Error(
+            `${err instanceof Error ? err.message : String(err)}\nServer logs:\n${logs || "(no logs captured — set E2E_SERVER_LOGS=1 to pipe directly)"}`,
+          );
+        }
         await use(serverUrl);
       } finally {
         serverProcess.kill("SIGTERM");

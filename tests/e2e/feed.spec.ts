@@ -123,44 +123,6 @@ test.describe("Feed page – navigation", () => {
   test("view switcher navigates to /media/feed when Feed option is clicked", async ({
     page,
   }) => {
-    const consoleLogs: string[] = [];
-    page.on("console", (msg) => {
-      if (
-        msg.text().includes("[MediaViewSwitcher]") ||
-        msg.text().includes("[Router]") ||
-        msg.text().includes("[manifest]") ||
-        msg.text().includes("[loc]")
-      )
-        consoleLogs.push(msg.text());
-    });
-    page.on("pageerror", (err) =>
-      consoleLogs.push(`[pageerror] ${err.message}`),
-    );
-
-    // Intercept history API to trace all URL changes
-    await page.addInitScript(() => {
-      const orig = {
-        push: history.pushState.bind(history),
-        replace: history.replaceState.bind(history),
-      };
-      history.pushState = (state, title, url) => {
-        console.log(
-          `[loc] pushState: ${url}\n${new Error().stack?.split("\n").slice(1, 4).join(" | ")}`,
-        );
-        return orig.push(state, title, url);
-      };
-      history.replaceState = (state, title, url) => {
-        console.log(
-          `[loc] replaceState: ${url}\n${new Error().stack?.split("\n").slice(1, 4).join(" | ")}`,
-        );
-        return orig.replace(state, title, url);
-      };
-    });
-
-    const navigationLog: string[] = [];
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) navigationLog.push(frame.url());
-    });
     await page.goto("/media/grid");
     // Wait for Vue SSR hydration to complete (media-view-switcher sets data-mounted on mount)
     const switcher = page.getByTestId("media-view-switcher");
@@ -173,8 +135,6 @@ test.describe("Feed page – navigation", () => {
     await feedOption.click();
     // Wait a bit to capture post-click navigation events
     await page.waitForTimeout(3000);
-    console.log("Console logs from page:", consoleLogs);
-    console.log("Navigation log:", navigationLog);
     await expect(page).toHaveURL(/\/media\/feed/, { timeout: 30_000 });
   });
 

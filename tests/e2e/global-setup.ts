@@ -7,19 +7,9 @@
  * 3. Returns a teardown function that drops all databases created for this run.
  */
 
-import { execFileSync, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import {
-  cpSync,
-  createReadStream,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  statSync,
-} from "node:fs";
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
@@ -27,6 +17,13 @@ import { config as loadEnv } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import {
+  type FileServer,
+  cacheDir,
+  ensureHlsFixtures,
+  ensureTestVideo,
+  startFileServer,
+} from "../shared/media-fixtures";
 
 const projectRoot = resolve(import.meta.dirname, "../..");
 const migrationsFolder = resolve(projectRoot, "server/database/migrations");
@@ -62,11 +59,16 @@ export default async function globalSetup(_config: FullConfig) {
   );
 
   if (buildCacheTmpDir && outputTmpDir) {
-    // Seed the temp .nuxt dir with the project's existing build cache to avoid cold starts
+    // Seed the temp .nuxt dir with the project's existing build cache to avoid cold starts.
+    // Exclude dist/ — that's the compiled app output and causes Nuxt to skip the Vite/Nitro
+    // build step entirely, so nothing ever gets written to NITRO_OUTPUT_DIR.
     const sourceDotNuxt = resolve(projectRoot, ".nuxt");
     const destDotNuxt = join(buildCacheTmpDir, ".nuxt");
     if (existsSync(sourceDotNuxt)) {
-      cpSync(sourceDotNuxt, destDotNuxt, { recursive: true });
+      cpSync(sourceDotNuxt, destDotNuxt, {
+        recursive: true,
+        filter: (src) => !src.startsWith(resolve(sourceDotNuxt, "dist")),
+      });
     }
 
     console.log("\n[e2e] Building Nuxt app (set SKIP_BUILD=true to skip)...\n");
@@ -93,100 +95,12 @@ export default async function globalSetup(_config: FullConfig) {
     );
   }
 
-  // Ensure the test video fixture exists in tests/.cache/ (gitignored).
-  // Generated on first run using Docker ffmpeg with a changing testsrc2 pattern.
-  const cacheDir = resolve(projectRoot, "tests/.cache");
-  const testVideoPath = join(cacheDir, "test-video.mp4");
-  if (!existsSync(testVideoPath)) {
-    console.log("[e2e] Generating test video fixture via Docker ffmpeg...");
-    mkdirSync(cacheDir, { recursive: true });
-    execFileSync(
-      "docker",
-      [
-        "run",
-        "--rm",
-        "-v",
-        `${cacheDir}:/output`,
-        "jrottenberg/ffmpeg:6.1-alpine",
-        "-f",
-        "lavfi",
-        "-i",
-        "testsrc2=size=320x240:rate=25:duration=60",
-        "-f",
-        "lavfi",
-        "-i",
-        "sine=frequency=440:sample_rate=22050:duration=60",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-movflags",
-        "+faststart",
-        "-y",
-        "/output/test-video.mp4",
-      ],
-      { stdio: "pipe" },
-    );
-    console.log("[e2e] Test video fixture generated.\n");
-  }
-
-  // Start a local HTTP server to serve static test fixture files (e.g. test videos).
-  // This avoids relying on external URLs that may be behind bot protection.
-  const fixtureServer = createServer((req, res) => {
-    const filePath = join(cacheDir, req.url?.split("?")[0] ?? "");
-    // Prevent path traversal
-    if (!filePath.startsWith(`${cacheDir}/`)) {
-      res.writeHead(403);
-      res.end();
-      return;
-    }
-    const ext = filePath.split(".").pop() ?? "";
-    const mimeTypes: Record<string, string> = {
-      mp4: "video/mp4",
-      webm: "video/webm",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-    };
-    const contentType = mimeTypes[ext] ?? "application/octet-stream";
-    let stat: ReturnType<typeof statSync>;
-    try {
-      stat = statSync(filePath);
-    } catch {
-      res.writeHead(404);
-      res.end("Not found");
-      return;
-    }
-    const fileSize = stat.size;
-    const rangeHeader = req.headers.range;
-    if (rangeHeader) {
-      const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
-      const start = match?.[1] ? Number.parseInt(match[1], 10) : 0;
-      const end = match?.[2] ? Number.parseInt(match[2], 10) : fileSize - 1;
-      const chunkSize = end - start + 1;
-      res.writeHead(206, {
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-        "Accept-Ranges": "bytes",
-        "Content-Length": chunkSize,
-        "Content-Type": contentType,
-      });
-      createReadStream(filePath, { start, end }).pipe(res);
-    } else {
-      res.writeHead(200, {
-        "Content-Length": fileSize,
-        "Accept-Ranges": "bytes",
-        "Content-Type": contentType,
-      });
-      createReadStream(filePath).pipe(res);
-    }
-  });
-  await new Promise<void>((resolve) =>
-    fixtureServer.listen(0, "127.0.0.1", resolve),
-  );
-  const fixtureServerPort = (fixtureServer.address() as AddressInfo).port;
-  process.env.TEST_FIXTURE_SERVER_URL = `http://127.0.0.1:${fixtureServerPort}`;
+  // Ensure test fixture files exist, then serve them over local HTTP so
+  // tests can reference videos and HLS playlists without hitting external networks.
+  ensureTestVideo();
+  ensureHlsFixtures();
+  const fixtureServer: FileServer = await startFileServer(cacheDir);
+  process.env.TEST_FIXTURE_SERVER_URL = fixtureServer.url;
 
   // Create the template database and apply all migrations.
   const runId = randomUUID().replace(/-/g, "").slice(0, 16);

@@ -35,7 +35,6 @@ export default defineNuxtConfig({
         "@tanstack/vue-query",
         "photoswipe/lightbox",
         "photoswipe",
-        "hls.js",
         "@vueuse/gesture",
         "@vueuse/motion",
         "superjson",

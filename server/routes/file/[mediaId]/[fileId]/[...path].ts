@@ -68,8 +68,16 @@ export default defineEventHandler(async (event) => {
   const pathParam = event.path.replace(basePath, "");
   const virtualFilename = `media-${event.context.params?.mediaId}-${event.context.params?.fileId}.${file.ext}`;
 
-  // Only allow the virtual filename or no path
-  if (pathParam !== `/${virtualFilename}` && pathParam !== "") {
+  // Adaptive streaming manifests (HLS, DASH, …) reference sub-resources
+  // (segments, sub-manifests) whose URLs are rewritten to route through the
+  // proxy, so any sub-path must be allowed for them.
+  // For all other file types only the virtual filename or no path is permitted.
+  const MULTI_RESOURCE_EXTS = new Set(["m3u8", "mpd"]);
+  if (
+    !MULTI_RESOURCE_EXTS.has(file.ext ?? "") &&
+    pathParam !== `/${virtualFilename}` &&
+    pathParam !== ""
+  ) {
     throw createError({
       statusCode: 400,
       statusMessage: "Invalid path format",

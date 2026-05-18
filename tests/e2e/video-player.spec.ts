@@ -27,6 +27,54 @@ function makeVideoMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
   };
 }
 
+function makeImageMedia(overrides: Partial<GenericMedia> = {}): GenericMedia {
+  const id = overrides.id ?? Math.random().toString(36).slice(2);
+  return {
+    liaseSource: "test-source",
+    id,
+    files: [
+      {
+        type: "main",
+        url: `https://picsum.photos/seed/${id}/800/600`,
+        video: false,
+        audio: false,
+        image: true,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+/**
+ * HLS video fixture served by the local fixture server (global-setup.ts).
+ * Intentionally omits width/height to simulate remote HLS sources (e.g.
+ * Bluesky) where dimensions are not pre-computed in the DB — centering must
+ * be driven by the loadedmetadata event on the <hls-video> element.
+ */
+function makeHlsVideoMedia(
+  overrides: Partial<GenericMedia> = {},
+): GenericMedia {
+  const id = overrides.id ?? Math.random().toString(36).slice(2);
+  const fixtureServerUrl =
+    process.env.TEST_FIXTURE_SERVER_URL ?? "http://127.0.0.1:0";
+  return {
+    liaseSource: "test-source",
+    id,
+    files: [
+      {
+        type: "main",
+        url: `${fixtureServerUrl}/hls/playlist.m3u8`,
+        video: true,
+        audio: false,
+        image: false,
+        ext: "m3u8",
+        // width / height omitted on purpose — centering must work without them
+      },
+    ],
+    ...overrides,
+  };
+}
+
 const TEST_REQUEST = { source: "test-source", queryType: "test-handler" };
 
 async function setup(
@@ -188,6 +236,153 @@ test.describe("Video player in lightbox", () => {
     expect(skinBox.height).toBeLessThan(viewport.height - 10);
 
     // The center of the video-skin must be at the viewport center (±10 px).
+    const skinCenterX = skinBox.x + skinBox.width / 2;
+    const skinCenterY = skinBox.y + skinBox.height / 2;
+    expect(Math.abs(skinCenterX - viewport.width / 2)).toBeLessThanOrEqual(10);
+    expect(Math.abs(skinCenterY - viewport.height / 2)).toBeLessThanOrEqual(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HLS video centering
+// ---------------------------------------------------------------------------
+
+test.describe("HLS video in lightbox", () => {
+  test.beforeEach(async ({ request }) => {
+    await setup(
+      { request },
+      { media: [[makeHlsVideoMedia({ id: "hls-test-1" })]] },
+    );
+    await createAndRunQuery({ request });
+  });
+
+  test("HLS video is centered and properly scaled in the lightbox", async ({
+    page,
+  }) => {
+    // 800×800 viewport — the test video is 320×240 (4:3).
+    // Width-constrained (800/800 = 1.0 < 320/240 = 1.33), so PhotoSwipe
+    // must scale it to 800×600, leaving visible letterboxing top and bottom.
+    await page.setViewportSize({ width: 800, height: 800 });
+    await page.goto("/media/grid");
+
+    const videoItem = page.locator("[data-media-id] video").first();
+    await videoItem.waitFor({ state: "attached", timeout: 15_000 });
+    await videoItem.evaluate((el) => (el as HTMLVideoElement).click());
+
+    const pswp = page.locator(".pswp");
+    await expect(pswp).toBeVisible({ timeout: 5_000 });
+    await expect(pswp).toHaveClass(/pswp--open/, { timeout: 5_000 });
+
+    // For HLS, the lightbox renders an <hls-video> element (not plain <video>).
+    const hlsVideoEl = pswp.locator("hls-video");
+    await expect(hlsVideoEl).toBeAttached({ timeout: 5_000 });
+
+    // Wait until the loadedmetadata handler has written the video's real
+    // dimensions into the slide.  Before our fix pswp.currSlide.width stayed
+    // 0 for HLS, causing the content to fill the viewport instead of fitting.
+    await page.waitForFunction(() => (window.pswp?.currSlide?.width ?? 0) > 0, {
+      timeout: 15_000,
+    });
+
+    // Wait for the opening animation to finish before measuring positions.
+    await page.waitForFunction(() => !!window.pswp?.opener?.isOpen, {
+      timeout: 5_000,
+    });
+
+    const videoSkin = pswp.locator("media-container.media-minimal-skin");
+    const skinBox = await videoSkin.boundingBox();
+    expect(
+      skinBox,
+      "video-skin must be rendered with non-zero size",
+    ).not.toBeNull();
+
+    const viewport = page.viewportSize();
+    expect(viewport, "page must have a viewport").not.toBeNull();
+    if (!skinBox || !viewport) return;
+
+    // The test video is 320×240 (4:3).  In an 800×800 viewport PhotoSwipe
+    // scales it to 800×600 (width-constrained), NOT fill the full 800 px height.
+    // If skinBox.height ≈ 800 it means slide dimensions were never set from
+    // loadedmetadata and the content incorrectly filled the viewport.
+    expect(skinBox.height).toBeLessThan(viewport.height - 10);
+
+    // The video must be horizontally and vertically centred (±10 px).
+    const skinCenterX = skinBox.x + skinBox.width / 2;
+    const skinCenterY = skinBox.y + skinBox.height / 2;
+    expect(Math.abs(skinCenterX - viewport.width / 2)).toBeLessThanOrEqual(10);
+    expect(Math.abs(skinCenterY - viewport.height / 2)).toBeLessThanOrEqual(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HLS video sizing after lightbox navigation
+// ---------------------------------------------------------------------------
+
+test.describe("HLS video in lightbox – navigation", () => {
+  test.beforeEach(async ({ request }) => {
+    await setup(
+      { request },
+      {
+        media: [
+          [
+            makeImageMedia({ id: "nav-image-1" }),
+            makeHlsVideoMedia({ id: "nav-hls-1" }),
+          ],
+        ],
+      },
+    );
+    await createAndRunQuery({ request });
+  });
+
+  test("HLS video is properly sized when navigated to from an adjacent slide", async ({
+    page,
+  }) => {
+    // 800×800 viewport — the test video is 320×240 (4:3).
+    // Width-constrained: PhotoSwipe scales to 800×600, leaving 200 px letterboxing.
+    await page.setViewportSize({ width: 800, height: 800 });
+    await page.goto("/media/grid");
+
+    // Open the image (first item) to enter the lightbox
+    const firstItem = page.locator("[data-media-id] img").first();
+    await expect(firstItem).toBeVisible({ timeout: 15_000 });
+    await firstItem.click();
+
+    const pswp = page.locator(".pswp");
+    await expect(pswp).toBeVisible({ timeout: 5_000 });
+    await expect(pswp).toHaveClass(/pswp--open/, { timeout: 5_000 });
+
+    // Wait for the opening animation to finish so keyboard events are bound
+    await page.waitForFunction(() => !!window.pswp?.opener?.isOpen, {
+      timeout: 5_000,
+    });
+
+    // Navigate to the adjacent HLS video slide
+    await page.keyboard.press("ArrowRight");
+
+    // Wait until the HLS video's real dimensions are written into the current slide
+    await page.waitForFunction(() => (window.pswp?.currSlide?.width ?? 0) > 0, {
+      timeout: 15_000,
+    });
+
+    const videoSkin = pswp.locator("media-container.media-minimal-skin");
+    await expect(videoSkin).toBeAttached({ timeout: 10_000 });
+
+    const skinBox = await videoSkin.boundingBox();
+    expect(
+      skinBox,
+      "video-skin must be rendered with non-zero size",
+    ).not.toBeNull();
+
+    const viewport = page.viewportSize();
+    expect(viewport, "page must have a viewport").not.toBeNull();
+    if (!skinBox || !viewport) return;
+
+    // The test video is 320×240 (4:3). In an 800×800 viewport PhotoSwipe
+    // should scale it to 800×600 (width-constrained), NOT fill the full 800 px height.
+    // If skinBox.height ≈ 800 it means dimensions were not applied after navigation.
+    expect(skinBox.height).toBeLessThan(viewport.height - 10);
+
+    // The video must be horizontally and vertically centred (±10 px).
     const skinCenterX = skinBox.x + skinBox.width / 2;
     const skinCenterY = skinBox.y + skinBox.height / 2;
     expect(Math.abs(skinCenterX - viewport.width / 2)).toBeLessThanOrEqual(10);
