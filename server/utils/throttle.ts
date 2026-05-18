@@ -11,7 +11,7 @@ export function throttleLeadingTrailing<T extends unknown[]>(
   fn: (...args: T) => void,
   wait: number,
 ): (...args: T) => void {
-  let lastFiredAt = 0;
+  let lastFiredAt = Number.NEGATIVE_INFINITY;
   let pendingArgs: T | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
