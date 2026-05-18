@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@drizzle-lab/api": "^0.30.2",
-    "@liase/core": "^1.1.0",
+    "@liase/core": "^2.0.2",
     "@peterbud/nuxt-query": "^1.7.0",
     "@pinia/nuxt": "^0.11.3",
     "@tanstack/vue-query": "^5.100.8",
