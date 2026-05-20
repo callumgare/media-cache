@@ -64,10 +64,14 @@ export function makeVideoMedia(
 
 export async function setup(
   { request }: { request: import("@playwright/test").APIRequestContext },
-  opts: { media?: GenericMedia[][]; delay?: number } = {},
+  opts: { media?: GenericMedia[][]; delay?: number; pageSize?: number } = {},
 ) {
   const res = await request.post("/api/_test/setup", {
-    data: { media: opts.media ?? [], delay: opts.delay ?? 0 },
+    data: {
+      media: opts.media ?? [],
+      delay: opts.delay ?? 0,
+      pageSize: opts.pageSize,
+    },
   });
   if (!res.ok())
     throw new Error(`Test setup failed: ${res.status()} ${await res.text()}`);

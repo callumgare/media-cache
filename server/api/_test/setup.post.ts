@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 declare global {
   var __testPluginQueue: Array<GenericMedia[]>;
   var __testPluginDelayMs: number;
+  var __testPageSize: number | undefined;
 }
 
 /**
@@ -19,6 +20,7 @@ export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) as {
     media?: GenericMedia[][];
     delay?: number;
+    pageSize?: number;
   };
 
   // Truncate all test-relevant tables. Retry on lock conflicts caused by
@@ -62,6 +64,7 @@ export default defineEventHandler(async (event) => {
   // Seed the test plugin queue
   globalThis.__testPluginQueue = body.media ?? [];
   globalThis.__testPluginDelayMs = body.delay ?? 0;
+  globalThis.__testPageSize = body.pageSize;
 
   return { ok: true };
 });

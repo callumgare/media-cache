@@ -42,6 +42,8 @@ export default defineNuxtConfig({
         "@videojs/html/video/minimal-skin",
         "@videojs/html/media/hls-video",
         "@videojs/html/media/dash-video",
+        "@tanstack/vue-virtual",
+        "lucide-vue-next",
       ],
     },
   },

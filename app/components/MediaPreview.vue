@@ -197,7 +197,7 @@ function handleMouseLeave() {
       z-index: -1;
     }
 
-    img, video, hls-video::part(video) {
+    img, video, hls-video::part(video), dash-video::part(video) {
       max-height: 300px;
       max-width: 100%;
       display: block;
@@ -217,7 +217,7 @@ function handleMouseLeave() {
     }
 
 
-    &:has(video, hls-video) {
+    &:has(video, hls-video, dash-video) {
       &::before, &::after {
         position: absolute;
         top: 50%;

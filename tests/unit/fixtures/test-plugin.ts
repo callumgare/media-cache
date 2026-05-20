@@ -6,6 +6,8 @@ declare global {
 
   var __testPluginDelayMs: number;
 
+  var __testPageSize: number | undefined;
+
   // Tracks the page number / cursor of every request made by paginated handlers.
   // Reset this to [] before tests that need to assert on it.
   var __testPluginRequestedPages: Array<{

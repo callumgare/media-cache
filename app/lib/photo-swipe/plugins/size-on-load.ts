@@ -123,12 +123,6 @@ export class PhotoSwipeSizeOnLoadPlugin {
         content.height,
     );
 
-    if (sizeKnown) {
-      const opener = Reflect.get(content.instance, "opener");
-      if (opener) {
-        Reflect.set(opener, "_animateZoom", true);
-      }
-    }
     if (content.element) {
       if (!sizeKnown) {
         this.centerLoadingMedia(content.element);

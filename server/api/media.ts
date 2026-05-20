@@ -4,10 +4,17 @@ import { z } from "zod";
 import type { APIMedia, APIMediaResponse } from "../../types/api-media";
 import { calculateWhereValue } from "../utils/query-builder";
 
-const returnedNumber = 10;
+declare global {
+  var __testPageSize: number | undefined;
+}
+
+const defaultPageSize = 10;
 
 export default defineEventHandler(
   async (event): Promise<z.infer<typeof APIMediaResponse>> => {
+    const returnedNumber =
+      (process.env.ENABLE_TEST_API && globalThis.__testPageSize) ||
+      defaultPageSize;
     const query = await getValidatedQuery(
       event,
       z.object({

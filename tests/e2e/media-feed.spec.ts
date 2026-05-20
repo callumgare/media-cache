@@ -8,6 +8,12 @@ import {
   setup,
 } from "./helpers";
 
+declare global {
+  interface Window {
+    __currentSlideLeftViewport: boolean;
+  }
+}
+
 const VIEWPORT = { width: 800, height: 800 };
 
 // ---------------------------------------------------------------------------
@@ -489,5 +495,142 @@ test.describe("Feed page – infinite loading", () => {
     await expect(slides).not.toHaveCount(initialCount, { timeout: 15_000 });
     const finalCount = await slides.count();
     expect(finalCount).toBeGreaterThan(initialCount);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Responsive layout: slides resize with the viewport
+// ---------------------------------------------------------------------------
+
+test.describe("Feed page – responsive layout", () => {
+  // 100 slides all returned on the first page (pageSize override). Being at
+  // slide 99 puts scrollY = 99 * 800 = 79200; after growing to 1200 the target
+  // is 99 * 1200 = 118800, which exceeds the old document height, exposing the
+  // snap-point timing bug.
+  const SLIDE_COUNT = 100;
+  const slideMedia = Array.from({ length: SLIDE_COUNT }, (_, i) =>
+    makeImageMedia({ id: `resize-slide-${i}` }),
+  );
+
+  test.use({ viewport: VIEWPORT });
+
+  test.beforeEach(async ({ request }) => {
+    await setup({ request }, { media: [slideMedia], pageSize: SLIDE_COUNT });
+    await createAndRunQuery({ request });
+  });
+
+  test("slide height updates when viewport is resized", async ({ page }) => {
+    await page.goto("/media/feed");
+    const firstSlide = page.getByTestId("feed-slide").first();
+    await expect(firstSlide).toBeVisible({ timeout: 15_000 });
+
+    // Confirm initial height matches viewport
+    const initialBox = await firstSlide.boundingBox();
+    expect(initialBox).not.toBeNull();
+    expect(initialBox?.height).toBeCloseTo(VIEWPORT.height, -1);
+
+    // Shrink the viewport height
+    const newHeight = 500;
+    await page.setViewportSize({ width: VIEWPORT.width, height: newHeight });
+
+    // Slide should resize to match the new viewport height
+    await expect(async () => {
+      const box = await firstSlide.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.height).toBeCloseTo(newHeight, -1);
+    }).toPass({ timeout: 3_000 });
+  });
+
+  test("current slide is unchanged after viewport resize", async ({ page }) => {
+    await page.goto("/media/feed");
+    await expect(page.getByTestId("feed-slide").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Jump to a slide near the end of the list. Scroll-snap is briefly disabled
+    // so the large programmatic jump isn't clamped to the last rendered snap
+    // point. Two rAFs give the virtualizer time to re-render at the new position
+    // before snap is restored.
+    const lastIndex = SLIDE_COUNT - 5;
+    const targetScrollY = lastIndex * VIEWPORT.height;
+    await page.evaluate(async (targetY) => {
+      const previousScrollSnapType =
+        document.documentElement.style.scrollSnapType;
+      document.documentElement.style.scrollSnapType = "none";
+      window.scrollTo({ top: targetY, behavior: "instant" });
+      await new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      );
+      if (window.scrollY !== targetY) {
+        throw new Error(
+          `Scroll didn't reach targetY immediately; expected ${targetY} got ${window.scrollY}`,
+        );
+      }
+      document.documentElement.style.scrollSnapType = previousScrollSnapType;
+    }, targetScrollY);
+
+    const currentSlide = page.locator(".is-current");
+    await expect(currentSlide).toBeInViewport({ timeout: 5_000 });
+
+    const idForCurrentSlideBeforeResize =
+      await currentSlide.getAttribute("data-media-id");
+    if (!idForCurrentSlideBeforeResize) {
+      throw new Error("Could not get current slide id");
+    }
+
+    // Sweep the viewport height in small steps without pausing between steps,
+    // simulating rapid window-edge dragging. Growing above the initial viewport
+    // height is the critical case: without the fix the new target scrollY
+    // (lastIndex * newHeight) exceeds the old document height, so the browser
+    // clamps the scroll and the current slide leaves the viewport.
+    //
+    // Requests are sent concurrently (Promise.all) so the browser receives many
+    // resize events before Vue has flushed any reactive updates, replicating the
+    // real-world condition of fast window-edge dragging.
+    const STEP = 10;
+    async function sweepHeight(from: number, to: number) {
+      const dir = to > from ? 1 : -1;
+      const steps: Array<Promise<void>> = [];
+      for (
+        let h = from + dir * STEP;
+        dir > 0 ? h <= to : h >= to;
+        h += dir * STEP
+      ) {
+        steps.push(page.setViewportSize({ width: VIEWPORT.width, height: h }));
+      }
+      await Promise.all(steps);
+    }
+
+    // Track whether the current slide ever fully leaves the viewport.
+    await page.evaluate(() => {
+      const currentSlide = document.querySelector(".is-current");
+      if (!currentSlide)
+        throw new Error("No .is-current element found before resize");
+      window.__currentSlideLeftViewport = false;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) {
+              window.__currentSlideLeftViewport = true;
+            }
+          }
+        },
+        { threshold: 0 },
+      );
+      observer.observe(currentSlide);
+    });
+
+    await sweepHeight(VIEWPORT.height, 200);
+    await sweepHeight(200, 1200);
+
+    expect(
+      await page.evaluate(() => window.__currentSlideLeftViewport),
+      "Current slide left the viewport during resize",
+    ).toBe(false);
+
+    await expect(currentSlide).toBeInViewport({ timeout: 5_000 });
+    expect(await currentSlide.getAttribute("data-media-id")).toBe(
+      idForCurrentSlideBeforeResize,
+    );
   });
 });

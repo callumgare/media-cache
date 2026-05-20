@@ -147,7 +147,7 @@ const headerExpanded = ref(false);
   }
 
   body:has(#app-root.blur-media) {
-    img, video {
+    img, video, hls-video::part(video), dash-video::part(video) {
       filter:  url("/abstractify-filter.svg#abstractify");
     }
   }

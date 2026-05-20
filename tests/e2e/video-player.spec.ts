@@ -342,7 +342,8 @@ test.describe("HLS video in lightbox – navigation", () => {
     await page.setViewportSize({ width: 800, height: 800 });
     await page.goto("/media/grid");
 
-    // Open the image (first item) to enter the lightbox
+    // Open the image item to enter the lightbox.
+    // (Images render as <img> in the grid; HLS video renders as <hls-video>.)
     const firstItem = page.locator("[data-media-id] img").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
@@ -356,13 +357,21 @@ test.describe("HLS video in lightbox – navigation", () => {
       timeout: 5_000,
     });
 
-    // Navigate to the adjacent HLS video slide
-    await page.keyboard.press("ArrowRight");
-
-    // Wait for PhotoSwipe to complete navigation to slide index 1 (the HLS video).
-    // The counter changes to "2 / N" once the slide change is committed.
     const counter = pswp.locator(".pswp__counter");
-    await expect(counter).toContainText("2 /", { timeout: 5_000 });
+
+    // Navigate to the adjacent HLS video slide.
+    // Media items can appear in either order due to random API ordering, so check
+    // the current counter position to determine which direction the HLS video is in.
+    const counterText = (await counter.textContent({ timeout: 5_000 })) ?? "";
+    if (counterText.includes("1 /")) {
+      // Image is the first slide; HLS video is to the right
+      await page.keyboard.press("ArrowRight");
+      await expect(counter).toContainText("2 /", { timeout: 5_000 });
+    } else {
+      // Image is the last slide; HLS video is to the left
+      await page.keyboard.press("ArrowLeft");
+      await expect(counter).toContainText("1 /", { timeout: 5_000 });
+    }
 
     // Wait until the HLS video's real dimensions are written into the current slide
     await page.waitForFunction(() => (window.pswp?.currSlide?.width ?? 0) > 0, {

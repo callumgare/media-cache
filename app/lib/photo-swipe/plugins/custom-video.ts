@@ -29,6 +29,7 @@ export class PhotoSwipeCustomVideoPlugin {
     HTMLElement,
     import("vue").Ref<InstanceType<typeof MediaPlayer> | null>
   >();
+  #applyDimFns = new WeakMap<HTMLElement, () => void>();
 
   #initLightboxEvents(lightbox: PhotoSwipeLightbox) {
     lightbox.on("contentLoad", (e) => {
@@ -62,6 +63,39 @@ export class PhotoSwipeCustomVideoPlugin {
         mediaData.files.find((f) => f.hasVideo && f.ext !== "gif")?.hasAudio ??
         null;
 
+      // Applies the video's intrinsic dimensions to the PhotoSwipe slide so it
+      // can centre the content correctly. Defined outside the component so it
+      // can be stored in #applyDimFns and called from the `change` handler.
+      const applyVideoDimensions = () => {
+        const player = playerRef.value;
+        if (!player) return;
+        if (!content.data.width && !content.data.height) {
+          const w = player.videoWidth;
+          const h = player.videoHeight;
+          if (w && h) {
+            content.data.width = w;
+            content.data.height = h;
+            content.width = w;
+            content.height = h;
+            if (content.slide) {
+              content.slide.width = w;
+              content.slide.height = h;
+              // Only force a live relayout when this slide is the one
+              // PhotoSwipe is currently displaying. For preloaded adjacent
+              // slides the width/height assignments above are enough;
+              // PhotoSwipe reads them on navigation. Calling updateSize on
+              // a non-current slide can disrupt PhotoSwipe's internal state
+              // and prevent keyboard navigation from working.
+              if (lightbox.pswp?.currSlide?.content === content) {
+                content.slide.currZoomLevel = content.slide.zoomLevels.initial;
+                content.slide.resize();
+                lightbox.pswp.updateSize(true);
+              }
+            }
+          }
+        }
+      };
+
       const app = createApp(
         defineComponent({
           setup() {
@@ -91,41 +125,6 @@ export class PhotoSwipeCustomVideoPlugin {
               }
             });
 
-            // Applies the video's intrinsic dimensions to the PhotoSwipe slide
-            // so it can centre the content correctly. Must be callable from
-            // both onLoadedmetadata and onResize because hls.js + MSE may fire
-            // loadedmetadata before videoWidth/videoHeight are populated.
-            const applyVideoDimensions = () => {
-              const player = playerRef.value;
-              if (!player) return;
-              if (!content.data.width && !content.data.height) {
-                const w = player.videoWidth;
-                const h = player.videoHeight;
-                if (w && h) {
-                  content.data.width = w;
-                  content.data.height = h;
-                  content.width = w;
-                  content.height = h;
-                  if (content.slide) {
-                    content.slide.width = w;
-                    content.slide.height = h;
-                    // Only force a live relayout when this slide is the one
-                    // PhotoSwipe is currently displaying. For preloaded adjacent
-                    // slides the width/height assignments above are enough;
-                    // PhotoSwipe reads them on navigation. Calling updateSize on
-                    // a non-current slide can disrupt PhotoSwipe's internal state
-                    // and prevent keyboard navigation from working.
-                    if (lightbox.pswp?.currSlide?.content === content) {
-                      content.slide.currZoomLevel =
-                        content.slide.zoomLevels.initial;
-                      content.slide.resize();
-                      lightbox.pswp.updateSize(true);
-                    }
-                  }
-                }
-              }
-            };
-
             return () =>
               h(MediaPlayer, {
                 ref: playerRef,
@@ -148,13 +147,30 @@ export class PhotoSwipeCustomVideoPlugin {
                   // HLS videos (whose DB file records have no pre-computed
                   // width/height) rely solely on the poster image loading, which
                   // requires a server-side ffmpeg extraction and can take seconds.
-                  // With hls.js + MSE, videoWidth may still be 0 at this point;
-                  // onResize (below) provides the fallback in that case.
                   applyVideoDimensions();
+
+                  // With hls.js + MSE, videoWidth may still be 0 at
+                  // loadedmetadata time (the browser reports metadata before the
+                  // decoder has produced the first frame). Poll via rAF until
+                  // dimensions are available. The onResize event only fires for
+                  // Chromecast playback and cannot be relied on here.
+                  if (!content.data.width && !content.data.height) {
+                    let attempts = 0;
+                    const retryApply = () => {
+                      if (!playerRef.value) return; // component was destroyed
+                      if (content.data.width || content.data.height) return; // already set
+                      applyVideoDimensions();
+                      if (
+                        ++attempts < 120 &&
+                        !content.data.width &&
+                        !content.data.height
+                      ) {
+                        requestAnimationFrame(retryApply);
+                      }
+                    };
+                    requestAnimationFrame(retryApply);
+                  }
                 },
-                // hls.js + MSE may report videoWidth=0 at loadedmetadata time;
-                // the resize event fires once the decoder has determined the
-                // actual frame dimensions, giving us a reliable second chance.
                 onResize: applyVideoDimensions,
               });
           },
@@ -164,6 +180,7 @@ export class PhotoSwipeCustomVideoPlugin {
       app.mount(wrapper);
       this.#skinApps.set(wrapper, app);
       this.#playerRefs.set(wrapper, playerRef);
+      this.#applyDimFns.set(wrapper, applyVideoDimensions);
       content.element = wrapper;
 
       // Signal loaded once poster is ready (or immediately if no poster)
@@ -186,6 +203,7 @@ export class PhotoSwipeCustomVideoPlugin {
         this.#skinApps.get(content.element)?.unmount();
         this.#skinApps.delete(content.element);
         this.#playerRefs.delete(content.element);
+        this.#applyDimFns.delete(content.element);
       }
     });
 
@@ -198,17 +216,6 @@ export class PhotoSwipeCustomVideoPlugin {
           ?.catch(() => {
             // Autoplay may be blocked by browser policy — ignore silently
           });
-
-        // If video dimensions were already determined while this was an
-        // adjacent/preloaded slide (e.g., via the resize event), apply them to
-        // the now-current slide so PhotoSwipe centres it immediately.
-        if (content.width && content.height && content.slide) {
-          content.slide.width = content.width;
-          content.slide.height = content.height;
-          content.slide.currZoomLevel = content.slide.zoomLevels.initial;
-          content.slide.resize();
-          lightbox.pswp?.updateSize(true);
-        }
       }
     });
 
@@ -276,6 +283,33 @@ export class PhotoSwipeCustomVideoPlugin {
   }
 
   #initPswpEvents(pswp: PhotoSwipe) {
+    // After navigation commits, apply pre-computed dimensions so PhotoSwipe centres
+    // the video immediately. Doing this in contentActivate (which fires during the
+    // animation) would call updateSize(true) mid-animation and abort the navigation.
+    pswp.on("change", () => {
+      const content = pswp.currSlide?.content;
+      if (!content || !isVideoContent(content)) return;
+
+      // If dimensions are not yet known (e.g. hls.js + MSE reported videoWidth=0
+      // at loadedmetadata time), try to read them now that the slide is active.
+      if (
+        !content.width &&
+        !content.height &&
+        content.element &&
+        content.slide
+      ) {
+        this.#applyDimFns.get(content.element)?.();
+      }
+
+      if (content.width && content.height && content.slide) {
+        content.slide.width = content.width;
+        content.slide.height = content.height;
+        content.slide.currZoomLevel = content.slide.zoomLevels.initial;
+        content.slide.resize();
+        pswp.updateSize(true);
+      }
+    });
+
     // Don't zoom when clicking video controls — check composedPath for media-controls element
     pswp.on("imageClickAction", (e) => {
       if (!isVideoContent(pswp.currSlide?.content)) return;
