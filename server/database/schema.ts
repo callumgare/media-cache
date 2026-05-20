@@ -329,6 +329,26 @@ export const groupRelations = relations(group, ({ one, many }) => ({
 export type Group = typeof group.$inferSelect;
 
 /*
+querySecret
+
+A single saved secret value for a specific Liase source + secret field.
+Multiple entries can exist for the same source/field (e.g. different accounts).
+The encrypted value is stored with AES-256-GCM.
+*/
+export const querySecret = pgTable("query_secret", {
+  id: serial("id").notNull().primaryKey(),
+  createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+  label: text("label").notNull(),
+  liaseSourceId: text("liase_source_id").notNull(),
+  secretFieldName: text("secret_field_name").notNull(),
+  secretFieldType: text("secret_field_type").notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+});
+
+export type QuerySecret = typeof querySecret.$inferSelect;
+
+/*
 liaseQuery
 
 The details for a query to be executed with Liase
@@ -350,6 +370,7 @@ export const liaseQuery = pgTable("liase_query", {
     .default(false),
   schedule: integer("schedule").notNull(),
   queryVariations: jsonb("query_variations").$type<QueryVariation[]>(),
+  secretMappings: jsonb("secret_mappings").$type<Record<string, number>>(),
 });
 
 export const liaseQueryRelations = relations(liaseQuery, ({ many }) => ({

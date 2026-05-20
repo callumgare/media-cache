@@ -2,6 +2,7 @@ import { queryExecutionTaskSystem } from "@@/server/lib/liase/execution-tasks";
 import {
   buildLiaseQueryOptions,
   expandAllVariations,
+  loadSecretsIntoOptions,
   runLiaseQueryExecution,
 } from "@@/server/lib/liase/run-query";
 import { db, dbSchema } from "@@/server/utils/drizzle";
@@ -81,6 +82,7 @@ export default defineNitroPlugin(async () => {
         savedQuery,
         liaseRequests,
       );
+      await loadSecretsIntoOptions(savedQuery, liaseQueryOptions);
       const resumeStage = execution.resumeStage ?? "initialising";
 
       await db.insert(dbSchema.liaseQueryExecutionLog).values({

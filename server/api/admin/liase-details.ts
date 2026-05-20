@@ -1,5 +1,4 @@
 import { getLiase } from "@@/server/lib/liase";
-import { sql } from "drizzle-orm";
 
 export default defineEventHandler(async () => {
   const liase = await getLiase();
@@ -16,6 +15,9 @@ export default defineEventHandler(async () => {
             schema: handler.requestSchema.toJSONSchema({
               unrepresentable: "any",
             }),
+            secretsSchema: handler.secretsSchema
+              ? handler.secretsSchema.toJSONSchema({ unrepresentable: "any" })
+              : null,
           })),
         },
       ]),

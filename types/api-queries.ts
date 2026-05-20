@@ -11,6 +11,7 @@ export type QueryListResponse = Array<{
   fetchCountLimitPerVariation: boolean;
   schedule: number;
   queryVariations: QueryVariation[] | null;
+  secretMappings: Record<string, number> | null;
 }>;
 
 export type QueryDetailResponse = {
@@ -23,4 +24,5 @@ export type QueryDetailResponse = {
   fetchCountLimitPerVariation: boolean;
   schedule: number;
   queryVariations: QueryVariation[] | null;
+  secretMappings: Record<string, number> | null;
 };

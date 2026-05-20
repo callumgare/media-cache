@@ -1,8 +1,8 @@
 import util from "node:util";
 import type { QueryVariation } from "@@/server/database/schema";
 import { queryExecutionTaskSystem } from "@@/server/lib/liase/execution-tasks";
+import { decryptValue } from "@@/server/lib/secrets-encryption";
 import type { GenericRequest } from "@liase/core";
-import { getSecrets } from "@liase/core/dist/test/utils/general.js";
 import { getLiaseQuery } from "../liase";
 import {
   createExecutionLogEntry,
@@ -115,8 +115,8 @@ export function expandAllVariations(
 export function buildLiaseQueryOptions(
   savedLiaseQuery: dbSchema.LiaseQuery,
   liaseRequests: GenericRequest[],
-): LiaseQueryOptions {
-  const options: LiaseQueryOptions = {};
+): NonNullable<LiaseQueryOptions> {
+  const options: NonNullable<LiaseQueryOptions> = {};
   if (savedLiaseQuery.fetchCountLimit !== null) {
     if (savedLiaseQuery.fetchCountLimitPerVariation) {
       // Limit applies independently to each variation request
@@ -133,6 +133,31 @@ export function buildLiaseQueryOptions(
   return options;
 }
 
+/**
+ * Loads the DB-stored secrets for a saved query and merges them into the
+ * provided options object.  Exported so resume-executions can reuse the logic.
+ */
+export async function loadSecretsIntoOptions(
+  savedLiaseQuery: dbSchema.LiaseQuery,
+  options: NonNullable<LiaseQueryOptions>,
+): Promise<void> {
+  if (!savedLiaseQuery.secretMappings) return;
+  const secrets: Record<string, string> = {};
+  for (const [fieldName, secretId] of Object.entries(
+    savedLiaseQuery.secretMappings,
+  )) {
+    const dbSecret = await db.query.querySecret.findFirst({
+      where: (s, { eq }) => eq(s.id, secretId),
+    });
+    if (dbSecret) {
+      secrets[fieldName] = decryptValue(dbSecret.encryptedValue);
+    }
+  }
+  if (Object.keys(secrets).length > 0) {
+    options.secrets = { ...options.secrets, ...secrets };
+  }
+}
+
 export async function startLiaseQueryExecution(
   savedLiaseQuery: dbSchema.LiaseQuery,
 ): Promise<{
@@ -145,6 +170,7 @@ export async function startLiaseQueryExecution(
     savedLiaseQuery,
     liaseRequests,
   );
+  await loadSecretsIntoOptions(savedLiaseQuery, liaseQueryOptions);
   // Run the actual execution in the background without blocking the caller
   const executionPromise = runLiaseQueryExecution({
     liaseQueryExecution: execution,
@@ -301,10 +327,6 @@ export async function runLiaseQueryExecution({
             liaseRequest = { ...liaseRequest, cursor: resumeCursor };
           }
 
-          liaseQueryOptions.secrets = {
-            ...liaseQueryOptions.secrets,
-            ...(await getSecrets(liaseRequest)),
-          };
           currentLiaseRequest = liaseRequest;
 
           // Reduce the fetch limit for the resumed variation by the pages already

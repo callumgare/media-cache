@@ -1,5 +1,5 @@
 <template>
-  <form @submit.prevent="handleValidateClick">    
+  <form @submit.prevent="handleValidateClick">
     <div class="top-section">
       <div class="primary-options fields-list">
         <div class="option">
@@ -105,7 +105,7 @@
                 :disabled="variationControlledFields.has(option.name)"
                 @update:model-value="setOption(option.name, $event)"
               />
-              
+
               <InputGroupAddon v-else-if="option.type === 'boolean'">
                 <Checkbox
                   v-if="!variationControlledFields.has(option.name)"
@@ -187,6 +187,40 @@
     </div>
 
     <div
+      v-if="selectedHandlerSecretFields.length > 0"
+      class="query-secrets"
+    >
+      <h2>Secrets</h2>
+      <ul class="fields-list">
+        <li
+          v-for="field in selectedHandlerSecretFields"
+          :key="field.name"
+        >
+          <div class="option">
+            <label>{{ camelCaseToTitleCase(field.name) }}</label>
+            <div class="secret-field-input">
+              <Select
+                input-class="field-input"
+                :model-value="formValue.secretMappings?.[field.name] ?? null"
+                :options="matchingSecretsForField(field.name, field.type)"
+                option-label="label"
+                option-value="id"
+                placeholder="Not set"
+                :show-clear="true"
+                @update:model-value="setSecretMapping(field.name, $event)"
+              >
+                <template #empty>No saved secrets for this field.</template>
+              </Select>
+              <Button type="button" size="small" severity="secondary" outlined @click="openAddSecretDialog(field)">
+                <Plus :size="14" /> Add
+              </Button>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div
       class="query-options"
     >
       <h2>Other Options</h2>
@@ -238,6 +272,14 @@
       <Button label="Import" @click="importQuery" />
     </template>
   </Dialog>
+
+  <QuerySecretForm
+    v-model:visible="showAddSecretDialog"
+    :prefill-source-id="selectedSourceId"
+    :prefill-field-name="addSecretPrefill?.name"
+    :prefill-field-type="addSecretPrefill?.type"
+    @saved="onSecretAdded"
+  />
 </template>
 
 <script setup lang="ts">
@@ -267,6 +309,7 @@ type FormData = Partial<
 > & {
   requestOptions: Record<string, unknown>;
   queryVariations: QueryVariation[];
+  secretMappings?: Record<string, number | null> | null;
   id?: number;
   createdAt?: Date | string;
   updatedAt?: Date | string;
@@ -279,6 +322,7 @@ const props = defineProps<{
   > & {
     requestOptions: Record<string, unknown>;
     queryVariations?: QueryVariation[] | null;
+    secretMappings?: Record<string, number> | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
   };
@@ -293,6 +337,77 @@ const { data: liaseDetails, error: liaseDetailsError } = await useFetch(
   "/api/admin/liase-details",
   { server: false },
 );
+
+const { data: allSecrets, refresh: refreshAllSecrets } = await useFetch<
+  import("@@/types/api-secrets").QuerySecretListResponse
+>("/api/admin/secrets", {
+  server: false,
+});
+
+type SecretFieldInfo = { name: string; type: string };
+
+const selectedHandlerSecretFields = computed((): SecretFieldInfo[] => {
+  if (!selectedSourceId.value || !selectedRequestHandlerType.value) return [];
+  const handler = liaseDetails.value?.sources[
+    selectedSourceId.value
+  ]?.requestHandlers?.find(
+    (h: { id: string }) => h.id === selectedRequestHandlerType.value,
+  );
+  const schema = (
+    handler as
+      | {
+          secretsSchema?: {
+            properties?: Record<string, { type?: string }>;
+          } | null;
+        }
+      | undefined
+  )?.secretsSchema;
+  if (!schema?.properties) return [];
+  return Object.entries(schema.properties).map(([name, def]) => ({
+    name,
+    type: (def as { type?: string }).type ?? "string",
+  }));
+});
+
+function matchingSecretsForField(fieldName: string, fieldType: string) {
+  if (!selectedSourceId.value) return [];
+  return (
+    allSecrets.value?.filter(
+      (s) =>
+        s.liaseSourceId === selectedSourceId.value &&
+        s.secretFieldName === fieldName &&
+        s.secretFieldType === fieldType,
+    ) ?? []
+  );
+}
+
+function setSecretMapping(fieldName: string, value: number | null) {
+  if (!formValue.value.secretMappings) {
+    formValue.value.secretMappings = {};
+  }
+  if (value === null) {
+    delete formValue.value.secretMappings[fieldName];
+  } else {
+    formValue.value.secretMappings[fieldName] = value;
+  }
+}
+
+const showAddSecretDialog = ref(false);
+const addSecretPrefill = ref<SecretFieldInfo | null>(null);
+
+function openAddSecretDialog(field: SecretFieldInfo) {
+  addSecretPrefill.value = field;
+  showAddSecretDialog.value = true;
+}
+
+async function onSecretAdded(
+  result: import("@@/types/api-secrets").QuerySecretListItem,
+) {
+  await refreshAllSecrets();
+  if (addSecretPrefill.value) {
+    setSecretMapping(addSecretPrefill.value.name, result.id);
+  }
+}
 
 watch(liaseDetailsError, (error) => {
   if (!error) return;
@@ -309,6 +424,7 @@ const formValue = ref<FormData>(
     ? {
         ...props.mediaQuery,
         queryVariations: props.mediaQuery.queryVariations ?? [],
+        secretMappings: props.mediaQuery.secretMappings ?? null,
       }
     : {
         requestOptions: {
@@ -316,6 +432,7 @@ const formValue = ref<FormData>(
           queryType: null,
         },
         queryVariations: [],
+        secretMappings: null,
         fetchCountLimit: 1000,
         fetchCountLimitPerVariation: true,
       },
@@ -330,6 +447,7 @@ watch(
     formValue.value = {
       ...mediaQuery,
       queryVariations: mediaQuery.queryVariations ?? [],
+      secretMappings: mediaQuery.secretMappings ?? null,
     };
   },
   { once: true },
@@ -338,6 +456,17 @@ watch(
 const selectedSourceId = computed(() => {
   const source = formValue.value.requestOptions.source;
   return typeof source === "string" ? source : "";
+});
+
+const selectedRequestHandlerType = computed(() => {
+  const queryType = formValue.value.requestOptions.queryType;
+  return typeof queryType === "string" ? queryType : "";
+});
+
+// Clear secret mappings when source or handler changes so stale secrets
+// from a different handler are not silently carried over.
+watch([selectedSourceId, selectedRequestHandlerType], () => {
+  formValue.value.secretMappings = null;
 });
 
 const requestHandlers = computed(() => {
@@ -362,19 +491,31 @@ const knownRequestOptionNames = computed(() => {
   return fixed;
 });
 
-const formattedFormValue = computed(() => ({
-  ...formValue.value,
-  requestOptions: Object.fromEntries(
-    Object.entries(formValue.value.requestOptions).filter(
-      ([key, value]) =>
-        value !== null && knownRequestOptionNames.value.has(key),
+const formattedFormValue = computed(() => {
+  const rawMappings = formValue.value.secretMappings;
+  const secretMappings = rawMappings
+    ? (Object.fromEntries(
+        Object.entries(rawMappings).filter(([, v]) => v !== null),
+      ) as Record<string, number>)
+    : null;
+  return {
+    ...formValue.value,
+    requestOptions: Object.fromEntries(
+      Object.entries(formValue.value.requestOptions).filter(
+        ([key, value]) =>
+          value !== null && knownRequestOptionNames.value.has(key),
+      ),
     ),
-  ),
-  queryVariations:
-    formValue.value.queryVariations.length > 0
-      ? formValue.value.queryVariations
-      : null,
-}));
+    queryVariations:
+      formValue.value.queryVariations.length > 0
+        ? formValue.value.queryVariations
+        : null,
+    secretMappings:
+      secretMappings && Object.keys(secretMappings).length > 0
+        ? secretMappings
+        : null,
+  };
+});
 
 function getStringOption(name: string): string | null | undefined {
   const val = formValue.value.requestOptions[name];
@@ -645,8 +786,7 @@ async function handleValidateClick() {
     flex-direction: column;
     align-items: flex-start;
     gap: 2em;
-    
-    
+
     .top-section {
       display: flex;
       gap: 1rem;
@@ -657,15 +797,14 @@ async function handleValidateClick() {
       .primary-options {
         :deep(.p-inputwrapper) {
           max-width: 100%;
-          
+
           :deep(.p-select-label) {
             width: 200px; /* this shrinks if needed */
           }
         }
       }
     }
-    
-    
+
     .fields-list {
       display: grid;
       grid-template-columns: 100%;
@@ -688,18 +827,18 @@ async function handleValidateClick() {
         text-align: right;
         flex-shrink: 0;
       }
-      
+
       @media (max-width: 600px) {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.25em;
-        
+
         label {
           width: auto;
           text-align: left;
         }
       }
-      
+
       .field-input {
         max-width: 20em;
       }
@@ -753,7 +892,30 @@ async function handleValidateClick() {
       opacity: 0.45;
       pointer-events: none;
     }
-    
+
+    .query-secrets {
+      align-self: stretch;
+      flex-direction: column;
+
+      ul {
+        list-style-type: none;
+        padding-left: 0;
+        margin: 0.5em 0;
+      }
+    }
+
+    .secret-field-input {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      max-width: 24em;
+
+      :deep(.p-select) {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+
     .debug-info {
       pre {
         text-wrap: wrap;

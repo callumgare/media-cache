@@ -5,6 +5,7 @@ services:
       - 3000:3000
     environment:
       DATABASE_URL: "postgresql://media-cache:example@postgres:5432/media-cache"
+      SECRETS_ENCRYPTION_KEY: "a-very-secure-and-long-encryption-key"
     depends_on:
       postgres:
         condition: service_healthy

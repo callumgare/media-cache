@@ -88,7 +88,8 @@ export async function truncateAll() {
       deleted_cache_media,
       cache_media,
       "group",
-      source
+      source,
+      query_secret
     RESTART IDENTITY CASCADE
   `);
   // Reset the test plugin queue so stale enqueued items don't bleed into the next test
