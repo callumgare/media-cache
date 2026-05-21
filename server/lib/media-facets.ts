@@ -55,7 +55,7 @@ export function fetchFieldCounts(
   body: QueryGroupCondition,
 ): Promise<SourceFacetCount[]>;
 export function fetchFieldCounts(
-  condition: QueryFieldCondition & { field: "tags" },
+  condition: QueryFieldCondition & { field: "tags" | "groups" },
   body: QueryGroupCondition,
 ): Promise<TagFacetCount[]>;
 export function fetchFieldCounts(
@@ -93,7 +93,7 @@ export async function fetchFieldCounts(
     );
   }
 
-  if (condition.field === "tags") {
+  if (condition.field === "tags" || condition.field === "groups") {
     const [tagRow] = await db.execute<{
       agg: {
         buckets: Array<{ key: string; doc_count: number }>;

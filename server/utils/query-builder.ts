@@ -62,7 +62,7 @@ function _buildStandardWhere(condition: QueryCondition): SQL | null {
     }
     throw Error(`Unknown operator for source field: ${operator}`);
   }
-  if (field === "tags") {
+  if (field === "tags" || field === "groups") {
     if (operator === "includes all") {
       if (!Array.isArray(value) || !value.length) return null;
       return sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${sql.join(
@@ -70,7 +70,7 @@ function _buildStandardWhere(condition: QueryCondition): SQL | null {
         sql`, `,
       )}]::text[]`;
     }
-    throw Error(`Unknown operator for tags field: ${operator}`);
+    throw Error(`Unknown operator for ${field} field: ${operator}`);
   }
   if (field === "type") {
     if (value === "video")
@@ -169,7 +169,7 @@ function _buildBM25FieldParts(condition: QueryFieldCondition): {
     }
   }
 
-  if (field === "tags") {
+  if (field === "tags" || field === "groups") {
     if (operator === "includes all") {
       if (!Array.isArray(value) || !value.length)
         return { bm25Sql: null, regularSql: null };

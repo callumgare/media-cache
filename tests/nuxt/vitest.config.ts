@@ -10,5 +10,6 @@ export default defineVitestConfig({
     environment: "nuxt",
     include: ["tests/nuxt/**/*.test.ts"],
     silent: "passed-only",
+    hookTimeout: 30_000,
   },
 });

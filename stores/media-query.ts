@@ -5,10 +5,15 @@ import type {
 } from "@@/types/query-condition.js";
 import { defineStore } from "pinia";
 
-type QueryConditionFlatNode = (
+export type QueryConditionFlatNode = (
   | Omit<QueryGroupCondition, "conditions">
   | QueryFieldCondition
 ) & { parent: number | null };
+
+export type QueryConditionFlatFieldNode = Extract<
+  QueryConditionFlatNode,
+  { type: "field" }
+>;
 
 export const useMediaQuery = defineStore("media-query", {
   state: (): { conditionNodes: QueryConditionFlatNode[] } => {
@@ -41,6 +46,14 @@ export const useMediaQuery = defineStore("media-query", {
           type: "field",
           field: "type",
           operator: "equals",
+          value: "",
+          parent: 1,
+        },
+        {
+          id: 5,
+          type: "field",
+          field: "groups",
+          operator: "includes all",
           value: "",
           parent: 1,
         },

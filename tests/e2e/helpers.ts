@@ -64,13 +64,19 @@ export function makeVideoMedia(
 
 export async function setup(
   { request }: { request: import("@playwright/test").APIRequestContext },
-  opts: { media?: GenericMedia[][]; delay?: number; pageSize?: number } = {},
+  opts: {
+    media?: GenericMedia[][];
+    delay?: number;
+    pageSize?: number;
+    groups?: Array<{ name: string; parentId?: number }>;
+  } = {},
 ) {
   const res = await request.post("/api/_test/setup", {
     data: {
       media: opts.media ?? [],
       delay: opts.delay ?? 0,
       pageSize: opts.pageSize,
+      groups: opts.groups,
     },
   });
   if (!res.ok())

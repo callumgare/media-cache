@@ -130,16 +130,6 @@ function handleMouseLeave() {
     :class="{ 'size-placeholder': !naturalSizeLoaded }"
   >
     <Skeleton v-if="!naturalSizeLoaded" class="media-loading-skeleton" />
-    <details v-if="uiState.debugMode">
-      <summary>Details</summary>
-      <pre>{{ JSON.stringify(media, null, 2) }}</pre>
-    </details>
-    <a
-      v-if="uiState.debugMode"
-      :href="(videoFile && getSrc(videoFile)) || (imageFile && getSrc(imageFile)) || ''"
-    >
-      File Link
-    </a>
     <component
       v-if="displayElement.endsWith('video')"
       :is="displayElement"

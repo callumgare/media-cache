@@ -44,6 +44,16 @@ const selectedTagIds = computed<number[]>(() => {
   return value.filter((id): id is number => typeof id === "number");
 });
 
+const selectedGroupIds = computed<number[]>(() => {
+  const groupsNode = mediaQuery.conditionNodes.find(
+    (node) => node.type === "field" && node.field === "groups",
+  );
+  if (!groupsNode || groupsNode.type !== "field") return [];
+  const value = groupsNode.value;
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is number => typeof id === "number");
+});
+
 const { data: facets } = useQuery({
   queryKey: ["media-facets", mediaQueryCondition],
   enabled: import.meta.client,
@@ -82,6 +92,19 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       )
         .filter(
           (option) => option.count || selectedTagIds.value.includes(option.id),
+        )
+        .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
+    },
+    {
+      id: "groups",
+      displayName: "Groups",
+      type: "list of text",
+      availableOptions: (
+        findFieldCounts(facets.value, "groups") as TagFacetCount[]
+      )
+        .filter(
+          (option) =>
+            option.count || selectedGroupIds.value.includes(option.id),
         )
         .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
     },

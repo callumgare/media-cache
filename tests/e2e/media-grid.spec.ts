@@ -180,7 +180,7 @@ test.describe("Media grid – infinite scroll", () => {
     await page.goto("/media/grid");
 
     const items = page.locator("[data-media-id]");
-    const loadingIndicator = page.getByTestId("page").getByText("Loading...");
+    const loadingIndicator = page.locator(".loading-placeholder").first();
 
     // First request is held — confirm loading indicator is visible
     await expect(loadingIndicator).toBeVisible({ timeout: 15_000 });
@@ -207,7 +207,7 @@ test.describe("Media grid – infinite scroll", () => {
     await page.goto("/media/grid");
 
     const items = page.locator("[data-media-id]");
-    const loadingIndicator = page.getByTestId("page").getByText("Loading...");
+    const loadingIndicator = page.locator(".loading-placeholder").first();
 
     // Release first request and wait for it to settle
     await expect(loadingIndicator).toBeVisible({ timeout: 15_000 });
@@ -227,5 +227,37 @@ test.describe("Media grid – infinite scroll", () => {
     });
 
     await expect(items).toHaveCount(20, { timeout: 15_000 });
+  });
+
+  test("loading is triggered when viewport is enlarged to create free space", async ({
+    page,
+  }) => {
+    // Override to a very short viewport so the first page of media overflows
+    // the container, preventing auto-fill from loading more than one page.
+    await page.setViewportSize({ width: 800, height: 150 });
+    await page.goto("/media/grid");
+
+    const items = page.locator("[data-media-id]");
+
+    // Wait for the first page to load and auto-fill to fully settle.
+    await expect(items.first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(2_000);
+
+    const countBefore = await items.count();
+    expect(countBefore).toBeGreaterThan(0);
+    expect(countBefore).toBeLessThan(50);
+
+    // Enlarge the viewport so all loaded items fit with room to spare.
+    // Use the actual scrollHeight of the scroll container to ensure we
+    // resize to something definitively larger than the current content.
+    const contentHeight = await page.evaluate(
+      () =>
+        (document.querySelector(".page") as HTMLElement)?.scrollHeight ?? 2000,
+    );
+    await page.setViewportSize({ width: 800, height: contentHeight + 500 });
+
+    // The infinite scroll should detect the extra space and load more items.
+    await expect(items).not.toHaveCount(countBefore, { timeout: 10_000 });
+    expect(await items.count()).toBeGreaterThan(countBefore);
   });
 });

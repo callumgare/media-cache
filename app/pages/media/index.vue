@@ -1,3 +1,4 @@
+<template></template>
 <script setup lang="ts">
 import { useUiState } from "@@/stores/ui";
 

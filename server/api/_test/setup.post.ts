@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
     media?: GenericMedia[][];
     delay?: number;
     pageSize?: number;
+    groups?: Array<{ name: string; parentId?: number }>;
   };
 
   // Truncate all test-relevant tables. Retry on lock conflicts caused by
@@ -65,6 +66,17 @@ export default defineEventHandler(async (event) => {
   globalThis.__testPluginQueue = body.media ?? [];
   globalThis.__testPluginDelayMs = body.delay ?? 0;
   globalThis.__testPageSize = body.pageSize;
+
+  // Seed groups if provided
+  if (body.groups?.length) {
+    for (const g of body.groups) {
+      await db.insert(dbSchema.group).values({
+        name: g.name,
+        parentId: g.parentId ?? null,
+        updatedAt: new Date(),
+      });
+    }
+  }
 
   return { ok: true };
 });

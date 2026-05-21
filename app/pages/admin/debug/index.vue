@@ -46,6 +46,21 @@
         >{{ message }}</pre>
       </div>
     </div>
+    <div>
+      <Button
+        severity="danger"
+        @click="confirmDeleteEmptyGroups"
+      >
+        Delete empty groups
+      </Button>
+      <div v-if="deleteEmptyGroupsProgress.length" class="progress">
+        <pre
+          v-for="(message, index) in deleteEmptyGroupsProgress"
+          :key="index"
+          class="progress-message"
+        >{{ message }}</pre>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -150,6 +165,32 @@ const {
   deleteOrphanedLiaseQueryMediaContentProgress,
 } = useDebugDeleteOrphanedLiaseQueryMediaContent();
 
+function useDebugDeleteEmptyGroups() {
+  let progressEvents: EventSource | null = null;
+  const progress = ref<string[]>([]);
+
+  function run() {
+    if (progressEvents) return; // Already connected
+
+    progress.value = []; // Clear previous progress
+    progressEvents = new EventSource("/api/admin/debug/delete-empty-groups");
+    progressEvents.onmessage = (e) => {
+      progress.value.push(e.data);
+    };
+    progressEvents.onerror = () => {
+      // If the server closes the connection it's considered an error by EventStream but in this case it just means
+      // that we're done, so we can ignore it.
+      progressEvents?.close();
+      progressEvents = null;
+    };
+  }
+
+  return { deleteEmptyGroups: run, deleteEmptyGroupsProgress: progress };
+}
+
+const { deleteEmptyGroups, deleteEmptyGroupsProgress } =
+  useDebugDeleteEmptyGroups();
+
 function confirmDeleteAllMedia() {
   confirm.require({
     message: "This will permanently delete all media. Are you sure?",
@@ -181,6 +222,18 @@ function confirmDeleteOrphanedLiaseQueryMediaContent() {
     rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
     acceptProps: { label: "Delete", severity: "danger" },
     accept: deleteOrphanedLiaseQueryMediaContent,
+  });
+}
+
+function confirmDeleteEmptyGroups() {
+  confirm.require({
+    message:
+      "This will permanently delete all groups with no subgroups or associated media. Are you sure?",
+    header: "Delete empty groups",
+    icon: "pi pi-exclamation-triangle",
+    rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
+    acceptProps: { label: "Delete", severity: "danger" },
+    accept: deleteEmptyGroups,
   });
 }
 </script>

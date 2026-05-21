@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import { updateFileUrl } from "@@/server/lib/liase/update-file-url";
 import { getPosterOfFile } from "@@/server/lib/transcoding/poster";
 import { createError } from "h3";
 
@@ -10,7 +9,6 @@ export default defineEventHandler(
       fileId: fileType = "",
       maxHeight: maxHeightString = "",
     } = event.context.params || {};
-    const reqUrl = getRequestURL(event);
     const mediaId = Number.parseInt(mediaIdString, 10);
     const maxHeight = Number.parseInt(maxHeightString, 10);
     if (Number.isNaN(mediaId)) {
@@ -38,16 +36,7 @@ export default defineEventHandler(
       });
     }
 
-    let fileUrl: URL;
-    if (file.urlExpires && new Date() > new Date(file.urlExpires)) {
-      const refreshedUrl = await updateFileUrl({ mediaId, file });
-      fileUrl = new URL(refreshedUrl);
-      fileUrl.search = reqUrl.search;
-    } else {
-      fileUrl = new URL(file.url);
-    }
-
-    const filePath = await getPosterOfFile(fileUrl, mediaId, maxHeight);
+    const filePath = await getPosterOfFile(file, mediaId, maxHeight);
 
     setResponseHeader(event, "Content-Type", "image/jpeg");
     return sendStream(
