@@ -2,6 +2,7 @@ import type { QueryGroupCondition } from "@@/types/query-condition";
 import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { APIMedia, APIMediaResponse } from "../../types/api-media";
+import { tagsGroupName } from "../lib/groups";
 import { calculateWhereValue } from "../utils/query-builder";
 
 declare global {
@@ -79,7 +80,8 @@ export default defineEventHandler(
       : new Map<number, string>();
 
     const rootTagsGroup = await db.query.group.findFirst({
-      where: (g, { isNull, eq }) => and(eq(g.name, "tags"), isNull(g.parentId)),
+      where: (g, { isNull, eq }) =>
+        and(eq(g.name, tagsGroupName), isNull(g.parentId)),
       columns: { id: true },
     });
     const tagGroupIds = rootTagsGroup

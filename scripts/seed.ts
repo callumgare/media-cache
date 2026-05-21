@@ -8,6 +8,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import task from "tasuku";
 import * as schema from "../server/database/schema";
+import { tagsGroupName } from "../server/lib/groups";
 
 const liase = await getLiase();
 
@@ -86,7 +87,7 @@ async function main() {
     await task("Create groups", async () => {
       const [tagsGroup] = await db
         .insert(schema.group)
-        .values({ name: "tags", updatedAt: new Date() })
+        .values({ name: tagsGroupName, updatedAt: new Date() })
         .returning();
       if (!tagsGroup) throw Error("Failed to create tags group");
       const rawTagNames = Array.from(

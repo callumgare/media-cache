@@ -16,6 +16,7 @@ import objectHash from "object-hash";
 
 import { queryExecutionTaskSystem } from "@@/server/lib/liase/execution-tasks";
 import { db, dbSchema } from "@@/server/utils/drizzle";
+import { tagsGroupName } from "../groups";
 import { liaseFileToCacheFile } from "./shared";
 
 type DbTransaction = PgTransaction<
@@ -420,12 +421,12 @@ export async function createOrUpdateCacheMediaGroups({
   dbTx: DbTransaction;
 }): Promise<void> {
   let rootTagsGroup = await dbTx.query.group.findFirst({
-    where: (g) => and(eq(g.name, "tags"), isNull(g.parentId)),
+    where: (g) => and(eq(g.name, tagsGroupName), isNull(g.parentId)),
   });
   if (!rootTagsGroup) {
     rootTagsGroup = await dbTx
       .insert(dbSchema.group)
-      .values({ name: "tags", updatedAt: new Date() })
+      .values({ name: tagsGroupName, updatedAt: new Date() })
       .returning()
       .then((r) => r[0]);
     if (!rootTagsGroup) throw new Error("Failed to create root tags group");
