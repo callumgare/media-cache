@@ -9,6 +9,7 @@
 
 <script setup lang="ts">
 definePageMeta({
+  layout: "admin",
   breadcrumbs: ["Settings", "Queries"],
 });
 </script>

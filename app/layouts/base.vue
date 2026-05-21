@@ -178,9 +178,13 @@ const headerExpanded = ref(false);
     /* The page has a background so we make most things transparent with the exception of surfaces that overlap other surfaces */
     --p-content-background: transparent;
     --p-content-background-opaque: var(--p-surface-0);
+    --card-background: var(--p-surface-0);
+    --card-border-color: var(--p-surface-200);
 
     @media (prefers-color-scheme: dark) {
-      --p-content-background-opaque: var(--p-surface-900);
+      --p-content-background-opaque: var(--p-surface-700);
+      --card-background: var(--p-surface-800);
+      --card-border-color: var(--p-surface-600);
     }
 
     --p-menubar-submenu-background: var(--p-content-background-opaque);

@@ -81,6 +81,7 @@ const mediaQuery = computed<MediaQueryFormData | undefined>(() => {
 });
 
 definePageMeta({
+  layout: "admin",
   breadcrumbs: ({ route }: { route: RouteLocationNormalizedLoaded }) => [
     "Settings",
     "Queries",

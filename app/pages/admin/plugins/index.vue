@@ -152,6 +152,7 @@ import { useUiState } from "@@/stores/ui";
 import type { PluginInfo, PluginNpmMessage } from "@@/types/api-plugins";
 
 definePageMeta({
+  layout: "admin",
   breadcrumbs: ["Settings", "Query Plugins"],
 });
 
@@ -484,10 +485,14 @@ function closeOutputDialog() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--p-surface-200);
+  /*
+  Having more space on the side than the top/bottom looks best for text like the package name on the left side but
+  constistant spacing looks better for a block like the buttons on the right side.
+  */
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  border: 1px solid var(--card-border-color);
   border-radius: 6px;
-  background: var(--p-surface-0);
+  background: var(--card-background);
 }
 
 .plugin-info {

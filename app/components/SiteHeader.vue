@@ -66,7 +66,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 </script>
 
 <template>
-  <div class="root">
+  <div class="site-header">
     <div class="site-nav">
       <Menubar :model="items" breakpoint="480px">
         <template #item="{ item, props: itemProps, hasSubmenu }">
@@ -171,8 +171,12 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 </template>
 
 <style scoped>
-  .root {
+  .site-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
     background: var(--p-content-background-opaque);
+
     .site-nav {
       display: flex;
       justify-content: space-between;
@@ -220,10 +224,6 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
 
     .p-breadcrumb, h1 {
       margin: 0 1rem;
-    }
-
-    .page-header {
-      margin: 1em 0 0;
     }
   }
 

@@ -82,6 +82,7 @@ import type { QuerySecretListItem } from "@@/types/api-secrets";
 import { Plus } from "lucide-vue-next";
 
 definePageMeta({
+  layout: "admin",
   breadcrumbs: ["Settings", "Query Secrets"],
 });
 
