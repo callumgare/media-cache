@@ -8,6 +8,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  SECRETS_ENCRYPTION_KEY: abc123
 
 jobs:
   lint:
