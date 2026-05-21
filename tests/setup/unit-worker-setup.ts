@@ -13,6 +13,20 @@
 
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
+import { vi } from "vitest";
+
+// Inject the TypeScript test plugin into loadInstalledPlugins so all unit
+// tests that use getLiase/getLiaseQuery get the test-source plugin without
+// needing the LIASE_PLUGINS env var.
+vi.mock("@@/server/lib/liase/plugin-manager", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@@/server/lib/liase/plugin-manager")>();
+  const { default: testPlugin } = await import("../unit/fixtures/test-plugin");
+  return {
+    ...original,
+    loadInstalledPlugins: vi.fn().mockResolvedValue([testPlugin]),
+  };
+});
 
 function withDatabase(url: string, dbName: string): string {
   const parsed = new URL(url);

@@ -1,13 +1,5 @@
 <template>
   <div class="secrets-page">
-    <div class="page-header">
-      <h1>Query Secrets</h1>
-      <Button @click="openAddDialog">
-        <Plus :size="16" />
-        Add Secret
-      </Button>
-    </div>
-
     <p class="page-description">
       Query secrets store individual secret values (e.g. API keys, tokens) used
       by Liase request handlers. Values are stored encrypted at rest and can be
@@ -20,6 +12,12 @@
     </Message>
 
     <template v-else>
+      <div class="controls">
+        <Button @click="openAddDialog">
+          <Plus :size="16" />
+          Add Secret
+        </Button>
+      </div>
       <div v-if="!secrets || secrets.length === 0" class="empty-state">
         No query secrets configured yet.
       </div>
@@ -194,15 +192,11 @@ async function deleteSecret() {
   padding: 1.5rem;
 }
 
-.page-header {
+.controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.5rem;
-
-  h1 {
-    margin: 0;
-  }
 }
 
 .page-description {

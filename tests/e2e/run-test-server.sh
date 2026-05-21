@@ -22,7 +22,15 @@ _PARSED_HOST="$(node -e "const u = new URL('${_BASE_DB_URL}'); u.pathname='/medi
 export DATABASE_URL="${_PARSED_HOST}"
 
 export ENABLE_TEST_API=true
-export LIASE_PLUGINS="${SCRIPT_DIR}/../unit/fixtures/test-plugin.ts"
+
+# Create a temporary plugins dir with the test plugin "installed" so that
+# loadInstalledPlugins() picks it up without needing LIASE_PLUGINS.
+TEST_PLUGINS_DIR=$(mktemp -d)
+mkdir -p "${TEST_PLUGINS_DIR}/node_modules/test-plugin"
+echo '{"name":"media-cache-test-plugins","type":"module","dependencies":{"test-plugin":"1.0.0"}}' > "${TEST_PLUGINS_DIR}/package.json"
+echo '{"name":"test-plugin","version":"1.0.0","type":"module","main":"index.js"}' > "${TEST_PLUGINS_DIR}/node_modules/test-plugin/package.json"
+echo "export { default } from '${SCRIPT_DIR}/../unit/fixtures/test-plugin.ts';" > "${TEST_PLUGINS_DIR}/node_modules/test-plugin/index.js"
+export PLUGINS_DIR="${TEST_PLUGINS_DIR}"
 
 tsx -e "import('${SCRIPT_DIR}/../setup/global-setup.ts').then(mod => mod.setup()).then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1) })"
 

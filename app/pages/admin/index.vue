@@ -6,6 +6,9 @@
     <NuxtLink to="/admin/secrets">
       Manage query secrets
     </NuxtLink>
+    <NuxtLink to="/admin/plugins">
+      Manage query plugins
+    </NuxtLink>
     <Fieldset
       legend="Debug"
       :toggleable="true"

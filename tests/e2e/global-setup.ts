@@ -9,7 +9,8 @@
 
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
@@ -121,6 +122,44 @@ export default async function globalSetup(_config: FullConfig) {
   // These are inherited by worker processes spawned after globalSetup.
   process.env.TEST_RUN_ID = runId;
   process.env.TEST_TEMPLATE_DB = templateDbName;
+
+  // Create a fake plugins directory with the test plugin "installed" so that
+  // loadInstalledPlugins() picks it up via PLUGINS_DIR.
+  const testPluginsDir = join(tmpdir(), `media-cache-test-plugins-${runId}`);
+  mkdirSync(join(testPluginsDir, "node_modules", "test-plugin"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(testPluginsDir, "package.json"),
+    JSON.stringify(
+      {
+        name: "media-cache-test-plugins",
+        type: "module",
+        dependencies: { "test-plugin": "1.0.0" },
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    join(testPluginsDir, "node_modules", "test-plugin", "package.json"),
+    JSON.stringify(
+      {
+        name: "test-plugin",
+        version: "1.0.0",
+        type: "module",
+        main: "index.js",
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    join(testPluginsDir, "node_modules", "test-plugin", "index.js"),
+    `export { default } from ${JSON.stringify(resolve(projectRoot, "tests/unit/fixtures/test-plugin.ts"))};
+`,
+  );
+  process.env.TEST_PLUGINS_DIR = testPluginsDir;
 
   const adminUrl = withDatabase(baseUrl, "postgres");
   const adminClient = postgres(adminUrl, { max: 1 });

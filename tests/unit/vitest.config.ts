@@ -16,9 +16,6 @@ export default defineConfig({
     // setupFiles per file with isolate:true). It creates a per-file DB from the
     // migrated template and overrides DATABASE_URL before db.ts is imported.
     setupFiles: [resolve(import.meta.dirname, "../setup/unit-worker-setup.ts")],
-    env: {
-      LIASE_PLUGINS: resolve(import.meta.dirname, "./fixtures/test-plugin.ts"),
-    },
     pool: "forks",
     fileParallelism: true,
     silent: "passed-only",

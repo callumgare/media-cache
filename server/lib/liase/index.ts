@@ -1,14 +1,13 @@
 import { Liase, LiaseQuery } from "@liase/core";
+import { loadInstalledPlugins } from "./plugin-manager";
 
-const pluginPaths = process.env.LIASE_PLUGINS
-  ? process.env.LIASE_PLUGINS.split(",").map((path) => path.trim())
-  : [];
+// Managed plugins from the plugin directory (installed via the admin UI).
+// Re-assigned by reloadManagedPlugins() after any install/remove/update.
+let plugins = loadInstalledPlugins();
 
-const plugins = Promise.all(
-  pluginPaths.map((pluginPath) =>
-    import(pluginPath).then((module) => module.default),
-  ),
-);
+export function reloadManagedPlugins(): void {
+  plugins = loadInstalledPlugins();
+}
 
 export async function getLiaseQuery(
   options: ConstructorParameters<typeof LiaseQuery>[0],

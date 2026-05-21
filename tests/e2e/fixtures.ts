@@ -117,21 +117,17 @@ export const test = base.extend<
 
       // Start the Nuxt production server on an available port.
       // tsx/esm is used as a loader so the server can dynamically import the
-      // TypeScript test plugin specified by LIASE_PLUGINS at runtime.
+      // TypeScript test plugin via PLUGINS_DIR at runtime.
       const port = await findFreePort();
       const serverUrl = `http://127.0.0.1:${port}`;
 
-      const testPluginPath = resolve(
-        import.meta.dirname,
-        "../unit/fixtures/test-plugin.ts",
-      );
       const sharedEnv = {
         ...process.env,
         DATABASE_URL: workerDbUrl,
         PORT: String(port),
         HOST: "127.0.0.1",
         ENABLE_TEST_API: "true",
-        LIASE_PLUGINS: testPluginPath,
+        PLUGINS_DIR: process.env.TEST_PLUGINS_DIR,
       };
 
       // Start the pre-built production server.
