@@ -99,7 +99,11 @@ const mediaSkeletonCount = computed(() => {
 });
 
 function beforeSlideChangeHook({ newIndex }: { newIndex: number }) {
-  if (newIndex > medias.value.length - 5) {
+  if (
+    newIndex > medias.value.length - 5 &&
+    !isFetchingNextPage.value &&
+    hasNextPage.value
+  ) {
     fetchNextPage();
   }
 }

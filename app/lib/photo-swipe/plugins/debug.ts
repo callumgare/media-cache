@@ -80,6 +80,65 @@ export class PhotoSwipeDebugPlugin {
       window.pswp = lightbox.pswp;
     });
 
+    lightbox.on("uiRegister", () => {
+      const pswpInstance = lightbox.pswp;
+      if (!pswpInstance?.ui) return;
+      pswpInstance.ui.registerElement({
+        name: "slide-json-dump",
+        order: 10,
+        isButton: false,
+        appendTo: "root",
+        onInit: (el: HTMLElement, pswp: PhotoSwipe) => {
+          Object.assign(el.style, {
+            position: "absolute",
+            bottom: "44px",
+            left: "0",
+            right: "0",
+            maxHeight: "250px",
+            overflowY: "auto",
+            background: "rgba(0,0,0,0.8)",
+            color: "#0f0",
+            font: "11px/1.5 monospace",
+            padding: "8px",
+            whiteSpace: "pre",
+            pointerEvents: "auto",
+            zIndex: "10",
+          });
+
+          const makeSanitizer = () =>
+            getObjectSanitizer((key, value) => {
+              if (value && typeof value === "object") {
+                const objName = value.constructor?.name ?? "";
+                if (objName === "PhotoSwipe") return "[PhotoSwipe]";
+                if (objName.startsWith("HTML") && objName.endsWith("Element"))
+                  return `[${objName}]`;
+              }
+              return value;
+            });
+
+          const update = () => {
+            const slide = pswp.currSlide;
+            if (!slide) {
+              el.textContent = "";
+              return;
+            }
+            try {
+              el.textContent = JSON.stringify(
+                { index: slide.index, data: slide.data },
+                makeSanitizer(),
+                2,
+              );
+            } catch {
+              el.textContent = "(failed to serialize slide)";
+            }
+          };
+
+          pswp.on("change", update);
+          update();
+        },
+      });
+    });
+
     window.lightbox = lightbox;
   }
 

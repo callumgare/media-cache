@@ -43,12 +43,22 @@ const photoSwipe = shallowRef<PhotoSwipeLightbox>();
 
 watch(
   () => props.slides,
-  () => {
+  (newSlides, oldSlides) => {
     if (photoSwipe.value) {
-      const newSlides = props.slides.map(toRaw);
+      const newSlidesMapped = newSlides.map(toRaw);
+      const previousLength = oldSlides?.length ?? 0;
       const { dataSource } = photoSwipe.value.options;
       if (Array.isArray(dataSource)) {
-        dataSource.splice(0, dataSource.length, ...newSlides);
+        dataSource.splice(0, dataSource.length, ...newSlidesMapped);
+      }
+      // Refresh slides that now have data but previously had none because they
+      // were beyond the loaded range. This re-renders any currently visible
+      // blank slide that was waiting for its data to arrive.
+      const pswp = photoSwipe.value.pswp;
+      if (pswp) {
+        for (let i = previousLength; i < newSlidesMapped.length; i++) {
+          pswp.refreshSlideContent(i);
+        }
       }
     }
   },
@@ -79,6 +89,15 @@ onMounted(() => {
   new PhotoSwipePenAsMousePlugin(photoSwipe.value);
   new PhotoSwipeInfoPanelPlugin(photoSwipe.value);
   new PhotoSwipeScrollToThumbPlugin(photoSwipe.value);
+
+  photoSwipe.value.addFilter("itemData", (itemData) => {
+    if (!itemData?.src && !itemData?.html) {
+      return {
+        html: '<div class="pswp-loading-placeholder"><i class="pi pi-spin pi-spinner"></i></div>',
+      };
+    }
+    return itemData;
+  });
 
   photoSwipe.value.addFilter("numItems", (numItems) => {
     return typeof props.total === "number" ? props.total : numItems;
@@ -151,5 +170,19 @@ const { currentMedia, panelEl } = useInfoPanel();
 <style>
 video-player {
   --media-border-radius: 0;
+}
+
+.pswp-loading-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: white;
+  opacity: 0.6;
+
+  .pi {
+    font-size: 5rem;
+  }
 }
 </style>
