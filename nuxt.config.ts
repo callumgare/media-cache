@@ -16,6 +16,7 @@ export default defineNuxtConfig({
     "@peterbud/nuxt-query",
     "@pinia/nuxt",
     "pinia-plugin-persistedstate/nuxt",
+    ["./modules/pinia-persist-extended", { addLoadingProperty: true }],
     "nuxt-drizzle-migrations",
     "nuxt-superjson",
   ],

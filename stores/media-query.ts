@@ -96,8 +96,8 @@ export const useMediaQuery = defineStore("media-query", {
       };
     },
   },
-  persist: {
-    storage: piniaPluginPersistedstate.sessionStorage(),
+  persistExtended: {
+    defaultStorage: "sessionStorage",
   },
 });
 
