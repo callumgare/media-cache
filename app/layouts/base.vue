@@ -180,6 +180,8 @@ const headerExpanded = ref(false);
     --p-content-background-opaque: var(--p-surface-0);
     --card-background: var(--p-surface-0);
     --card-border-color: var(--p-surface-200);
+    --z-index-overlay: 100;
+    --z-index-max: 1000;
 
     @media (prefers-color-scheme: dark) {
       --p-content-background-opaque: var(--p-surface-700);
@@ -189,6 +191,19 @@ const headerExpanded = ref(false);
 
     --p-menubar-submenu-background: var(--p-content-background-opaque);
   }
+
+  .pswp {
+    --pswp-root-z-index: var(--z-index-overlay);
+  }
+
+  .p-toast {
+    z-index: var(--z-index-max) !important; /* We need to override the z-index set directly on the element */
+  }
+
+  body:has(.pswp--open) .p-toast {
+    translate: 0 40px; /* Move toasts down when photoswipe is open to avoid overlap with toolbar */
+  }
+
 
   /********************
   CSS Reset
