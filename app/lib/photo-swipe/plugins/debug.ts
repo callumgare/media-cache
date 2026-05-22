@@ -136,7 +136,7 @@ export class PhotoSwipeDebugPlugin {
 
     const objectSanitizer = getObjectSanitizer((key, value) => {
       if (value && typeof value === "object") {
-        const objName = value.constructor.name;
+        const objName = value.constructor?.name;
         if (objName === "PhotoSwipe") {
           return "[pswp]";
         }

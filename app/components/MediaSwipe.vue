@@ -85,8 +85,12 @@ onMounted(() => {
   });
 
   photoSwipe.value.addFilter("thumbEl", (thumbEl, data) => {
+    if (!data.id) {
+      // Slide is for a media which hasn't loaded yet
+      return undefined as unknown as HTMLElement;
+    }
     const el = document.querySelector(
-      `[data-media-id="${data.id}"] img, [data-media-id="${data.id}"] video`,
+      `[data-media-id="${data.id}"] .media-thumbnail`,
     );
     if (el) {
       return el as HTMLElement;
@@ -94,7 +98,7 @@ onMounted(() => {
     if (thumbEl) {
       return thumbEl;
     }
-    const errorMessage = "No thumb element found";
+    const errorMessage = `No thumb element found for slide with id ${data.id}`;
     if (uiState.debugMode) {
       console.info(thumbEl, data);
       throw Error(errorMessage);

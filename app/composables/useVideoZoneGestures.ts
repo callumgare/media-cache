@@ -44,8 +44,13 @@ export function useVideoZoneGestures(containerRef: Ref<HTMLElement | null>) {
 
   onMounted(async () => {
     await nextTick();
-    const video = containerRef.value?.querySelector<HTMLVideoElement>("video");
-    if (!video) return;
+    const video = containerRef.value?.querySelector<HTMLVideoElement>(
+      "video, hls-video, dash-video",
+    );
+    if (!video) {
+      console.warn("useVideoZoneGestures: no video element found in container");
+      return;
+    }
     videoEl.value = video;
     isPaused.value = video.paused;
     const onPlay = () => {

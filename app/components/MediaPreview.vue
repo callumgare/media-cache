@@ -134,6 +134,7 @@ function handleMouseLeave() {
       v-if="displayElement.endsWith('video')"
       :is="displayElement"
       :src="videoFile ? getSrc(videoFile) : ''"
+      class="media-thumbnail"
       ref="videoRef"
       :poster="posterSrc"
       preload="none"
@@ -149,6 +150,7 @@ function handleMouseLeave() {
       v-else-if="displayElement === 'image'"
       ref="imgRef"
       :src="imageFile ? getSrc(imageFile) : ''"
+      class="media-thumbnail"
       @load="onMediaLoaded"
       @click.prevent="emits('mediaClick', media)"
     >
