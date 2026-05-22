@@ -216,11 +216,24 @@ const infoOpen = ref(false);
 watch(
   () => props.isCurrent,
   (current) => {
-    if (!current) infoOpen.value = false;
+    if (!current) {
+      infoOpen.value = false;
+      loopCount.value = 0;
+    }
   },
 );
 
+// ─── Short-video auto-loop ────────────────────────────────────────────────
+// If the user hasn't enabled looping, short videos are automatically
+// re-played as long as adding another loop won't exceed 6 seconds total.
+
+const MAX_LOOP_DURATION = 4; // seconds
+
+const videoDuration = ref<number>(Number.NaN);
+const loopCount = ref(0);
+
 function onMetadataLoaded() {
+  videoDuration.value = playerRef.value?.duration ?? Number.NaN;
   // Auto-play if this is already the current slide when metadata loads
   if (props.isCurrent) {
     playerRef.value?.play()?.catch(() => {});
@@ -228,7 +241,18 @@ function onMetadataLoaded() {
 }
 
 function onEnded() {
-  emit("ended");
+  const duration = videoDuration.value;
+  if (
+    !prefs.loopVideo &&
+    !Number.isNaN(duration) &&
+    (loopCount.value + 2) * duration <= MAX_LOOP_DURATION
+  ) {
+    loopCount.value++;
+    playerRef.value?.restart()?.catch(() => {});
+  } else {
+    loopCount.value = 0;
+    emit("ended");
+  }
 }
 </script>
 

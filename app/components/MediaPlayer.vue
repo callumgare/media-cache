@@ -102,6 +102,12 @@ const skinRef = ref<InstanceType<typeof VideoMinimalSkin> | null>(null);
 defineExpose({
   play: () => videoRef.value?.play(),
   pause: () => videoRef.value?.pause(),
+  restart: () => {
+    if (videoRef.value) {
+      videoRef.value.currentTime = 0;
+      return videoRef.value.play();
+    }
+  },
   seekForward: () => skinRef.value?.seekForward(),
   seekBackward: () => skinRef.value?.seekBackward(),
   startFastForward: () => skinRef.value?.startFastForward(),
