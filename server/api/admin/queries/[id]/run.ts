@@ -1,5 +1,6 @@
 import { startLiaseQueryExecution } from "@@/server/lib/liase/run-query";
-import { createError } from "h3";
+import { db } from "@@/server/utils/drizzle";
+import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
 export default defineEventHandler(async (event) => {
   const idParam = getRouterParam(event, "id");
@@ -16,8 +17,21 @@ export default defineEventHandler(async (event) => {
       statusMessage: `Query with ID ${id} not found`,
     });
   }
+
+  let body: { fetchCountLimitOverride?: number | null } | null = null;
+  try {
+    body = await readBody(event);
+  } catch {
+    body = null;
+  }
+
+  const queryToRun =
+    body != null && "fetchCountLimitOverride" in body
+      ? { ...liaseQuery, fetchCountLimit: body.fetchCountLimitOverride ?? null }
+      : liaseQuery;
+
   const { execution, executionPromise } =
-    await startLiaseQueryExecution(liaseQuery);
+    await startLiaseQueryExecution(queryToRun);
   executionPromise.catch((err) => {
     console.error(`Query execution ${execution.id} failed:`, err);
   });

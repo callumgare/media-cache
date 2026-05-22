@@ -648,3 +648,52 @@ describe("runLiaseQuery — multiple independent queries, same media", () => {
     expect(all[0].title).toBe("New Title");
   });
 });
+
+describe("runLiaseQuery — fetchCountLimit=0 cleanup", () => {
+  it("removes all previously contributed cache_media when run with fetchCountLimit=0", async () => {
+    const q = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "c1" }), makeMedia({ id: "c2" })]);
+    await runLiaseQuery(q);
+    expect(await getCacheMediaAll()).toHaveLength(2);
+
+    // Re-run with fetchCountLimit=0 — no media will be fetched so all
+    // previous contributions from this query are removed.
+    await runLiaseQuery({ ...q, fetchCountLimit: 0 });
+
+    expect(await getCacheMediaAll()).toHaveLength(0);
+  });
+
+  it("records liaseMediaFound=0 and the correct removal counts when run with fetchCountLimit=0", async () => {
+    const q = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "r1" }), makeMedia({ id: "r2" })]);
+    await runLiaseQuery(q);
+
+    await runLiaseQuery({ ...q, fetchCountLimit: 0 });
+
+    const execs = await getLiaseQueryExecutionAll();
+    const cleanup = execs.sort((a, b) => b.id - a.id)[0];
+    if (!cleanup) throw new Error("Expected at least one execution");
+    expect(cleanup.liaseMediaFound).toBe(0);
+    expect(cleanup.liaseMediaRemoved).toBe(2);
+    expect(cleanup.cacheMediaDeleted).toBe(2);
+  });
+
+  it("does not remove cache_media that another active query also contributes", async () => {
+    const q1 = await createTestLiaseQuery();
+    const q2 = await createTestLiaseQuery();
+    const sharedMedia = makeMedia({ id: "shared-cleanup" });
+
+    // Both queries contribute the same media item.
+    enqueueMedia([sharedMedia]);
+    await runLiaseQuery(q1);
+    enqueueMedia([sharedMedia]);
+    await runLiaseQuery(q2);
+    expect(await getCacheMediaAll()).toHaveLength(1);
+
+    // Clean up q1's contributions — q2 still holds this media so cache_media
+    // must NOT be deleted.
+    await runLiaseQuery({ ...q1, fetchCountLimit: 0 });
+
+    expect(await getCacheMediaAll()).toHaveLength(1);
+  });
+});

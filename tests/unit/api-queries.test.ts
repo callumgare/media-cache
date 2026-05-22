@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import deleteQueryHandler from "@@/server/api/admin/queries/[id]/index.delete";
+import runQueryHandler from "@@/server/api/admin/queries/[id]/run";
 import { getLiase } from "@@/server/lib/liase";
 import { parseLiaseRequest } from "@@/server/lib/liase/parse-request";
 import { db, dbSchema } from "@@/server/utils/drizzle";
@@ -11,6 +12,9 @@ import {
   TEST_REQUEST,
   TEST_REQUEST_WITH_COUNT,
   createTestLiaseQuery,
+  enqueueMedia,
+  getCacheMediaAll,
+  makeMedia,
   runLiaseQuery,
   truncateAll,
 } from "./fixtures/helpers";
@@ -527,5 +531,97 @@ describe("query form — clearing number fields", () => {
     // 4. The saved query should not have count.
     const saved = await getQuery(row.id);
     expect(saved.requestOptions).not.toHaveProperty("count");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers for run-handler tests
+// ---------------------------------------------------------------------------
+
+function makeRunEvent(queryId: number, body?: Record<string, unknown>) {
+  const socket = new Socket();
+  const req = new IncomingMessage(socket);
+  req.url = `/api/admin/queries/${queryId}/run`;
+  if (body !== undefined) {
+    req.method = "POST";
+    const bodyStr = JSON.stringify(body);
+    req.headers["content-type"] = "application/json";
+    req.headers["content-length"] = String(Buffer.byteLength(bodyStr));
+    req.push(bodyStr);
+    req.push(null);
+  } else {
+    req.method = "GET";
+  }
+  const res = new ServerResponse(req);
+  const event = createEvent(req, res);
+  event.context.params = { id: String(queryId) };
+  return event;
+}
+
+async function runQueryViaHandler(
+  queryId: number,
+  body?: Record<string, unknown>,
+): Promise<void> {
+  const execution = await runQueryHandler(makeRunEvent(queryId, body));
+  // The handler fires the execution in the background; poll until it settles.
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const row = await db.query.liaseQueryExecution.findFirst({
+      where: (e, { eq }) => eq(e.id, execution.id),
+    });
+    if (row && row.status !== "running") return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`Execution ${execution.id} did not complete within 10 s`);
+}
+
+describe("POST /api/admin/queries/:id/run \u2014 fetchCountLimitOverride", () => {
+  it("removes previously contributed cache_media when fetchCountLimitOverride=0 is supplied", async () => {
+    const q = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "o1" }), makeMedia({ id: "o2" })]);
+    await runLiaseQuery(q);
+    expect(await getCacheMediaAll()).toHaveLength(2);
+
+    // Call the run handler with override=0 — the stored fetchCountLimit is
+    // null (no limit) but the override forces limit=0 so nothing is fetched
+    // and all previous contributions are removed.
+    await runQueryViaHandler(q.id, { fetchCountLimitOverride: 0 });
+
+    expect(await getCacheMediaAll()).toHaveLength(0);
+  });
+
+  it("runs normally when no body is supplied (no override)", async () => {
+    const q = await createTestLiaseQuery();
+    enqueueMedia([makeMedia({ id: "n1" })]);
+
+    await runQueryViaHandler(q.id);
+
+    expect(await getCacheMediaAll()).toHaveLength(1);
+  });
+
+  it("fetchCountLimitOverride=0 overrides a non-zero stored fetchCountLimit", async () => {
+    // Create a query with a large stored limit so a normal run would fetch media.
+    const [q] = await db
+      .insert(dbSchema.liaseQuery)
+      .values({
+        title: "Override Test Query",
+        requestOptions: TEST_REQUEST,
+        fetchCountLimit: 10,
+        schedule: 0,
+        updatedAt: new Date(),
+      })
+      .returning();
+    if (!q) throw new Error("Insert failed");
+
+    // First run populates cache_media.
+    enqueueMedia([makeMedia({ id: "ov1" })]);
+    await runLiaseQuery(q);
+    expect(await getCacheMediaAll()).toHaveLength(1);
+
+    // Second run via handler with override=0 should remove the media despite
+    // the query having fetchCountLimit=10.
+    await runQueryViaHandler(q.id, { fetchCountLimitOverride: 0 });
+
+    expect(await getCacheMediaAll()).toHaveLength(0);
   });
 });

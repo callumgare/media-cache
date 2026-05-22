@@ -1,5 +1,39 @@
 <template>
   <ConfirmDialog />
+  <ConfirmDialog group="delete-with-cleanup">
+    <template #container="{ message, acceptCallback, rejectCallback }">
+      <div class="delete-with-cleanup-dialog">
+        <div class="delete-confirm-header">
+          {{ message.header }}
+        </div>
+        <div class="delete-confirm-message">
+          <i :class="message.icon" class="delete-confirm-icon" />
+          <span>{{ message.message }}</span>
+        </div>
+        <div class="delete-confirm-footer">
+          <div class="delete-confirm-checkbox">
+            <Checkbox
+              v-model="updateCachedMedia"
+              :binary="true"
+              input-id="update-cached-media"
+            />
+            <label for="update-cached-media">Update cached media</label>
+          </div>
+          <Button
+            label="Cancel"
+            severity="secondary"
+            outlined
+            @click="rejectCallback"
+          />
+          <Button
+            label="Delete"
+            severity="danger"
+            @click="acceptCallback"
+          />
+        </div>
+      </div>
+    </template>
+  </ConfirmDialog>
   <DataTable
     v-model:expanded-rows="expandedRows"
     :value="queryList ?? []"
@@ -120,6 +154,8 @@ import { formatStatus } from "~/lib/liase-executions";
 
 const toast = useToast();
 const confirm = useConfirm();
+
+const updateCachedMedia = ref(true);
 
 const {
   data: queryList,
@@ -242,22 +278,59 @@ async function runQuery(query: QueryRow) {
 
 function confirmDeleteQuery(query: QueryRow) {
   if (!tasksLoaded.value || executionsForQuery(query.id).length > 0) {
+    updateCachedMedia.value = true;
     confirm.require({
       message:
         "This query has been run previously. Are you sure you want to delete it?",
       header: "Confirm Delete",
       icon: "pi pi-exclamation-triangle",
-      rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
-      acceptProps: { label: "Delete", severity: "danger" },
-      accept: () => deleteQuery(query),
+      group: "delete-with-cleanup",
+      accept: () => deleteQuery(query, updateCachedMedia.value),
     });
   } else {
-    deleteQuery(query);
+    deleteQuery(query, false);
   }
 }
 
-async function deleteQuery(query: QueryRow) {
+function waitForExecution(executionId: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      for (const task of tasks.value.values()) {
+        if (
+          task.type === "query_execution" &&
+          task.executionId === executionId
+        ) {
+          if (task.status !== "running") {
+            if (task.status === "failed") {
+              reject(new Error("Cleanup execution failed"));
+            } else {
+              resolve();
+            }
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    if (check()) return;
+
+    const stop = watch(tasks, () => {
+      if (check()) stop();
+    });
+  });
+}
+
+async function deleteQuery(query: QueryRow, withCleanup = false) {
   try {
+    if (withCleanup) {
+      const execution = await $fetch(`/api/admin/queries/${query.id}/run`, {
+        method: "POST",
+        body: { fetchCountLimitOverride: 0 },
+      });
+      expandedRows.value = { ...expandedRows.value, [String(query.id)]: true };
+      await waitForExecution(execution.id);
+    }
     await $fetch(`/api/admin/queries/${query.id}`, { method: "DELETE" });
     await refreshQueryList();
     toast.add({ severity: "success", summary: "Deleted", life: 3000 });
@@ -314,6 +387,44 @@ async function deleteQuery(query: QueryRow) {
           white-space: nowrap;
         }
       }
+    }
+  }
+
+  .delete-confirm-message {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    padding: 1rem max(0px, calc(5vw - 30px));
+
+    .delete-confirm-icon {
+      font-size: 1.5em;
+      color: var(--p-yellow-500);
+    }
+  }
+
+  .delete-with-cleanup-dialog {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .delete-confirm-header {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .delete-confirm-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75em;
+
+    .delete-confirm-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-right: auto;
     }
   }
 
