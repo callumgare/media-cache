@@ -109,6 +109,11 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
         .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
     },
     {
+      id: "duration",
+      displayName: "Duration",
+      type: "number range",
+    },
+    {
       id: "type",
       displayName: "Type",
       type: "text",
@@ -136,6 +141,11 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       name: "list of text",
       operators: ["includes all"],
       getInputType: () => "multi-select dropdown",
+    },
+    {
+      name: "number range",
+      operators: ["is between"],
+      getInputType: () => "number range",
     },
   ],
 }));

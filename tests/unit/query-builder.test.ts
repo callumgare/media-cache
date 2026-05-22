@@ -320,3 +320,142 @@ describe("calculateBM25WhereValue — operator combinations", () => {
     });
   });
 });
+
+// ─── duration filter ─────────────────────────────────────────────────────────
+
+/**
+ * Seed layout:
+ *   short  — duration 2 s, source-a
+ *   medium — duration 5 s, source-b
+ *   long   — duration 10 s, source-a
+ *   nodur  — duration null (image), source-b
+ */
+async function seedDurationMedia() {
+  const now = new Date();
+  await db.insert(dbSchema.cacheMedia).values([
+    {
+      updatedAt: now,
+      title: "short",
+      liaseSourceIds: ["source-a"],
+      hasVideo: true,
+      hasImage: false,
+      hasAudio: false,
+      duration: 2,
+    },
+    {
+      updatedAt: now,
+      title: "medium",
+      liaseSourceIds: ["source-b"],
+      hasVideo: true,
+      hasImage: false,
+      hasAudio: false,
+      duration: 5,
+    },
+    {
+      updatedAt: now,
+      title: "long",
+      liaseSourceIds: ["source-a"],
+      hasVideo: true,
+      hasImage: false,
+      hasAudio: false,
+      duration: 10,
+    },
+    {
+      updatedAt: now,
+      title: "nodur",
+      liaseSourceIds: ["source-b"],
+      hasVideo: false,
+      hasImage: true,
+      hasAudio: false,
+      duration: null,
+    },
+  ]);
+}
+
+function duration(
+  value: { min?: number | null; max?: number | null } | "",
+): QueryCondition {
+  return {
+    id: nextId(),
+    type: "field",
+    field: "duration",
+    operator: "is between",
+    value,
+  };
+}
+
+describe("calculateBM25WhereValue — duration range", () => {
+  it("empty string value → matches all rows", async () => {
+    await seedDurationMedia();
+    expect(await titlesWhere(group("AND", [duration("")]))).toEqual([
+      "long",
+      "medium",
+      "nodur",
+      "short",
+    ]);
+  });
+
+  it("{ min: null, max: null } → matches all rows", async () => {
+    await seedDurationMedia();
+    expect(
+      await titlesWhere(group("AND", [duration({ min: null, max: null })])),
+    ).toEqual(["long", "medium", "nodur", "short"]);
+  });
+
+  it("max only → rows with duration ≤ max", async () => {
+    await seedDurationMedia();
+    // nodur has null duration and should not match
+    expect(await titlesWhere(group("AND", [duration({ max: 4 })]))).toEqual([
+      "short",
+    ]);
+  });
+
+  it("min only → rows with duration ≥ min", async () => {
+    await seedDurationMedia();
+    expect(await titlesWhere(group("AND", [duration({ min: 4 })]))).toEqual([
+      "long",
+      "medium",
+    ]);
+  });
+
+  it("min and max → rows with duration in range (inclusive)", async () => {
+    await seedDurationMedia();
+    expect(
+      await titlesWhere(group("AND", [duration({ min: 3, max: 7 })])),
+    ).toEqual(["medium"]);
+  });
+
+  it("exact match via min=max → single matching row", async () => {
+    await seedDurationMedia();
+    expect(
+      await titlesWhere(group("AND", [duration({ min: 5, max: 5 })])),
+    ).toEqual(["medium"]);
+  });
+
+  it("range that includes all videos → excludes null-duration rows", async () => {
+    await seedDurationMedia();
+    expect(
+      await titlesWhere(group("AND", [duration({ min: 0, max: 100 })])),
+    ).toEqual(["long", "medium", "short"]);
+  });
+
+  it("combined AND[duration, source] → intersection", async () => {
+    await seedDurationMedia();
+    // source-a has short (2s) and long (10s); max: 3 picks only short
+    expect(
+      await titlesWhere(
+        group("AND", [source("source-a"), duration({ max: 3 })]),
+      ),
+    ).toEqual(["short"]);
+  });
+
+  it("OR[duration, source] → union", async () => {
+    await seedDurationMedia();
+    // duration max: 3 → short; source-b → medium, nodur; union = short, medium, nodur
+    expect(
+      await titlesWhere(
+        group("OR", [duration({ max: 3 }), source("source-b")]),
+      ),
+    ).toEqual(["medium", "nodur", "short"]);
+  });
+});

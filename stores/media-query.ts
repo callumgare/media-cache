@@ -57,6 +57,14 @@ export const useMediaQuery = defineStore("media-query", {
           value: "",
           parent: 1,
         },
+        {
+          id: 6,
+          type: "field",
+          field: "duration",
+          operator: "is between",
+          value: "",
+          parent: 1,
+        },
       ],
     };
   },

@@ -55,6 +55,18 @@ const fieldType = computed(() => {
         Error
       </div>
     </template>
+    <template
+      v-else-if="fieldType.name === 'number range'"
+    >
+      <QueryBuilderInputNumberRange
+        v-if="fieldType.getInputType() === 'number range'"
+        :field-condition="fieldCondition"
+        :schema-config="schemaConfig"
+      />
+      <div v-else>
+        Error
+      </div>
+    </template>
     <div v-else>
       Error
     </div>

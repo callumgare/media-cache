@@ -106,6 +106,25 @@ function _buildStandardWhere(condition: QueryCondition): SQL | null {
     throw Error(`Unknown value for field "type": ${value}`);
   }
 
+  if (field === "duration") {
+    if (operator === "is between") {
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return null;
+      const { min, max } = value as {
+        min?: number | null;
+        max?: number | null;
+      };
+      if (min == null && max == null) return null;
+      const clauses: SQL[] = [];
+      if (min != null)
+        clauses.push(sql`${dbSchema.cacheMedia.duration} >= ${min}`);
+      if (max != null)
+        clauses.push(sql`${dbSchema.cacheMedia.duration} <= ${max}`);
+      return and(...clauses) ?? null;
+    }
+    throw Error(`Unknown operator for duration field: ${operator}`);
+  }
+
   throw Error(`Unknown field: ${field}`);
 }
 
@@ -182,6 +201,11 @@ function _buildBM25FieldParts(condition: QueryFieldCondition): {
 
   if (field === "type") {
     // Boolean columns aren't text — use regular SQL; the BM25 anchor handles the index path
+    return { bm25Sql: null, regularSql: _buildStandardWhere(condition) };
+  }
+
+  if (field === "duration") {
+    // Numeric range — use regular SQL with the existing duration index
     return { bm25Sql: null, regularSql: _buildStandardWhere(condition) };
   }
 

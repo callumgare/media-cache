@@ -275,8 +275,24 @@ test.describe("Feed page – video slide", () => {
     await expect(video).toHaveJSProperty("muted", true);
 
     // Set loop=on and unmuted, then reload to verify preferences persist
+    // Set up the waitForResponse listeners BEFORE each click so they capture
+    // the resulting PATCH response before page.reload() can abort the request.
+    const loopPrefSaved = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/user/preferences") &&
+        resp.request().method() === "PATCH",
+    );
     await loopBtn.click(); // loop on
+    await loopPrefSaved;
+
+    const mutePrefSaved = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/user/preferences") &&
+        resp.request().method() === "PATCH",
+    );
     await muteBtn.click(); // unmuted
+    await mutePrefSaved;
+
     await expect(loopBtn).toHaveClass(/active/, { timeout: 3_000 });
     await expect(muteBtn).toHaveClass(/active/, { timeout: 3_000 });
 
