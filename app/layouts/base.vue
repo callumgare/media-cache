@@ -5,6 +5,7 @@
   >
     <Toast />
     <div
+      ref="headerContainerRef"
       :class="[headerHiddenByDefault ? ['hideable', { expanded: headerExpanded }] : '']"
     >
       <SiteHeader :breadcrumbs="breadcrumbs" class="site-header">
@@ -56,8 +57,147 @@ const breadcrumbs = computed(() => {
 
 const uiState = useUiState();
 
+const headerContainerRef = ref<HTMLElement | null>(null);
 const headerHiddenByDefault = computed(() => !!route.meta.hideHeader);
 const headerExpanded = ref(false);
+
+// Detect a fine-pointer (mouse/trackpad) device. Set in onMounted to avoid SSR mismatch.
+const hasMouse = ref(false);
+let currentMouseY: number | null = null;
+let mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+let collapseTimer: ReturnType<typeof setTimeout> | null = null;
+// Once the header is expanded, only start the collapse timer after the mouse
+// has entered the top region at least once. This prevents the header from
+// immediately auto-collapsing when it is shown while the cursor is elsewhere.
+let mouseHasEnteredTopRegion = false;
+const headerCollapseHitboxHeight = 200; // px from top of viewport within which the header will expand
+
+onMounted(() => {
+  hasMouse.value = window.matchMedia(
+    "(hover: hover) and (pointer: fine)",
+  ).matches;
+
+  // Vue Router resets history.state.back to null on every fresh page load
+  // and reload (via its own replaceState during initialisation), and sets it
+  // to the previous path on every SPA push. So non-null == SPA navigation.
+  const fromSpaNavigation = !!window.history.state?.back;
+
+  if (headerHiddenByDefault.value && fromSpaNavigation) {
+    headerExpanded.value = true;
+  }
+
+  // Auto-collapse the header when the cursor leaves the top region, but only
+  // after it has entered the region at least once since the header was expanded.
+  // This prevents the header from immediately auto-collapsing when it is shown
+  // (via Escape, SPA nav, etc.) while the cursor happens to be elsewhere.
+  mouseMoveHandler = (e: MouseEvent) => {
+    currentMouseY = e.clientY;
+    if (
+      !headerHiddenByDefault.value ||
+      !hasMouse.value ||
+      !headerExpanded.value
+    ) {
+      if (collapseTimer !== null) {
+        clearTimeout(collapseTimer);
+        collapseTimer = null;
+      }
+      return;
+    }
+    if (e.clientY <= headerCollapseHitboxHeight) {
+      mouseHasEnteredTopRegion = true;
+      if (collapseTimer !== null) {
+        clearTimeout(collapseTimer);
+        collapseTimer = null;
+      }
+    } else if (mouseHasEnteredTopRegion) {
+      if (collapseTimer === null) {
+        collapseTimer = setTimeout(() => {
+          collapseTimer = null;
+          headerExpanded.value = false;
+        }, 500);
+      }
+    }
+  };
+  document.addEventListener("mousemove", mouseMoveHandler);
+
+  // Escape key: show the header when it is hidden.
+  keydownHandler = (e: KeyboardEvent) => {
+    if (
+      e.key === "Escape" &&
+      headerHiddenByDefault.value &&
+      !headerExpanded.value
+    ) {
+      headerExpanded.value = true;
+    }
+  };
+  document.addEventListener("keydown", keydownHandler);
+});
+
+// SPA navigation to a hideable page: always show the header, then let the
+// timer collapse it if the mouse is already outside the top region.
+// Direct load / page reload of a hideable page: headerExpanded stays false
+// (its initial value) so the header is collapsed from the start.
+watch(headerHiddenByDefault, (isHideable, wasHideable) => {
+  if (isHideable && !wasHideable) {
+    // Always show on SPA navigation.
+    headerExpanded.value = true;
+  } else if (!isHideable) {
+    // Defer the state reset to the next tick so that the CSS collapse
+    // transition doesn't play while the hideable page is still in the DOM
+    // during the layout swap.
+    clearTimeout(collapseTimer ?? undefined);
+    collapseTimer = null;
+    nextTick(() => {
+      if (!headerHiddenByDefault.value) {
+        headerExpanded.value = false;
+      }
+    });
+  }
+});
+
+// Touch device: collapse when a pointer-down lands outside the header.
+let removeOutsideTapListener: (() => void) | null = null;
+
+watch(headerExpanded, (expanded) => {
+  if (expanded) {
+    // Reset so the collapse timer only arms after the cursor enters the top
+    // region for the first time since the header became visible.
+    mouseHasEnteredTopRegion = false;
+  }
+  removeOutsideTapListener?.();
+  removeOutsideTapListener = null;
+  if (!expanded || !headerHiddenByDefault.value || hasMouse.value) return;
+
+  // Defer by one task so the pointerdown that triggered the expansion
+  // doesn't immediately re-close the header.
+  setTimeout(() => {
+    const handler = (e: PointerEvent) => {
+      if (
+        headerContainerRef.value &&
+        !headerContainerRef.value.contains(e.target as Node)
+      ) {
+        headerExpanded.value = false;
+      }
+    };
+    document.addEventListener("pointerdown", handler);
+    removeOutsideTapListener = () =>
+      document.removeEventListener("pointerdown", handler);
+  }, 0);
+});
+
+onUnmounted(() => {
+  if (mouseMoveHandler) {
+    document.removeEventListener("mousemove", mouseMoveHandler);
+  }
+  if (keydownHandler) {
+    document.removeEventListener("keydown", keydownHandler);
+  }
+  if (collapseTimer !== null) {
+    clearTimeout(collapseTimer);
+  }
+  removeOutsideTapListener?.();
+});
 </script>
 
 <style scoped>

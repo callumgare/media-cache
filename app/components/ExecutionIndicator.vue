@@ -14,8 +14,12 @@ watch(
   () => runningExecutionList.value.length > 0,
   async (hasRunning) => {
     if (hasRunning) {
-      savedQueries.value =
-        await $superFetch<QueryListResponse>("/api/admin/queries");
+      try {
+        savedQueries.value =
+          await $superFetch<QueryListResponse>("/api/admin/queries");
+      } catch (e) {
+        console.error("ExecutionIndicator: failed to fetch saved queries", e);
+      }
     }
   },
   { immediate: true },
