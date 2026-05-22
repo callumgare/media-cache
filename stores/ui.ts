@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { GAMEPAD_MAPPINGS } from "~/lib/gamepad-mappings";
 
 export const useUiState = defineStore("ui", {
   state: () => ({
@@ -7,6 +8,7 @@ export const useUiState = defineStore("ui", {
     debugMode: false,
     mediaBlurred: false,
     lastMediaView: "grid",
+    gamepadMapping: GAMEPAD_MAPPINGS[0]?.id ?? null,
   }),
   actions: {
     toggleSidebarMobileCollapsed() {

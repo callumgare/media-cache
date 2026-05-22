@@ -3,6 +3,13 @@
     <div class="admin-layout">
       <nav class="admin-nav">
         <NuxtLink
+          to="/admin/browsing"
+          class="nav-item"
+          active-class="nav-item--active"
+        >
+          Browsing
+        </NuxtLink>
+        <NuxtLink
           to="/admin/queries"
           class="nav-item"
           active-class="nav-item--active"
