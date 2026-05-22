@@ -234,15 +234,12 @@ function onEnded() {
 
 <style scoped>
 .feed-slide {
-  position: absolute;
-  left: 0;
+  height: 100%;
   width: 100%;
   background: #000;
   overflow: hidden;
   transition: filter 0.4s ease;
   filter: brightness(0.6);
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
 }
 
 .feed-slide.is-current {

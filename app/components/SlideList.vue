@@ -9,24 +9,48 @@
       :key="String(vItem.key)"
       :data-index="vItem.index"
     >
+      <div
+        v-if="vItem.index === footerIndex"
+        class="footer"
+        :style="getItemStyle(vItem)"
+      >
+        <slot name="footer" />
+      </div>
       <slot
+        v-else
         :index="vItem.index"
         :is-current="vItem.index === currentIndex"
         :is-nearby="Math.abs(vItem.index - currentIndex) <= 2"
-        :item-style="{ height: `${vItem.size}px`, top: `${vItem.start}px` }"
+        :item-style="getItemStyle(vItem)"
         :advance="() => advanceTo(vItem.index + 1)"
       />
     </div>
-    <slot name="footer" />
+    <!-- Ghost snap targets: one lightweight div per slide for every index
+         that is NOT currently in the virtualizer's render window. This
+         ensures CSS scroll-snap always has a snap point at each position so
+         a programmatic scroll to a far-away index is never intercepted and
+         stopped at the last rendered real slide. -->
+    <div
+      v-for="index in ghostSnapIndices"
+      :key="`snap-${index}`"
+      class="snap-ghost"
+      :style="getItemStyle({ size: windowHeight, start: index * windowHeight })"
+      aria-hidden="true"
+    />
+    <div v-if="!count" class="status-indicator">
+      <slot name="noItems" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useWindowVirtualizer } from "@tanstack/vue-virtual";
+import { type VirtualItem, useWindowVirtualizer } from "@tanstack/vue-virtual";
 import { useEventListener, useWindowSize } from "@vueuse/core";
+import type { StyleValue } from "vue";
 
 const props = defineProps<{
   count: number;
+  footerHeight?: number;
 }>();
 
 // ─── Virtualizer ──────────────────────────────────────────────────────────
@@ -35,8 +59,15 @@ const { height: windowHeight } = useWindowSize();
 
 const virtualizer = useWindowVirtualizer(
   computed(() => ({
-    count: props.count,
-    estimateSize: () => windowHeight.value,
+    count: props.count ? props.count + 1 : 0, // Extra item for the footer
+    estimateSize: (index) => {
+      if (index >= props.count) {
+        // Footer item – give it some height so it can be scrolled to, but it
+        // will grow if the content is taller.
+        return props.footerHeight ?? 200;
+      }
+      return windowHeight.value;
+    },
     overscan: 2,
   })),
 );
@@ -121,6 +152,25 @@ watch(windowHeight, () => {
 
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 const totalSize = computed(() => virtualizer.value.getTotalSize());
+const footerIndex = computed(() => props.count);
+
+const ghostSnapIndices = computed(() => {
+  const rendered = new Set(virtualItems.value.map((v) => v.index));
+  return Array.from({ length: props.count }, (_, i) => i).filter(
+    (i) => !rendered.has(i),
+  );
+});
+
+function getItemStyle(vItem: Pick<VirtualItem, "size" | "start">): StyleValue {
+  return {
+    position: "absolute",
+    height: `${vItem.size}px`,
+    width: "100%",
+    top: `${vItem.start}px`,
+    "scroll-snap-align": "start",
+    "scroll-snap-stop": "always",
+  };
+}
 
 // ─── Current index via IntersectionObserver ───────────────────────────────
 
@@ -207,7 +257,7 @@ function scrollToIndex(idx: number, behavior: ScrollBehavior = "smooth") {
 }
 
 function advanceTo(idx: number, behavior: ScrollBehavior = "smooth") {
-  const clamped = Math.min(idx, props.count - 1);
+  const clamped = Math.min(idx, props.count); // `count` not `count - 1` to allow advancing to the footer
   currentIndex.value = clamped;
   intendedIndex = clamped;
   scrollToIndex(clamped, behavior);
@@ -262,5 +312,14 @@ html:has(.slide-list) {
 .slide-list {
   position: relative;
   width: 100%;
+}
+.status-indicator {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  max-width: 100%;
+  max-height: 100%;
 }
 </style>

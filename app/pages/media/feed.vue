@@ -5,6 +5,7 @@
     </template>
     <SlideList
       :count="medias.length"
+      :footer-height="200"
       data-testid="feed-scroller"
       @index-change="handleIndexChange"
     >
@@ -18,9 +19,28 @@
           @ended="advance()"
         />
       </template>
+      <template #noItems>
+        <i class="pi pi-spin pi-spinner loading-indicator" />
+      </template>
       <template #footer>
-        <div v-if="isPending || isFetchingNextPage" class="loading-indicator">
-          <i class="pi pi-spin pi-spinner" />
+        <div class="footer-content">
+          <template v-if="isPending || isFetchingNextPage">
+            <i class="pi pi-spin pi-spinner loading-indicator" />
+          </template>
+          <template v-else-if="mediaError">
+            <span class="pi pi-exclamation-triangle" />
+            An error occurred while loading media.
+          </template>
+          <template v-else-if="!medias.length && !isPending">
+            No results. Try modifying the search.
+          </template>
+          <template v-else-if="medias.length && !hasNextPage && !isPending">
+            No more media
+          </template>
+          <template v-else>
+            {{ fetchNextPage() }}
+            An error occurred. There are more media to load no loading is occurring.
+          </template>
         </div>
       </template>
     </SlideList>
@@ -36,8 +56,14 @@ definePageMeta({
   hideHeader: true,
 });
 
-const { fetchNextPage, isPending, isFetchingNextPage, hasNextPage, medias } =
-  useMediaResults();
+const {
+  fetchNextPage,
+  isPending,
+  isFetchingNextPage,
+  hasNextPage,
+  medias,
+  error: mediaError,
+} = useMediaResults();
 
 // ─── Pre-fetch next page when approaching the end ─────────────────────────
 
@@ -113,12 +139,16 @@ useEventListener("keyup", (e: KeyboardEvent) => {
 
 <style scoped>
 .loading-indicator {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 5rem;
+}
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
   color: rgba(255, 255, 255, 0.7);
   font-size: 1.5rem;
-  z-index: 50;
 }
 </style>
