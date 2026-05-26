@@ -96,9 +96,14 @@ test.describe("Groups page – infinite scroll", () => {
       if (container) container.scrollTo(0, container.scrollHeight);
     });
 
-    await expect(cards).toHaveCount(initialCount + PAGE_SIZE, {
-      timeout: 15_000,
-    });
+    // Auto-fill may load more than one additional page (if the viewport still
+    // has room after the first new page arrives), so only assert that at least
+    // PAGE_SIZE more cards appeared and that not everything was loaded at once.
+    await expect(async () => {
+      const count = await cards.count();
+      expect(count).toBeGreaterThanOrEqual(initialCount + PAGE_SIZE);
+      expect(count).toBeLessThan(TOTAL_GROUPS);
+    }).toPass({ timeout: 15_000 });
   });
 
   test("loading is triggered when viewport is enlarged to create free space", async ({
