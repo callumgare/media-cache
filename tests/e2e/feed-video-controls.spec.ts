@@ -1215,3 +1215,76 @@ test.describe("Feed video – keyboard controls", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests – Sidebar drag conflict
+// When the user swipes horizontally over the video to open the sidebar the
+// video hold-gesture (fast-forward / rewind) must NOT activate.
+// ---------------------------------------------------------------------------
+
+test.describe("Feed video – sidebar drag conflict", () => {
+  test.use({ viewport: VIEWPORT });
+
+  test.beforeEach(async ({ request }) => {
+    await setup(
+      { request },
+      { media: [[makeVideoMedia({ id: "sidebar-conflict-vid" })]] },
+    );
+    await createAndRunQuery({ request });
+  });
+
+  test("dragging horizontally over the video to open the sidebar does not trigger the hold gesture", async ({
+    page,
+  }) => {
+    const { slide } = await gotoFeedWithVideo(page);
+    await waitForVideoMetadata(page);
+    await setVideoTime(page, 20);
+
+    // Press down on the right zone — same starting point as a hold gesture —
+    // then immediately sweep horizontally as a user would when swiping to open
+    // the sidebar.  The hold timer must be cancelled before 250 ms fires.
+    const { x, y } = await getZonePosition(slide, "right");
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 120, y, { steps: 15 });
+    // Wait well past the 250 ms hold threshold
+    await page.waitForTimeout(400);
+
+    // The rate indicator must not appear — the hold gesture must be cancelled
+    // when significant horizontal movement is detected.
+    await expect(
+      slide.getByTestId("feed-slide-rate-indicator"),
+    ).not.toBeVisible();
+
+    await page.mouse.up();
+  });
+
+  test("once the hold gesture has activated dragging horizontally does not move the sidebar", async ({
+    page,
+  }) => {
+    const { slide } = await gotoFeedWithVideo(page);
+    await waitForVideoMetadata(page);
+    await setVideoTime(page, 20);
+
+    const sidebar = page.getByTestId("page-sidebar");
+    await expect(sidebar).not.toBeInViewport();
+
+    // Hold on the right zone until fast-forward activates (> 250 ms threshold)
+    const { x, y } = await getZonePosition(slide, "right");
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+
+    // Confirm hold mode is active
+    expect(await getPlaybackRate(page)).toBeGreaterThan(1);
+
+    // Now drag right — the direction that would normally open the sidebar.
+    // The hold gesture must own the drag and prevent the sidebar from opening.
+    await page.mouse.move(x + 150, y, { steps: 15 });
+    await page.waitForTimeout(100);
+
+    await expect(sidebar).not.toBeInViewport();
+
+    await page.mouse.up();
+  });
+});

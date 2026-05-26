@@ -130,6 +130,11 @@ const dragController = useDrag(
   {
     domTarget: containerElm,
     axis: "x",
+    // Once a horizontal drag is recognised, prevent touchmove events on the
+    // window so the feed cannot scroll vertically while the sidebar is being
+    // dragged open.  If the first movement is vertical the gesture is
+    // automatically cancelled, allowing normal feed scroll.
+    preventWindowScrollY: true,
   },
 );
 

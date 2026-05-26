@@ -27,6 +27,9 @@ export function useVideoZoneGestures(containerRef: Ref<HTMLElement | null>) {
   const HOLD_THRESHOLD_MS = 250;
   const SEEK_SECONDS = 10;
   const TICK_MS = 100;
+  // Horizontal movement threshold (pixels) beyond which the hold timer is
+  // cancelled — the user is swiping to open the sidebar, not holding.
+  const HORIZONTAL_DRAG_CANCEL_THRESHOLD = 10;
 
   // ── Gesture mutable state (not reactive – avoids overhead on pointer moves)
   let gestureZone: "left" | "middle" | "right" | null = null;
@@ -217,6 +220,13 @@ export function useVideoZoneGestures(containerRef: Ref<HTMLElement | null>) {
   // ── Pointer event handlers ───────────────────────────────────────────────
   function onPointerDown(event: PointerEvent) {
     if (event.button !== 0) return;
+    // A non-primary pointer means a second touch has arrived (e.g. the start of
+    // a pinch gesture).  Cancel any pending hold immediately so the rate
+    // indicator never appears during a pinch-to-zoom interaction.
+    if (!event.isPrimary) {
+      cleanupGesture();
+      return;
+    }
     const el = event.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     pointerDownX = event.clientX - rect.left;
@@ -257,7 +267,28 @@ export function useVideoZoneGestures(containerRef: Ref<HTMLElement | null>) {
   }
 
   function onPointerMove(event: PointerEvent) {
-    if (!isHolding) return;
+    if (!isHolding) {
+      // Cancel the hold timer when the pointer has moved significantly in the
+      // horizontal direction before the hold threshold fires.  This prevents
+      // the video speed gesture from activating when the user is swiping to
+      // open the filter sidebar.
+      if (holdTimer !== null) {
+        const el = event.currentTarget as HTMLElement;
+        const rect = el.getBoundingClientRect();
+        const currentX = event.clientX - rect.left;
+        if (
+          Math.abs(currentX - pointerDownX) > HORIZONTAL_DRAG_CANCEL_THRESHOLD
+        ) {
+          cleanupGesture();
+        }
+      }
+      return;
+    }
+    // Hold is active: consume the pointermove so the sidebar drag handler
+    // (bound to the parent container) never receives it.  This prevents a
+    // horizontal drag from opening / closing the sidebar while fast-forward
+    // or rewind is in progress.
+    event.stopPropagation();
     const el = event.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     const currentX = event.clientX - rect.left;
@@ -274,6 +305,24 @@ export function useVideoZoneGestures(containerRef: Ref<HTMLElement | null>) {
     cleanupGesture();
   }
 
+  // On iOS @vueuse/gesture runs in touch-event mode, so the sidebar drag
+  // listens to touchmove rather than pointermove.  Stopping propagation on
+  // pointermove alone has no effect there; we must also stop the touchmove.
+  function onTouchMove(event: TouchEvent) {
+    if (isHolding) {
+      event.stopPropagation();
+    }
+  }
+
+  // When two or more fingers are on screen this is a pinch gesture.  Cancel
+  // any pending hold or active hold so the rate indicator never appears and
+  // the tap action is not triggered when the pinch ends.
+  function onTouchStart(event: TouchEvent) {
+    if (event.touches.length >= 2) {
+      cleanupGesture();
+    }
+  }
+
   function togglePlayPause() {
     const v = videoEl.value;
     if (v) v.paused ? v.play().catch(() => {}) : v.pause();
@@ -286,6 +335,8 @@ export function useVideoZoneGestures(containerRef: Ref<HTMLElement | null>) {
     onPointerUp,
     onPointerMove,
     onPointerCancel,
+    onTouchMove,
+    onTouchStart,
     seekForward,
     seekBackward,
     startFastForward,
