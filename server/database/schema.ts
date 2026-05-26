@@ -53,7 +53,7 @@ const liaseMedia = customType<{
 const statusEnum = pgEnum("status", ["running", "completed", "failed"]);
 export type Status = (typeof statusEnum)["enumValues"][number];
 
-const videoFitEnum = pgEnum("video_fit", ["contain", "cover"]);
+const videoFitEnum = pgEnum("video_fit", ["contain", "cover", "natural"]);
 export type VideoFit = (typeof videoFitEnum)["enumValues"][number];
 
 const logLevelEnum = pgEnum("log_level", [

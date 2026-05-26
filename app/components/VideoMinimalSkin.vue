@@ -34,6 +34,8 @@
         @pointerup="onPointerUp"
         @pointermove="onPointerMove"
         @pointercancel="onPointerCancel"
+        @touchmove="onTouchMove"
+        @touchstart="onTouchStart"
       >
         <div class="zone zone--left" />
         <div class="zone zone--middle">
@@ -96,6 +98,8 @@ const {
   onPointerUp,
   onPointerMove,
   onPointerCancel,
+  onTouchMove,
+  onTouchStart,
   seekForward,
   seekBackward,
   startFastForward,

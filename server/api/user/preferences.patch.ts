@@ -3,7 +3,7 @@ import { z } from "zod";
 const PatchSchema = z.object({
   loopVideo: z.boolean().optional(),
   muteVideo: z.boolean().optional(),
-  videoFit: z.enum(["contain", "cover"]).optional(),
+  videoFit: z.enum(["contain", "cover", "natural"]).optional(),
 });
 
 export default defineEventHandler(async (event) => {

@@ -1,15 +1,17 @@
 <template>
   <div
     class="feed-slide"
-    :class="{ 'is-current': isCurrent, 'fill-screen': prefs.videoFit === 'cover' }"
+    :class="{ 'is-current': isCurrent, 'fill-screen': prefs.videoFit === 'cover', 'is-pinching': isPinching }"
     data-testid="feed-slide"
     :data-media-id="media.id"
     :data-current="isCurrent || undefined"
   >
     <!-- Media area -->
     <div
+      ref="mediaAreaRef"
       class="media-area"
       data-testid="feed-slide-media-area"
+      :data-natural-size="naturalSizeRef ? `${naturalSizeRef.width}x${naturalSizeRef.height}` : undefined"
     >
       <!-- Video -->
       <template v-if="isVideo && isNearby">
@@ -18,10 +20,11 @@
           :media="media"
           :loop="prefs.loopVideo"
           :muted="prefs.muteVideo"
-          class="video-player-el"
+          class="video-player-el media"
           data-testid="feed-slide-video-player"
           video-test-id="feed-slide-video"
           @loadedmetadata="onMetadataLoaded"
+          @resize="onMediaResize"
           @ended="onEnded"
         />
       </template>
@@ -29,10 +32,12 @@
       <!-- Image (or video poster when not nearby) -->
       <img
         v-else-if="imageSrc"
+        ref="imageRef"
         :src="imageSrc"
-        class="media-image"
+        class="media"
         alt=""
         data-testid="feed-slide-image"
+        @load="onImageLoaded"
       />
     </div>
 
@@ -62,10 +67,10 @@
         rounded
         text
         class="action-btn"
-        :class="{ active: prefs.videoFit === 'contain' }"
+        :class="{ active: isZoomActive }"
         aria-label="Toggle zoom"
         data-testid="feed-slide-fill-screen-btn"
-        @click="prefs.set({ videoFit: prefs.videoFit === 'cover' ? 'contain' : 'cover' })"
+        @click="onZoomButtonClick"
       />
       <Button
         :icon="prefs.muteVideo ? 'pi pi-volume-off' : 'pi pi-volume-up'"
@@ -158,6 +163,60 @@ const imageSrc = computed(() => {
 
 const playerRef = ref<InstanceType<typeof MediaPlayer> | null>(null);
 
+// ─── Pinch-to-zoom ────────────────────────────────────────────────────────
+
+const mediaAreaRef = ref<HTMLElement | null>(null);
+const imageRef = ref<HTMLImageElement | null>(null);
+
+/**
+ * The element Panzoom is applied to. Set after the media has loaded so we
+ * know its natural dimensions and have the right element reference.
+ */
+const mediaElementRef = ref<Element | null>(null);
+
+/** Natural intrinsic dimensions of the current media item. */
+const naturalSizeRef = ref<{ width: number; height: number } | null>(null);
+
+const { isPinching, syncZoom, availableLevels } = useFeedZoom(
+  mediaAreaRef,
+  mediaElementRef,
+  naturalSizeRef,
+  {
+    getZoomLevel: () =>
+      prefs.videoFit as import("~/composables/useFeedZoom").ZoomLevel,
+    onSnap: (level) => prefs.set({ videoFit: level }),
+  },
+);
+
+// The zoom button is "active" (highlighted) when NOT in fill-screen (cover) mode.
+// This matches the original two-state toggle behaviour: inactive = cover, active = zoomed out.
+const isZoomActive = computed(() => prefs.videoFit !== "cover");
+
+// Cycle to the next zoom level on button click.
+function onZoomButtonClick() {
+  const levels = availableLevels();
+  const currentIdx = levels.indexOf(
+    prefs.videoFit as import("~/composables/useFeedZoom").ZoomLevel,
+  );
+  const nextIdx = (Math.max(0, currentIdx) + 1) % levels.length;
+  prefs.set({ videoFit: levels[nextIdx] });
+}
+
+// Animate the zoom when the user toggles via the button (not from a pinch).
+watch(
+  () => prefs.videoFit,
+  () => syncZoom(true),
+);
+
+// Reset media state when the slide swaps out.
+watch(
+  () => [props.isNearby, props.media.id] as const,
+  () => {
+    mediaElementRef.value = null;
+    naturalSizeRef.value = null;
+  },
+);
+
 // ─── Video controls registration ──────────────────────────────────────────
 
 const { register, unregisterById } = useCurrentVideoControls();
@@ -246,10 +305,40 @@ const loopCount = ref(0);
 
 function onMetadataLoaded() {
   videoDuration.value = playerRef.value?.duration ?? Number.NaN;
+
+  // Capture natural dimensions from the actual loaded video.
+  const w = playerRef.value?.videoWidth ?? 0;
+  const h = playerRef.value?.videoHeight ?? 0;
+  if (w > 0 && h > 0) naturalSizeRef.value = { width: w, height: h };
+
+  // Wire up Panzoom to the real media element now that we know its size.
+  mediaElementRef.value = playerRef.value?.mediaElement ?? null;
+
   // Auto-play if this is already the current slide when metadata loads
   if (props.isCurrent) {
     playerRef.value?.play()?.catch(() => {});
   }
+}
+
+/**
+ * Called when the video's intrinsic dimensions change (e.g. after the first HLS
+ * segment loads on a custom <hls-video> element that doesn't expose videoWidth
+ * directly at loadedmetadata time).  Re-reads the dimensions so the zoom levels
+ * are computed correctly.
+ */
+function onMediaResize() {
+  const w = playerRef.value?.videoWidth ?? 0;
+  const h = playerRef.value?.videoHeight ?? 0;
+  if (w > 0 && h > 0) naturalSizeRef.value = { width: w, height: h };
+}
+
+function onImageLoaded() {
+  const img = imageRef.value;
+  if (!img) return;
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (w > 0 && h > 0) naturalSizeRef.value = { width: w, height: h };
+  mediaElementRef.value = img;
 }
 
 function onEnded() {
@@ -274,6 +363,10 @@ function onEnded() {
   width: 100%;
   background: #000;
   overflow: hidden;
+
+  &.is-pinching {
+    overflow: visible;
+  }
   transition: filter 0.4s ease;
   filter: brightness(0.6);
 }
@@ -288,6 +381,22 @@ function onEnded() {
   inset: 0;
 }
 
+/* Panzoom manages transform on the media element directly via inline style.
+   Keep object-fit: contain always — zoom levels are expressed as scale(). */
+.media-area > img,
+.media-area :deep(video),
+.media-area :deep(hls-video),
+.media-area :deep(dash-video) {
+  transform-origin: center center;
+  /* hls-video and dash-video have display:contents by default (from @videojs/html),
+     which makes CSS transforms have no visual effect. Override to block so Panzoom works.
+     width/height:100% ensures the element fills its container so the transform-origin
+     is at the container's centre (required for correct centering at all zoom levels). */
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* video-player custom element */
 .video-player-el {
   width: 100%;
@@ -295,17 +404,18 @@ function onEnded() {
   display: block;
 }
 
-.media-video,
-.media-image {
+.media {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  display: block;
-}
 
-.feed-slide.fill-screen .media-video,
-.feed-slide.fill-screen .media-image {
-  object-fit: cover;
+  /* Always contain — Panzoom's scale(coverRatio) visually fills the screen. */
+  &,
+  & :deep(video),
+  & :deep(hls-video::part(video)),
+  & :deep(dash-video::part(video)) {
+    object-fit: contain;
+    display: block;
+  }
 }
 
 /* video.js custom element resets */
@@ -327,8 +437,8 @@ function onEnded() {
 /* ── Right-side action button stack ───────────────────────────── */
 .action-buttons {
   position: absolute;
-  right: 0.75rem;
-  bottom: 4rem;
+  right: calc(0.75rem + env(safe-area-inset-right));
+  bottom: calc(4rem + (100lvh - 100dvh) + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -356,9 +466,9 @@ function onEnded() {
 /* ── Info overlay ──────────────────────────────────────────────── */
 .info-overlay {
   position: absolute;
-  bottom: 4rem;
-  left: 1rem;
-  right: 4rem;
+  bottom: calc(4rem + (100lvh - 100dvh) + env(safe-area-inset-bottom));
+  left: calc(1rem + env(safe-area-inset-left));
+  right: calc(4rem + env(safe-area-inset-right));
   z-index: 10;
   padding: 0.75rem 1rem;
   background: rgba(0, 0, 0, 0.55);
@@ -421,6 +531,11 @@ function onEnded() {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ── Bottom offset for mobile browser chrome ────────────────── */
+.feed-slide :deep(.media-controls) {
+  padding-bottom: calc(100lvh - 100dvh + env(safe-area-inset-bottom));
 }
 
 /* ── Transitions ─────────────────────────────────────────────── */
