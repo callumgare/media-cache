@@ -183,6 +183,7 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
       align-items: center;
       padding: 0.5em 1em;
       gap: 1em;
+      padding-top: calc(0.5em + env(safe-area-inset-top));
 
       .p-menubar {
         border: none;

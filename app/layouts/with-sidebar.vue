@@ -220,13 +220,6 @@ async function toggleSidebar() {
         data-testid="page-sidebar"
         :style="sidebarStyle"
       />
-      <button
-        ref="sidebarExpandButtonElm"
-        class="toggle-sidebar"
-        @click="toggleSidebar"
-      >
-        <i class="pi pi-angle-right" />
-      </button>
       <div
         class="sidebar-shadow"
         @click="toggleSidebar"
@@ -277,17 +270,6 @@ async function toggleSidebar() {
       background: var(--primary-background);
     }
 
-    .toggle-sidebar {
-      position: absolute;
-      z-index: calc(var(--sidebar-z-index) - 1);
-      top: 2em;
-      background: #ffffff91;
-      border-radius: 0 1em 1em 0;
-      border-left: 0;
-      padding-left: 0.2em;
-      transition: padding-left 0.1s ease-in-out;
-    }
-
     .sidebar-shadow {
       content: '';
       display: block;
@@ -295,10 +277,6 @@ async function toggleSidebar() {
       background-color: inherit;
       transition: background-color 0.1s ease-in-out;
       transition-delay: 0.05s;
-    }
-
-    .toggle-sidebar:hover {
-      padding-left: 0.5em;
     }
 
     /* Overlay mode: sidebar slides in over the page content.
@@ -323,6 +301,9 @@ async function toggleSidebar() {
         align-self: unset;
         transform: translateX(-100%); /* closed by default */
         transition: transform 0.3s ease-out;
+        padding-top: calc(1em + env(safe-area-inset-top));
+        padding-left: calc(1em + env(safe-area-inset-left));
+        padding-bottom: calc(1em + env(safe-area-inset-bottom));
       }
 
       &:not(.sidebar-collapsed-on-mobile) .sidebar {

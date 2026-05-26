@@ -34,7 +34,7 @@
       v-for="index in ghostSnapIndices"
       :key="`snap-${index}`"
       class="snap-ghost"
-      :style="getItemStyle({ size: windowHeight, start: index * windowHeight })"
+      :style="getItemStyle({ size: largeViewportHeight, start: index * largeViewportHeight })"
       aria-hidden="true"
     />
     <div v-if="!count" class="status-indicator">
@@ -57,6 +57,30 @@ const props = defineProps<{
 
 const { height: windowHeight } = useWindowSize();
 
+// Large viewport height (equivalent to 100lvh) – stable on mobile even when the
+// browser chrome (URL bar) animates in/out, unlike windowHeight which tracks dvh.
+const largeViewportHeight = ref(
+  typeof window !== "undefined" ? window.innerHeight : 0,
+);
+
+function updateLargeViewportHeight() {
+  if (typeof document === "undefined") return;
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;height:100lvh;width:0;top:-9999px;left:-9999px;pointer-events:none;visibility:hidden;overflow:hidden;";
+  document.documentElement.appendChild(probe);
+  largeViewportHeight.value = probe.offsetHeight || window.innerHeight;
+  probe.remove();
+}
+
+onMounted(updateLargeViewportHeight);
+
+// Re-measure on every viewport change. On mobile, windowHeight (dvh) changes with
+// URL-bar animations, but largeViewportHeight (lvh) only changes on true resizes
+// (orientation change, desktop resize), so the resize-correction watcher below
+// is only triggered when needed.
+watch(windowHeight, updateLargeViewportHeight);
+
 const virtualizer = useWindowVirtualizer(
   computed(() => ({
     count: props.count ? props.count + 1 : 0, // Extra item for the footer
@@ -66,7 +90,7 @@ const virtualizer = useWindowVirtualizer(
         // will grow if the content is taller.
         return props.footerHeight ?? 200;
       }
-      return windowHeight.value;
+      return largeViewportHeight.value;
     },
     overscan: 2,
   })),
@@ -107,7 +131,7 @@ let intendedIndex = 0;
 let resizeSnapshotIndex: number | null = null;
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-watch(windowHeight, () => {
+watch(largeViewportHeight, () => {
   // Capture the current slide on the FIRST resize event of the sequence.
   if (resizeSnapshotIndex === null) {
     resizeSnapshotIndex = currentIndex.value;
@@ -130,7 +154,7 @@ watch(windowHeight, () => {
   //
   // Fix: directly seed virtualizer.scrollOffset with targetY so the upcoming
   // getVirtualItems() call places the target slide in the render window.
-  const targetY = resizeSnapshotIndex * windowHeight.value;
+  const targetY = resizeSnapshotIndex * largeViewportHeight.value;
   // Directly seed the virtualizer's scroll offset (plain property, not a
   // reactive ref – only updated via scroll events otherwise).
   virtualizer.value.scrollOffset = targetY;

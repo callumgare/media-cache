@@ -219,16 +219,18 @@ onUnmounted(() => {
 
 <style scoped>
   .hideable {
+    --handle-height: calc(2.5rem + env(safe-area-inset-top));
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     z-index: 100;
-    transform: translateY(calc(-100% + 2.5rem));
-    transition: transform 0.3s ease;
+    transform: translateY(calc(-100% + var(--handle-height)));
+    transition: transform 0.3s ease, --handle-height 0.3s ease;
 
     &.expanded {
       transform: translateY(0);
+      --handle-height: 2.5rem;
     }
 
     &:hover .chevron-handle {
@@ -237,9 +239,10 @@ onUnmounted(() => {
     .chevron-handle {
       display: flex;
       justify-content: center;
-      align-items: center;
+      padding-bottom: 1em;
+      align-items: end;
       width: 100%;
-      height: 2.5rem;
+      height: var(--handle-height);
       background: transparent;
       border: none;
       cursor: pointer;
@@ -291,6 +294,12 @@ onUnmounted(() => {
     flex-direction: column;
     position: relative;
     flex: 1 1 auto;
+  }
+
+  @property --handle-height {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 2.5rem;
   }
 
   @layer reset;

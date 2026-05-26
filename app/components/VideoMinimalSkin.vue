@@ -132,6 +132,8 @@ defineExpose({
   inset: 0;
   display: flex;
   pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .zone {
@@ -143,7 +145,7 @@ defineExpose({
 /* ── Rate indicator ────────────────────────────────────── */
 .rate-indicator {
   position: absolute;
-  top: 12px;
+  top: calc(12px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.65);
