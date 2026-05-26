@@ -67,6 +67,38 @@ export function ensureTestVideo(): void {
 }
 
 /**
+ * Generates tests/.cache/test-image.png (a 200×150 test pattern PNG)
+ * via Docker ffmpeg if it doesn't already exist.
+ */
+export function ensureTestImage(): void {
+  const testImagePath = join(cacheDir, "test-image.png");
+  if (existsSync(testImagePath)) return;
+
+  console.log("[fixtures] Generating test-image.png via Docker ffmpeg...");
+  mkdirSync(cacheDir, { recursive: true });
+  execFileSync(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "-v",
+      `${cacheDir}:/output`,
+      "jrottenberg/ffmpeg:6.1-alpine",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=size=200x150:rate=1:duration=1",
+      "-frames:v",
+      "1",
+      "-y",
+      "/output/test-image.png",
+    ],
+    { stdio: "pipe" },
+  );
+  console.log("[fixtures] test-image.png generated.\n");
+}
+
+/**
  * Generates tests/.cache/hls/playlist.m3u8 (and companion seg*.ts files)
  * by remuxing test-video.mp4 into HLS via Docker ffmpeg.
  * Calls ensureTestVideo() first if needed.
@@ -119,7 +151,10 @@ export interface FileServer {
  * Handles byte-range requests (needed for video seeking) and sets correct
  * MIME types for common media and playlist extensions.
  */
-export async function startFileServer(dir: string): Promise<FileServer> {
+export async function startFileServer(
+  dir: string,
+  options: { host?: string; publicHost?: string } = {},
+): Promise<FileServer> {
   const server = createServer((req, res) => {
     const urlPath = (req.url ?? "/").split("?")[0] ?? "/";
     const filePath = join(dir, urlPath);
@@ -166,11 +201,13 @@ export async function startFileServer(dir: string): Promise<FileServer> {
     }
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const bindHost = options.host ?? "127.0.0.1";
+  await new Promise<void>((resolve) => server.listen(0, bindHost, resolve));
 
   const port = (server.address() as AddressInfo).port;
+  const publicHost = options.publicHost ?? bindHost;
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: `http://${publicHost}:${port}`,
     close: () => {
       server.close();
     },

@@ -1,7 +1,7 @@
 /**
  * Playwright global setup — runs once before any workers start.
  *
- * 1. Builds the Nuxt app (set SKIP_BUILD=true to reuse an existing build).
+ * 1. Builds the Nuxt app (set EXISTING_BUILD_DIR to reuse an existing build or build there).
  * 2. Creates a migrated PostgreSQL template database that each worker will
  *    copy from.
  * 3. Returns a teardown function that drops all databases created for this run.
@@ -21,6 +21,7 @@ import {
   type FileServer,
   cacheDir,
   ensureHlsFixtures,
+  ensureTestImage,
   ensureTestVideo,
   startFileServer,
 } from "../shared/media-fixtures";
@@ -42,49 +43,75 @@ export default async function globalSetup(_config: FullConfig) {
   const baseUrl = process.env.DATABASE_URL;
   if (!baseUrl) throw new Error("DATABASE_URL is not set");
 
+  if (process.env.SKIP_BUILD) {
+    throw new Error(
+      "[e2e] SKIP_BUILD is no longer supported. Use EXISTING_BUILD_DIR instead — " +
+        "point it to a directory: if it already contains a .output folder the build " +
+        "will be reused, otherwise the app will be built there.",
+    );
+  }
+
   // Build the Nuxt app so workers can start a fast production server.
-  // Each run builds into its own temp directory so parallel runs don't conflict.
-  // Override with SKIP_BUILD=true to reuse an existing build from .output.
+  // Set EXISTING_BUILD_DIR to a path to reuse an existing build (if .output exists
+  // inside it) or to build into that specific directory.
+  // Without EXISTING_BUILD_DIR, each run builds into its own temp directory so
+  // parallel runs don't conflict.
   const timestamp = new Date()
     .toISOString()
     .replace("T", "_")
     .replace(/:/g, "-")
     .replace(".", "-")
     .slice(0, 23);
-  if (!process.env.SKIP_BUILD) {
+
+  const existingBuildDir = process.env.EXISTING_BUILD_DIR
+    ? resolve(process.env.EXISTING_BUILD_DIR)
+    : null;
+
+  // buildCacheTmpDir holds the Nuxt build cache (.nuxt); only used for auto-named builds.
+  // outputDir is where the compiled app (.output) lives.
+  let buildCacheTmpDir: string | null = null;
+  let outputDir: string;
+  const skipBuild =
+    existingBuildDir !== null && existsSync(join(existingBuildDir, ".output"));
+
+  if (existingBuildDir) {
+    outputDir = existingBuildDir;
+  } else {
     mkdirSync(join(e2eRoot, ".builds"), { recursive: true });
     mkdirSync(join(e2eRoot, ".results"), { recursive: true });
+    buildCacheTmpDir = join(e2eRoot, ".builds", timestamp);
+    outputDir = join(e2eRoot, ".results", timestamp);
+    mkdirSync(buildCacheTmpDir);
+    mkdirSync(outputDir);
   }
-  const buildCacheTmpDir = process.env.SKIP_BUILD
-    ? null
-    : join(e2eRoot, ".builds", timestamp);
-  const outputTmpDir = process.env.SKIP_BUILD
-    ? null
-    : join(e2eRoot, ".results", timestamp);
-  if (buildCacheTmpDir) mkdirSync(buildCacheTmpDir);
-  if (outputTmpDir) mkdirSync(outputTmpDir);
-  process.env.TEST_SERVER_OUTPUT_DIR = outputTmpDir
-    ? join(outputTmpDir, ".output")
-    : resolve(projectRoot, ".output");
+
+  process.env.TEST_SERVER_OUTPUT_DIR = join(outputDir, ".output");
 
   console.log(
     `[e2e] Server output dir: ${process.env.TEST_SERVER_OUTPUT_DIR}\n`,
   );
 
-  if (buildCacheTmpDir && outputTmpDir) {
-    // Seed the temp .nuxt dir with the project's existing build cache to avoid cold starts.
+  if (!skipBuild) {
+    const nuxtBuildDir = buildCacheTmpDir
+      ? join(buildCacheTmpDir, ".nuxt")
+      : join(outputDir, ".nuxt");
+
+    // Seed the .nuxt dir with the project's existing build cache to avoid cold starts.
     // Exclude dist/ — that's the compiled app output and causes Nuxt to skip the Vite/Nitro
     // build step entirely, so nothing ever gets written to NITRO_OUTPUT_DIR.
     const sourceDotNuxt = resolve(projectRoot, ".nuxt");
-    const destDotNuxt = join(buildCacheTmpDir, ".nuxt");
     if (existsSync(sourceDotNuxt)) {
-      cpSync(sourceDotNuxt, destDotNuxt, {
+      cpSync(sourceDotNuxt, nuxtBuildDir, {
         recursive: true,
         filter: (src) => !src.startsWith(resolve(sourceDotNuxt, "dist")),
       });
     }
 
-    console.log("\n[e2e] Building Nuxt app (set SKIP_BUILD=true to skip)...\n");
+    console.log(
+      existingBuildDir
+        ? `\n[e2e] Building Nuxt app into ${existingBuildDir} (set EXISTING_BUILD_DIR to a directory with an existing .output to skip)...\n`
+        : "\n[e2e] Building Nuxt app (set EXISTING_BUILD_DIR to reuse an existing build)...\n",
+    );
     const buildStart = Date.now();
     try {
       execSync("npx nuxt build", {
@@ -92,8 +119,8 @@ export default async function globalSetup(_config: FullConfig) {
         stdio: "pipe",
         env: {
           ...process.env,
-          NUXT_BUILD_DIR: join(buildCacheTmpDir, ".nuxt"),
-          NITRO_OUTPUT_DIR: join(outputTmpDir, ".output"),
+          NUXT_BUILD_DIR: nuxtBuildDir,
+          NITRO_OUTPUT_DIR: join(outputDir, ".output"),
         },
       });
     } catch (err: unknown) {
@@ -112,6 +139,7 @@ export default async function globalSetup(_config: FullConfig) {
   // tests can reference videos and HLS playlists without hitting external networks.
   ensureTestVideo();
   ensureHlsFixtures();
+  ensureTestImage();
   const fixtureServer: FileServer = await startFileServer(cacheDir);
   process.env.TEST_FIXTURE_SERVER_URL = fixtureServer.url;
 
