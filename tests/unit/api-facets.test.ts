@@ -147,27 +147,27 @@ describe("/api/media-facets — tag counts", () => {
     expect(byName.dogs).toBe(1);
   });
 
-  it("addedIfRemoved is null when tag is not selected", async () => {
+  it("countAddedIfRemoved is null when tag is not selected", async () => {
     await seedMedia();
     const cond = makeTagCondition([]);
     const counts = await fetchFieldCounts(cond, makeBody([cond]));
     for (const c of counts) {
-      expect(c.addedIfRemoved).toBeNull();
+      expect(c.countAddedIfRemoved).toBeNull();
     }
   });
 
-  it("addedIfRemoved shows how many items would be added back if the tag were removed", async () => {
+  it("countAddedIfRemoved shows how many items would be added back if the tag were removed", async () => {
     await seedMedia();
     const catsId = await getGroupId("cats");
     const cond = makeTagCondition([catsId]);
     const counts = await fetchFieldCounts(cond, makeBody([cond]));
     const catsFacet = counts.find((c) => c.name === "cats");
     if (!catsFacet) throw new Error("Expected to find a cats facet in counts");
-    // Removing cats: 4 total vs 2 with cats selected → addedIfRemoved = 2
-    expect(catsFacet.addedIfRemoved).toBe(2);
+    // Removing cats: 4 total vs 2 with cats selected → countAddedIfRemoved = 2
+    expect(catsFacet.countAddedIfRemoved).toBe(2);
   });
 
-  it("addedIfRemoved=0 when removing the tag adds no extra items", async () => {
+  it("countAddedIfRemoved=0 when removing the tag adds no extra items", async () => {
     // Seed only media with cats, so removing cats doesn't expose new items
     enqueueMedia([makeMedia({ id: "only-cats", tags: ["cats"] })]);
     await runLiaseQuery();
@@ -178,7 +178,7 @@ describe("/api/media-facets — tag counts", () => {
     const catsFacet = counts.find((c) => c.name === "cats");
     if (!catsFacet) throw new Error("Expected to find a cats facet in counts");
     // All media has cats; removing cats still gives the same count (just without filter) → 0 added
-    expect(catsFacet.addedIfRemoved).toBe(0);
+    expect(catsFacet.countAddedIfRemoved).toBe(0);
   });
 
   it("tag counts respect other active filters (type)", async () => {

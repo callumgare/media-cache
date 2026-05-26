@@ -123,7 +123,7 @@ export async function fetchFieldCounts(
       .where(inArray(dbSchema.group.id, allRelevantIds));
     const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
 
-    const addedIfRemovedByTagId = new Map<number, number>();
+    const countAddedIfRemovedByTagId = new Map<number, number>();
     if (currentValues.size > 0) {
       const currentTotal = await countWhere(where);
       const selectedIds = [...currentValues];
@@ -142,7 +142,10 @@ export async function fetchFieldCounts(
         unionQuery,
       );
       for (const row of rows) {
-        addedIfRemovedByTagId.set(row.tag_id, row.tag_count - currentTotal);
+        countAddedIfRemovedByTagId.set(
+          row.tag_id,
+          row.tag_count - currentTotal,
+        );
       }
     }
 
@@ -155,7 +158,7 @@ export async function fetchFieldCounts(
           id,
           name,
           count: b.doc_count,
-          addedIfRemoved: addedIfRemovedByTagId.get(id) ?? null,
+          countAddedIfRemoved: countAddedIfRemovedByTagId.get(id) ?? null,
         };
       })
       .filter((r): r is TagFacetCount => r !== null);
@@ -170,7 +173,8 @@ export async function fetchFieldCounts(
             id: selectedId,
             name,
             count: 0,
-            addedIfRemoved: addedIfRemovedByTagId.get(selectedId) ?? null,
+            countAddedIfRemoved:
+              countAddedIfRemovedByTagId.get(selectedId) ?? null,
           });
         }
       }

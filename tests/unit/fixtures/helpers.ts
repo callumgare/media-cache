@@ -62,6 +62,54 @@ export function makeImageMedia(
   };
 }
 
+export function makeDetailedMedia(
+  overrides: Partial<GenericMedia> = {},
+): GenericMedia {
+  return {
+    liaseSource: "test-source",
+    id: 42,
+    files: [
+      {
+        type: "main",
+        url: "https://example.com/media/42/stream",
+        ext: "mp4",
+        mimeType: "video/mp4",
+        image: false,
+        video: true,
+        audio: true,
+        width: 1920,
+        height: 1080,
+        duration: 1486.52,
+      },
+      {
+        type: "thumbnail",
+        url: "https://example.com/media/42/stream.mp4?resolution=LOW",
+        ext: "mp4",
+        mimeType: "video/mp4",
+        image: false,
+        video: true,
+        audio: true,
+      },
+      {
+        type: "poster",
+        url: "https://example.com/media/42/poster.jpg",
+        image: true,
+        video: false,
+        audio: false,
+      },
+    ],
+    url: "https://example.com/media/42",
+    title: "Example Media Title",
+    tags: ["action", "documentary"],
+    dateUploaded: "2020-03-31T15:56:34.000Z",
+    dateOriginallyPublished: "2012-08-17",
+    description:
+      "A detailed example media item used for testing field mapping.",
+    duration: 1486.52,
+    ...overrides,
+  };
+}
+
 export function enqueueMedia(medias: GenericMedia[]) {
   if (!globalThis.__testPluginQueue) globalThis.__testPluginQueue = [];
   globalThis.__testPluginQueue.push(medias);

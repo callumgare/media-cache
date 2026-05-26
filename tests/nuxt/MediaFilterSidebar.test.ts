@@ -51,8 +51,8 @@ const MOCK_FACETS: FacetResult = {
       type: "field",
       field: "tags",
       counts: [
-        { id: 10, name: "nature", count: 2, addedIfRemoved: null },
-        { id: 11, name: "animals", count: 1, addedIfRemoved: null },
+        { id: 10, name: "nature", count: 2, countAddedIfRemoved: null },
+        { id: 11, name: "animals", count: 1, countAddedIfRemoved: null },
       ],
     },
     { id: 3, type: "field", field: "source", counts: [] },
@@ -80,6 +80,10 @@ describe("MediaFilterSidebar – loading state", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.stubGlobal("$fetch", (url: string) => {
+      if (url === "/api/user/saved-searches") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected $fetch call: ${url}`));
+    });
     mockData = ref<FacetResult | undefined>(MOCK_FACETS);
     mockIsFetching = ref(false);
     useQuerySpy.mockImplementation(() => ({
@@ -90,6 +94,7 @@ describe("MediaFilterSidebar – loading state", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("passes loading=false to schemaConfig when not fetching", async () => {
@@ -158,13 +163,10 @@ describe("MediaFilterSidebar – loading state", () => {
     const gcInput = wrapper.findComponent({
       name: "QueryBuilderGroupConditionInput",
     });
-    const tagsField = (
-      gcInput.props("schemaConfig").availableFields as Array<{
-        id: string;
-        availableOptions: unknown[];
-      }>
-    ).find((f) => f.id === "tags");
-    expect(tagsField?.availableOptions.length).toBeGreaterThan(0);
+    const tagsOptions = (
+      gcInput.props("schemaConfig").fieldOptions as Record<string, unknown[]>
+    ).tags;
+    expect(tagsOptions?.length).toBeGreaterThan(0);
   });
 
   it("calls useQuery with placeholderData: keepPreviousData", async () => {

@@ -12,7 +12,7 @@ export function useMediaResults() {
   });
 
   const uiState = useUiState();
-  const { randomSeed } = storeToRefs(uiState);
+  const { sort, randomSeed } = storeToRefs(mediaQuery);
 
   const isMounted = useMounted();
 
@@ -24,13 +24,21 @@ export function useMediaResults() {
     hasNextPage,
     error,
   } = useInfiniteQuery({
-    queryKey: ["media", mediaQueryCondition, randomSeed],
-    queryFn: ({ pageParam }) =>
-      $fetch<z.infer<typeof APIMediaResponse>>("/api/media", {
-        query: { page: pageParam, seed: uiState.randomSeed },
+    queryKey: ["media", mediaQueryCondition, sort, randomSeed],
+    queryFn: ({ pageParam }) => {
+      const { $superFetch } = useNuxtApp();
+      return $superFetch<z.infer<typeof APIMediaResponse>>("/api/media", {
+        query: { page: pageParam },
         method: "POST",
-        body: mediaQueryCondition.value,
-      }),
+        body: {
+          condition: mediaQueryCondition.value,
+          sort: mediaQuery.sort,
+          ...(mediaQuery.sort.field === "random"
+            ? { seed: mediaQuery.randomSeed }
+            : {}),
+        },
+      });
+    },
     initialPageParam: 1,
     getNextPageParam: (page) => (page.media.length ? page.page + 1 : null),
     getPreviousPageParam: (page) => page.page - 1,
@@ -51,5 +59,6 @@ export function useMediaResults() {
     hasNextPage,
     error,
     medias,
+    uiState,
   };
 }

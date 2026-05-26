@@ -2,23 +2,16 @@
 import "primeicons/primeicons.css";
 import { useMediaQuery } from "@@/stores/media-query";
 import type { QueryFieldCondition } from "@@/types/query-condition";
+import { QUERY_FIELD_DEFINITIONS } from "@@/types/query-field-definitions";
 import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
 
 const props = defineProps<{
   fieldCondition: QueryFieldCondition;
   schemaConfig: QuerySchemaConfig;
 }>();
-const fieldConfig = computed(() => {
-  const fieldConfig = props.schemaConfig.availableFields.find(
-    (field) => field.id === props.fieldCondition.field,
-  );
-  if (!fieldConfig) {
-    throw Error(
-      `Got query field condition for undefined field: "${props.fieldCondition.field}"`,
-    );
-  }
-  return fieldConfig;
-});
+const fieldOptions = computed(
+  () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
+);
 const mediaQuery = useMediaQuery();
 </script>
 
@@ -28,13 +21,13 @@ const mediaQuery = useMediaQuery();
     :schema-config="schemaConfig"
   >
     <Select
-      :model-value="(fieldConfig.availableOptions ?? []).find(option => option.id === fieldCondition.value)"
-      :options="fieldConfig.availableOptions ?? []"
+      :model-value="(fieldOptions).find(option => option.id === fieldCondition.value)"
+      :options="fieldOptions"
       option-label="name"
       class="control"
       :loading="schemaConfig.loading ?? false"
       :virtual-scroller-options="{ itemSize: 38 }"
-      :placeholder="`Select ${fieldConfig.displayName}`"
+      :placeholder="`Select ${QUERY_FIELD_DEFINITIONS.find(f => f.id === fieldCondition.field)?.displayName}`"
       :show-clear="true"
       @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
     >

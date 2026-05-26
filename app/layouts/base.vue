@@ -33,7 +33,6 @@
 </template>
 
 <script setup lang="ts">
-import "primeicons/primeicons.css";
 import { useUiState } from "@@/stores/ui";
 import type { MenuItem } from "primevue/menuitem";
 
@@ -280,6 +279,8 @@ onUnmounted(() => {
 </style>
 
 <style>
+  @import "primeicons/primeicons.css" layer(primeicons);
+
   #app-root {
     max-height: 100vh;
     display: flex;
@@ -306,77 +307,82 @@ onUnmounted(() => {
     initial-value: 2.5rem;
   }
 
-  @layer reset;
-
   /********************
   Custom
   ********************/
-  html,
-  body {
-    /* Prevent iOS Safari swipe-right-to-go-back navigation gesture (iOS 16+). */
-    overscroll-behavior-x: contain;
-  }
-  body {
-    font-family: sans-serif;
-    background: var(--primary-background);
-  }
-
-  body:has(#app-root.blur-media) {
-    img, video, hls-video::part(video), dash-video::part(video) {
-      filter:  url("/abstractify-filter.svg#abstractify");
+  @layer custom {
+    html,
+    body {
+      /* Prevent iOS Safari swipe-right-to-go-back navigation gesture (iOS 16+). */
+      overscroll-behavior-x: contain;
     }
-  }
-
-  :root {
-    --primary-background: light-dark(var(--p-zinc-100), var(--p-zinc-900));
-    --bg-highlight: var(--p-yellow-100);
-
-    @media (prefers-color-scheme: dark) {
-      --bg-highlight: var(--p-yellow-700);
-    }
-  }
-
-  @keyframes target-fade {
-    0% { background-color: var(--bg-highlight); }
-    100% { background-color: transparent; }
-  }
-
-  :target {
-    animation: target-fade 3s 1;
-  }
-
-  .p-button {
-    line-height: normal;
-  }
-
-  :root, :host {
-    /* The page has a background so we make most things transparent with the exception of surfaces that overlap other surfaces */
-    --p-content-background: transparent;
-    --p-content-background-opaque: var(--p-surface-0);
-    --card-background: var(--p-surface-0);
-    --card-border-color: var(--p-surface-200);
-    --z-index-overlay: 100;
-    --z-index-max: 1000;
-
-    @media (prefers-color-scheme: dark) {
-      --p-content-background-opaque: var(--p-surface-700);
-      --card-background: var(--p-surface-800);
-      --card-border-color: var(--p-surface-600);
+    body {
+      font-family: sans-serif;
+      background: var(--primary-background);
     }
 
-    --p-menubar-submenu-background: var(--p-content-background-opaque);
-  }
+    body:has(#app-root.blur-media) {
+      img, video, hls-video::part(video), dash-video::part(video) {
+        filter:  url("/abstractify-filter.svg#abstractify");
+      }
+    }
 
-  .pswp {
-    --pswp-root-z-index: var(--z-index-overlay);
-  }
+    :root {
+      --primary-background: light-dark(var(--p-zinc-100), var(--p-zinc-900));
+      --bg-highlight: var(--p-yellow-100);
 
-  .p-toast {
-    z-index: var(--z-index-max) !important; /* We need to override the z-index set directly on the element */
-  }
+      @media (prefers-color-scheme: dark) {
+        --bg-highlight: var(--p-yellow-700);
+      }
+    }
 
-  body:has(.pswp--open) .p-toast {
-    translate: 0 40px; /* Move toasts down when photoswipe is open to avoid overlap with toolbar */
+    @keyframes target-fade {
+      0% { background-color: var(--bg-highlight); }
+      100% { background-color: transparent; }
+    }
+
+    :target {
+      animation: target-fade 3s 1;
+    }
+
+    .p-button {
+      line-height: normal;
+    }
+
+    .p-inputgroup .p-inputnumber:not(:first-child) input {
+      border-left: 0;
+    }
+
+    :root, :host {
+      /* The page has a background so we make most things transparent with the exception of surfaces that overlap other surfaces */
+      --p-content-background: transparent;
+      --p-content-background-opaque: var(--p-surface-0);
+      --p-card-background: var(--p-content-background-opaque);
+      --card-background: var(--p-surface-0);
+      --card-border-color: var(--p-surface-200);
+      --z-index-overlay: 100;
+      --z-index-max: 1000;
+
+      @media (prefers-color-scheme: dark) {
+        --p-content-background-opaque: var(--p-surface-700);
+        --card-background: var(--p-surface-800);
+        --card-border-color: var(--p-surface-600);
+      }
+
+      --p-menubar-submenu-background: var(--p-content-background-opaque);
+    }
+
+    .pswp {
+      --pswp-root-z-index: var(--z-index-overlay);
+    }
+
+    .p-toast {
+      z-index: var(--z-index-max) !important; /* We need to override the z-index set directly on the element */
+    }
+
+    body:has(.pswp--open) .p-toast {
+      translate: 0 40px; /* Move toasts down when photoswipe is open to avoid overlap with toolbar */
+    }
   }
 
 

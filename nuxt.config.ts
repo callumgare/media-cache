@@ -68,6 +68,7 @@ export default defineNuxtConfig({
         "InputNumber",
         "InputText",
         "Menubar",
+        "Message",
         "MultiSelect",
         "Popover",
         "ProgressBar",
@@ -82,6 +83,12 @@ export default defineNuxtConfig({
     options: {
       theme: {
         preset: Aura,
+        options: {
+          cssLayer: {
+            name: "primevue",
+            order: "reset, primeicons, primevue, custom",
+          },
+        },
       },
     },
   },

@@ -7,6 +7,7 @@ import {
   getDeletedCacheMediaAll,
   getLiaseQueryExecutionAll,
   getLiaseQueryMediaAll,
+  makeDetailedMedia,
   makeImageMedia,
   makeMedia,
   runLiaseQuery,
@@ -380,6 +381,66 @@ describe("runLiaseQuery — aggregation", () => {
     const [row] = await getCacheMediaAll();
     expect(row.files?.[0].url).toBe("https://example.com/vid.mp4");
   });
+
+  it("sets earliestCreatedAt from dateOriginallyPublished", async () => {
+    enqueueMedia([
+      makeMedia({
+        id: "created-1",
+        dateOriginallyPublished: new Date("2021-06-15"),
+      }),
+    ]);
+    await runLiaseQuery();
+
+    const [row] = await getCacheMediaAll();
+    expect(row.earliestCreatedAt).toEqual(new Date("2021-06-15"));
+  });
+
+  it("sets earliestCreatedAt to null when dateOriginallyPublished is absent", async () => {
+    enqueueMedia([makeMedia({ id: "created-null" })]);
+    await runLiaseQuery();
+
+    const [row] = await getCacheMediaAll();
+    expect(row.earliestCreatedAt).toBeNull();
+  });
+
+  it("sets earliestCreatedAt to the oldest dateOriginallyPublished when the same cache_media has liase results from multiple separate sources", async () => {
+    // Manually insert a cache_media record that claims to cover two different liase IDs
+    // so that buildCacheMediaValues receives both media items and computes the minimum.
+    const twoLiaseIds = ["test-source\tearliest-a", "test-source\tearliest-b"];
+    const [existingRow] = await db
+      .insert(dbSchema.cacheMedia)
+      .values({
+        liaseIds: twoLiaseIds,
+        liaseSourceIds: ["test-source"],
+        groupIds: [],
+        originalGroupIds: [],
+        groupPaths: [],
+        originalGroupPaths: [],
+        creators: [],
+        uploaders: [],
+        updatedAt: new Date(),
+      })
+      .returning();
+    if (!existingRow) throw new Error("Failed to pre-insert cache_media");
+
+    enqueueMedia([
+      makeMedia({
+        id: "earliest-a",
+        dateOriginallyPublished: new Date("2020-03-10"),
+      }),
+      makeMedia({
+        id: "earliest-b",
+        dateOriginallyPublished: new Date("2022-11-01"),
+      }),
+    ]);
+    await runLiaseQuery();
+
+    const all = await getCacheMediaAll();
+    // Both liase IDs belong to the same pre-inserted cache_media row.
+    const row = all.find((r) => r.liaseIds.includes("test-source\tearliest-a"));
+    if (!row) throw new Error("Expected to find cache_media with earliest-a");
+    expect(row.earliestCreatedAt).toEqual(new Date("2020-03-10"));
+  });
 });
 
 describe("runLiaseQuery — empty query", () => {
@@ -695,5 +756,128 @@ describe("runLiaseQuery — fetchCountLimit=0 cleanup", () => {
     await runLiaseQuery({ ...q1, fetchCountLimit: 0 });
 
     expect(await getCacheMediaAll()).toHaveLength(1);
+  });
+});
+
+describe("runLiaseQuery — detailed media field mapping", () => {
+  it("maps all fields from detailed media to cache_media exactly", async () => {
+    enqueueMedia([makeDetailedMedia()]);
+    await runLiaseQuery();
+
+    const all = await getCacheMediaAll();
+    expect(all).toHaveLength(1);
+    const row = all[0];
+    if (!row) throw new Error("Expected one cache_media row");
+
+    // Group IDs are deterministic: RESTART IDENTITY means "Tags"=1, "action"=2, "documentary"=3
+    expect(row).toEqual({
+      id: 1,
+      firstIndexedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+      title: "Example Media Title",
+      description:
+        "A detailed example media item used for testing field mapping.",
+      earliestUploadedAt: new Date("2020-03-31T15:56:34.000Z"),
+      earliestCreatedAt: new Date("2012-08-17"),
+      creators: [],
+      uploaders: [],
+      views: null,
+      likes: null,
+      dislikes: null,
+      liaseSourceIds: ["test-source"],
+      liaseIds: ["test-source\t42"],
+      groupIds: ["2", "3"],
+      originalGroupIds: [],
+      groupPaths: ["2\t1\t", "3\t1\t"],
+      originalGroupPaths: [],
+      hasVideo: true,
+      hasAudio: true,
+      hasImage: false,
+      duration: 1486.52,
+      fileSize: null,
+      width: 1920,
+      height: 1080,
+      files: [
+        {
+          createdAt: expect.any(String),
+          updatedAt: expect.any(String),
+          liaseSourceId: "test-source",
+          liaseMediaId: "42",
+          type: "main",
+          url: "https://example.com/media/42/stream",
+          ext: "mp4",
+          mimeType: "video/mp4",
+          hasVideo: true,
+          hasAudio: true,
+          hasImage: false,
+          duration: 1486.52,
+          fileSize: null,
+          width: 1920,
+          height: 1080,
+          urlExpires: null,
+          urlRefreshDetails: null,
+          urlUpdatedAt: expect.any(String),
+        },
+        {
+          createdAt: expect.any(String),
+          updatedAt: expect.any(String),
+          liaseSourceId: "test-source",
+          liaseMediaId: "42",
+          type: "thumbnail",
+          url: "https://example.com/media/42/stream.mp4?resolution=LOW",
+          ext: "mp4",
+          mimeType: "video/mp4",
+          hasVideo: true,
+          hasAudio: true,
+          hasImage: false,
+          duration: null,
+          fileSize: null,
+          width: null,
+          height: null,
+          urlExpires: null,
+          urlRefreshDetails: null,
+          urlUpdatedAt: expect.any(String),
+        },
+        {
+          createdAt: expect.any(String),
+          updatedAt: expect.any(String),
+          liaseSourceId: "test-source",
+          liaseMediaId: "42",
+          type: "poster",
+          url: "https://example.com/media/42/poster.jpg",
+          ext: null,
+          mimeType: null,
+          hasVideo: false,
+          hasAudio: false,
+          hasImage: true,
+          duration: null,
+          fileSize: null,
+          width: null,
+          height: null,
+          urlExpires: null,
+          urlRefreshDetails: null,
+          urlUpdatedAt: expect.any(String),
+        },
+      ],
+      sources: [
+        {
+          liaseSourceId: "test-source",
+          liaseMediaId: "42",
+          createdAt: expect.any(String),
+          updatedAt: expect.any(String),
+          uploadedAt: "2020-03-31T15:56:34.000Z",
+          title: "Example Media Title",
+          description:
+            "A detailed example media item used for testing field mapping.",
+          url: "https://example.com/media/42",
+          creator: null,
+          uploader: null,
+          views: null,
+          likes: null,
+          likesPercentage: null,
+          dislikes: null,
+        },
+      ],
+    });
   });
 });

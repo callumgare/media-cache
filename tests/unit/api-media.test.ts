@@ -1,6 +1,8 @@
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { calculateWhereValue } from "@@/server/utils/query-builder";
 import type { QueryGroupCondition } from "@@/types/query-condition";
+import type { SortConfig } from "@@/types/sort-config";
+import { asc, desc, sql } from "drizzle-orm";
 /**
  * Tests for /api/media filtering logic.
  * We bypass HTTP and call calculateWhereValue + DB directly,
@@ -18,6 +20,98 @@ import {
 } from "./fixtures/helpers";
 
 beforeEach(truncateAll);
+
+// ── Sort helpers (mirror buildOrderBy in /api/media.ts) ──────────────────────
+
+function buildOrderBy(sort: SortConfig, seed = 0) {
+  if (sort.field === "random") {
+    return sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`;
+  }
+  const dir = sort.direction === "desc" ? desc : asc;
+  if (sort.field === "createdOrUploadedAt")
+    return dir(
+      sql`COALESCE(${dbSchema.cacheMedia.earliestCreatedAt}, ${dbSchema.cacheMedia.earliestUploadedAt})`,
+    );
+  if (sort.field === "firstIndexedAt")
+    return dir(dbSchema.cacheMedia.firstIndexedAt);
+  if (sort.field === "updatedAt") return dir(dbSchema.cacheMedia.updatedAt);
+  if (sort.field === "duration")
+    return dir(sql`COALESCE(${dbSchema.cacheMedia.duration}, -1)`);
+  return dir(dbSchema.cacheMedia.title);
+}
+
+async function querySorted(sort: SortConfig, seed = 0) {
+  return db
+    .select({
+      id: dbSchema.cacheMedia.id,
+      title: dbSchema.cacheMedia.title,
+      duration: dbSchema.cacheMedia.duration,
+      earliestCreatedAt: dbSchema.cacheMedia.earliestCreatedAt,
+      earliestUploadedAt: dbSchema.cacheMedia.earliestUploadedAt,
+      firstIndexedAt: dbSchema.cacheMedia.firstIndexedAt,
+      updatedAt: dbSchema.cacheMedia.updatedAt,
+    })
+    .from(dbSchema.cacheMedia)
+    .orderBy(buildOrderBy(sort, seed));
+}
+
+/** Direct-insert seed for sort tests (no liase pipeline needed). */
+async function seedSortMedia() {
+  await db.insert(dbSchema.cacheMedia).values([
+    {
+      // earliestCreatedAt wins for createdOrUploadedAt; oldest firstIndexedAt
+      firstIndexedAt: new Date("2020-01-15"),
+      updatedAt: new Date("2024-01-01"),
+      title: "Alpha",
+      duration: 10,
+      earliestCreatedAt: new Date("2021-01-01"),
+      earliestUploadedAt: new Date("2023-01-01"),
+      liaseSourceIds: ["test-source"],
+      hasVideo: true,
+      hasImage: false,
+      hasAudio: false,
+    },
+    {
+      // no earliestCreatedAt — falls back to earliestUploadedAt
+      firstIndexedAt: new Date("2023-03-15"),
+      updatedAt: new Date("2023-08-01"),
+      title: "Bravo",
+      duration: 5,
+      earliestCreatedAt: null,
+      earliestUploadedAt: new Date("2024-06-15"),
+      liaseSourceIds: ["test-source"],
+      hasVideo: true,
+      hasImage: false,
+      hasAudio: false,
+    },
+    {
+      // earliestCreatedAt (2022-06-01) is later than earliestUploadedAt (2022-03-20)
+      firstIndexedAt: new Date("2021-07-01"),
+      updatedAt: new Date("2025-05-01"),
+      title: "Charlie",
+      duration: 30,
+      earliestCreatedAt: new Date("2022-06-01"),
+      earliestUploadedAt: new Date("2022-03-20"),
+      liaseSourceIds: ["test-source"],
+      hasVideo: true,
+      hasImage: false,
+      hasAudio: false,
+    },
+    {
+      // no dates at all — sorts last in ASC, first in DESC for createdOrUploadedAt
+      firstIndexedAt: new Date("2025-11-01"),
+      updatedAt: new Date("2022-12-01"),
+      title: "Delta",
+      duration: null,
+      earliestCreatedAt: null,
+      earliestUploadedAt: null,
+      liaseSourceIds: ["test-source"],
+      hasVideo: false,
+      hasImage: true,
+      hasAudio: false,
+    },
+  ]);
+}
 
 // Mirrors the handler's filtered query
 async function queryMediaWhere(condition: QueryGroupCondition) {
@@ -425,5 +519,131 @@ describe("/api/media — nested group conditions", () => {
     expect(titles).toContain("Video C (audio)");
     expect(titles).not.toContain("Video A");
     expect(titles).not.toContain("Video B");
+  });
+});
+
+// ── Sort tests ────────────────────────────────────────────────────────────────
+
+describe("/api/media — sort by title", () => {
+  it("returns media in ascending alphabetical order", async () => {
+    await seedSortMedia();
+    const results = await querySorted({ field: "title", direction: "asc" });
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Alpha", "Bravo", "Charlie", "Delta"]);
+  });
+
+  it("returns media in descending alphabetical order", async () => {
+    await seedSortMedia();
+    const results = await querySorted({ field: "title", direction: "desc" });
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Delta", "Charlie", "Bravo", "Alpha"]);
+  });
+});
+
+describe("/api/media — sort by duration", () => {
+  it("returns media with shortest duration first (asc), null treated as -1", async () => {
+    await seedSortMedia();
+    const results = await querySorted({ field: "duration", direction: "asc" });
+    // COALESCE(null, -1) = -1, so Delta sorts before all videos
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Delta", "Bravo", "Alpha", "Charlie"]);
+  });
+
+  it("returns media with longest duration first (desc), null treated as -1", async () => {
+    await seedSortMedia();
+    const results = await querySorted({ field: "duration", direction: "desc" });
+    // -1 sorts after all positive durations in DESC
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Charlie", "Alpha", "Bravo", "Delta"]);
+  });
+});
+
+describe("/api/media — sort by createdOrUploadedAt", () => {
+  it("returns oldest createdOrUploadedAt first (asc), nulls last", async () => {
+    await seedSortMedia();
+    const results = await querySorted({
+      field: "createdOrUploadedAt",
+      direction: "asc",
+    });
+    // COALESCE(earliestCreatedAt, earliestUploadedAt):
+    // Alpha=2021-01-01, Charlie=2022-06-01, Bravo=2024-06-15, Delta=null(last)
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Alpha", "Charlie", "Bravo", "Delta"]);
+  });
+
+  it("returns most-recent createdOrUploadedAt first (desc), nulls first", async () => {
+    await seedSortMedia();
+    const results = await querySorted({
+      field: "createdOrUploadedAt",
+      direction: "desc",
+    });
+    // Delta=null(first), Bravo=2024-06-15, Charlie=2022-06-01, Alpha=2021-01-01
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Delta", "Bravo", "Charlie", "Alpha"]);
+  });
+
+  it("uses earliestCreatedAt over earliestUploadedAt when both are set", async () => {
+    await seedSortMedia();
+    // Charlie has earliestCreatedAt=2022-06-01 and earliestUploadedAt=2022-03-20.
+    // COALESCE picks earliestCreatedAt (2022-06-01), so Charlie sorts after Alpha (2021-01-01).
+    const results = await querySorted({
+      field: "createdOrUploadedAt",
+      direction: "asc",
+    });
+    const titles = results.map((r) => r.title);
+    const alphaIdx = titles.indexOf("Alpha");
+    const charlieIdx = titles.indexOf("Charlie");
+    expect(alphaIdx).toBeLessThan(charlieIdx);
+  });
+});
+
+describe("/api/media — sort by firstIndexedAt", () => {
+  it("returns earliest-indexed media first (asc)", async () => {
+    await seedSortMedia();
+    const results = await querySorted({
+      field: "firstIndexedAt",
+      direction: "asc",
+    });
+    // Alpha=2020-01-15, Charlie=2021-07-01, Bravo=2023-03-15, Delta=2025-11-01
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Alpha", "Charlie", "Bravo", "Delta"]);
+  });
+
+  it("returns most-recently-indexed media first (desc)", async () => {
+    await seedSortMedia();
+    const results = await querySorted({
+      field: "firstIndexedAt",
+      direction: "desc",
+    });
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Delta", "Bravo", "Charlie", "Alpha"]);
+  });
+});
+
+describe("/api/media — sort by updatedAt", () => {
+  it("returns least-recently-updated media first (asc)", async () => {
+    await seedSortMedia();
+    const results = await querySorted({ field: "updatedAt", direction: "asc" });
+    // Delta=2022-12-01, Bravo=2023-08-01, Alpha=2024-01-01, Charlie=2025-05-01
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Delta", "Bravo", "Alpha", "Charlie"]);
+  });
+
+  it("returns most-recently-updated media first (desc)", async () => {
+    await seedSortMedia();
+    const results = await querySorted({
+      field: "updatedAt",
+      direction: "desc",
+    });
+    const titles = results.map((r) => r.title);
+    expect(titles).toEqual(["Charlie", "Alpha", "Bravo", "Delta"]);
+  });
+});
+
+describe("/api/media — sort by random", () => {
+  it("returns all media regardless of seed", async () => {
+    await seedSortMedia();
+    const results = await querySorted({ field: "random" }, 42);
+    expect(results).toHaveLength(4);
   });
 });

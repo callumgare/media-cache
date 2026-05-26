@@ -166,20 +166,24 @@ const {
   queryFn: ({ pageParam }) =>
     $fetch<z.infer<typeof APIMediaResponse>>("/api/media", {
       method: "POST",
-      query: { page: pageParam, seed: randomSeed },
+      query: { page: pageParam },
       body: {
-        id: 1,
-        type: "group",
-        operator: "AND",
-        conditions: [
-          {
-            id: 2,
-            type: "field",
-            field: "groups",
-            operator: "includes all",
-            value: [String(groupId.value)],
-          },
-        ],
+        condition: {
+          id: 1,
+          type: "group",
+          operator: "AND",
+          conditions: [
+            {
+              id: 2,
+              type: "field",
+              field: "groups",
+              operator: "includes all",
+              value: [String(groupId.value)],
+            },
+          ],
+        },
+        sort: { field: "random" },
+        seed: randomSeed,
       },
     }),
   initialPageParam: 1,

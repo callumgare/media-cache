@@ -227,7 +227,7 @@
       <div
         class="option"
       >
-        <label for="fetchCountLimit">Fetch count limit</label>
+        <label for="fetchCountLimit">Max pages to index</label>
         <InputNumber
           id="fetchCountLimit"
           v-model="formValue.fetchCountLimit"

@@ -1,34 +1,16 @@
 import { z } from "zod";
 
+export const queryFieldOptionSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  name: z.string(),
+  count: z.number().nullable().optional(),
+  countAddedIfRemoved: z.number().nullable().optional(),
+});
+
+export type QueryFieldOption = z.infer<typeof queryFieldOptionSchema>;
+
 export const querySchemaConfigSchema = z.object({
-  availableFields: z.array(
-    z
-      .object({
-        id: z.string(),
-        displayName: z.string(),
-        type: z.string(),
-        availableOptions: z
-          .array(
-            z.object({
-              id: z.union([z.string(), z.number()]),
-              name: z.string(),
-              count: z.number().nullable().optional(),
-              addedIfRemoved: z.number().nullable().optional(),
-            }),
-          )
-          .optional(),
-      })
-      .strict(),
-  ),
-  fieldTypes: z.array(
-    z
-      .object({
-        name: z.string(),
-        operators: z.string().array(),
-        getInputType: z.function(),
-      })
-      .strict(),
-  ),
+  fieldOptions: z.record(z.string(), z.array(queryFieldOptionSchema)),
   loading: z.boolean().optional(),
 });
 

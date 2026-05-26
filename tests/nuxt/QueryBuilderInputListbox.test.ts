@@ -37,6 +37,7 @@ afterAll(() => vi.unstubAllGlobals());
 // component's computed properties re-evaluate and the DOM updates.
 vi.mock("@@/stores/media-query", () => ({
   useMediaQuery: () => ({
+    widgetOverrides: {},
     setFieldConditionValue: (
       condition: QueryFieldCondition,
       newValue: unknown,
@@ -56,15 +57,9 @@ const AVAILABLE_OPTIONS = [
 ] as const;
 
 const schemaConfig: QuerySchemaConfig = {
-  availableFields: [
-    {
-      id: "genre",
-      displayName: "Genre",
-      type: "multi-select",
-      availableOptions: [...AVAILABLE_OPTIONS],
-    },
-  ],
-  fieldTypes: [],
+  fieldOptions: {
+    tags: [...AVAILABLE_OPTIONS],
+  },
 };
 
 /** Create a reactive field condition so the component re-renders when value changes. */
@@ -72,8 +67,8 @@ function makeCondition(value: string[] = []): QueryFieldCondition {
   return reactive<QueryFieldCondition>({
     id: 1,
     type: "field",
-    field: "genre",
-    operator: "in",
+    field: "tags",
+    operator: "includes all",
     value,
   });
 }
@@ -93,7 +88,7 @@ describe("QueryBuilderInputListbox", () => {
     it("renders with a placeholder containing the field display name", async () => {
       const { wrapper } = await mount();
       expect(wrapper.find(".filter-input").attributes("placeholder")).toBe(
-        "Search Genre",
+        "Search Tags",
       );
     });
 

@@ -25,6 +25,62 @@
       <dl class="fields">
         <dt>ID</dt>
         <dd>{{ media.id }}</dd>
+        <template v-if="media.duration != null">
+          <dt>Duration</dt>
+          <dd>{{ formatDuration(media.duration) }}</dd>
+        </template>
+        <template v-if="media.width && media.height">
+          <dt>Dimensions</dt>
+          <dd>{{ media.width }} × {{ media.height }}</dd>
+        </template>
+        <template v-if="media.fileSize != null">
+          <dt>File size</dt>
+          <dd>{{ formatBytes(media.fileSize) }}</dd>
+        </template>
+        <template v-if="media.views != null">
+          <dt>Views</dt>
+          <dd>{{ media.views.toLocaleString() }}</dd>
+        </template>
+        <template v-if="media.likes != null">
+          <dt>Likes</dt>
+          <dd>{{ media.likes.toLocaleString() }}</dd>
+        </template>
+        <template v-if="media.dislikes != null">
+          <dt>Dislikes</dt>
+          <dd>{{ media.dislikes.toLocaleString() }}</dd>
+        </template>
+        <template v-if="media.hasVideo != null">
+          <dt>Has video</dt>
+          <dd>{{ media.hasVideo ? 'Yes' : 'No' }}</dd>
+        </template>
+        <template v-if="media.hasAudio != null">
+          <dt>Has audio</dt>
+          <dd>{{ media.hasAudio ? 'Yes' : 'No' }}</dd>
+        </template>
+        <template v-if="media.hasImage != null">
+          <dt>Has image</dt>
+          <dd>{{ media.hasImage ? 'Yes' : 'No' }}</dd>
+        </template>
+        <template v-if="media.creators.length">
+          <dt>Creators</dt>
+          <dd>{{ media.creators.join(', ') }}</dd>
+        </template>
+        <template v-if="media.uploaders.length">
+          <dt>Uploaders</dt>
+          <dd>{{ media.uploaders.join(', ') }}</dd>
+        </template>
+        <template v-if="media.earliestUploadedAt">
+          <dt>Uploaded at</dt>
+          <dd>{{ media.earliestUploadedAt.toLocaleString() }} (<RelativeTime :date="media.earliestUploadedAt" />)</dd>
+        </template>
+        <template v-if="media.earliestCreatedAt">
+          <dt>Created at</dt>
+          <dd>{{ media.earliestCreatedAt.toLocaleString() }} (<RelativeTime :date="media.earliestCreatedAt" />)</dd>
+        </template>
+        <dt>First indexed</dt>
+        <dd>{{ media.firstIndexedAt.toLocaleString() }} (<RelativeTime :date="media.firstIndexedAt" />)</dd>
+        <dt>Updated</dt>
+        <dd>{{ media.updatedAt.toLocaleString() }} (<RelativeTime :date="media.updatedAt" />)</dd>
       </dl>
 
       <!-- Tags -->
@@ -58,7 +114,7 @@
         class="info-section"
       >
         <h3 class="section-heading">
-          {{ src.sourceName }}
+          Source — {{ src.sourceName }}
         </h3>
         <dl class="fields">
           <template v-if="src.title">
@@ -91,6 +147,26 @@
             <dt>Like %</dt>
             <dd>{{ src.likesPercentage.toFixed(1) }}%</dd>
           </template>
+          <template v-if="src.dislikes != null">
+            <dt>Dislikes</dt>
+            <dd>{{ src.dislikes.toLocaleString() }}</dd>
+          </template>
+          <template v-if="src.uploader">
+            <dt>Uploader</dt>
+            <dd>{{ src.uploader }}</dd>
+          </template>
+          <template v-if="src.uploadedAt">
+            <dt>Uploaded at</dt>
+            <dd>{{ src.uploadedAt.toLocaleString() }} (<RelativeTime :date="src.uploadedAt" />)</dd>
+          </template>
+          <template v-if="src.description">
+            <dt>Description</dt>
+            <dd>{{ src.description }}</dd>
+          </template>
+          <dt>Liase source</dt>
+          <dd>{{ src.liaseSourceId }}</dd>
+          <dt>Liase media ID</dt>
+          <dd>{{ src.liaseMediaId }}</dd>
         </dl>
         <template v-if="uiState.debugMode">
           <Fieldset
@@ -138,6 +214,36 @@
               >{{ file.sourceUrl }}</a>
             </dd>
           </template>
+          <template v-if="file.duration != null">
+            <dt>Duration</dt>
+            <dd>{{ formatDuration(file.duration) }}</dd>
+          </template>
+          <template v-if="file.hasVideo != null">
+            <dt>Has video</dt>
+            <dd>{{ file.hasVideo ? 'Yes' : 'No' }}</dd>
+          </template>
+          <template v-if="file.hasAudio != null">
+            <dt>Has audio</dt>
+            <dd>{{ file.hasAudio ? 'Yes' : 'No' }}</dd>
+          </template>
+          <template v-if="file.hasImage != null">
+            <dt>Has image</dt>
+            <dd>{{ file.hasImage ? 'Yes' : 'No' }}</dd>
+          </template>
+          <template v-if="file.mimeType">
+            <dt>MIME type</dt>
+            <dd>{{ file.mimeType }}</dd>
+          </template>
+          <template v-if="file.urlExpires">
+            <dt>URL expires</dt>
+            <dd>{{ file.urlExpires.toLocaleString() }} (<RelativeTime :date="file.urlExpires" />)</dd>
+          </template>
+          <dt>URL updated</dt>
+          <dd>{{ file.urlUpdatedAt.toLocaleString() }} (<RelativeTime :date="file.urlUpdatedAt" />)</dd>
+          <dt>Liase source</dt>
+          <dd>{{ file.liaseSourceId }}</dd>
+          <dt>Liase media ID</dt>
+          <dd>{{ file.liaseMediaId }}</dd>
         </dl>
       </section>
   </div>
@@ -198,6 +304,15 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 </script>
 

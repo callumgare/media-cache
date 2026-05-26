@@ -1,79 +1,67 @@
 <script setup lang="ts">
+import { useMediaQuery } from "@@/stores/media-query";
 import type { QueryFieldCondition } from "@@/types/query-condition";
+import { QUERY_FIELD_DEFINITIONS } from "@@/types/query-field-definitions";
+import { QUERY_FIELD_TYPE_DEFINITIONS } from "@@/types/query-field-type-definitions";
 import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
 
 const props = defineProps<{
   fieldCondition: QueryFieldCondition;
   schemaConfig: QuerySchemaConfig;
+  editMode?: boolean;
 }>();
 
-const fieldType = computed(() => {
-  const fieldSchema = props.schemaConfig.availableFields.find(
-    (fieldSchema) => fieldSchema.id === props.fieldCondition.field,
-  );
-  if (!fieldSchema) {
-    throw Error(
-      `Could not get field schema for field: "${props.fieldCondition.field}"`,
-    );
-  }
-  const fieldType = props.schemaConfig.fieldTypes.find(
-    (fieldType) => fieldType.name === fieldSchema.type,
-  );
+const mediaQuery = useMediaQuery();
 
-  if (!fieldType) {
-    throw Error(
-      `Could not get field type info for field "${props.fieldCondition.id}" of type "${props.fieldCondition.field}"`,
-    );
-  }
-  return fieldType;
+const fieldDef = computed(() =>
+  QUERY_FIELD_DEFINITIONS.find((f) => f.id === props.fieldCondition.field),
+);
+
+const fieldTypeDef = computed(() => {
+  if (!fieldDef.value) return null;
+  return QUERY_FIELD_TYPE_DEFINITIONS.find(
+    (t) => t.dataType === fieldDef.value?.dataType,
+  );
+});
+
+const widgetId = computed(() => {
+  const override = mediaQuery.widgetOverrides[props.fieldCondition.id];
+  if (override) return override;
+  return fieldTypeDef.value?.defaultWidget ?? null;
 });
 </script>
 
 <template>
   <div>
-    <template
-      v-if="fieldType.name === 'text'"
-    >
+    <QueryBuilderFieldConditionEdit
+      v-if="editMode"
+      :field-condition="fieldCondition"
+      :schema-config="schemaConfig"
+    />
+    <template v-else>
       <QueryBuilderInputDropdown
-        v-if="fieldType.getInputType() === 'dropdown'"
+        v-if="widgetId === 'dropdown'"
         :field-condition="fieldCondition"
         :schema-config="schemaConfig"
       />
-      <div v-else>
-        Error
-      </div>
-    </template>
-    <template
-      v-else-if="fieldType.name === 'list of text'"
-    >
       <QueryBuilderInputMultiSelectDropdown
-        v-if="fieldType.getInputType() === 'multi-select dropdown'"
+        v-else-if="widgetId === 'multi-select-dropdown'"
         :field-condition="fieldCondition"
         :schema-config="schemaConfig"
       />
       <QueryBuilderInputListbox
-        v-else-if="fieldType.getInputType() === 'multi-select listbox'"
+        v-else-if="widgetId === 'listbox'"
         :field-condition="fieldCondition"
         :schema-config="schemaConfig"
       />
-      <div v-else>
-        Error
-      </div>
-    </template>
-    <template
-      v-else-if="fieldType.name === 'number range'"
-    >
       <QueryBuilderInputNumberRange
-        v-if="fieldType.getInputType() === 'number range'"
+        v-else-if="widgetId === 'number-range'"
         :field-condition="fieldCondition"
         :schema-config="schemaConfig"
       />
       <div v-else>
-        Error
+        Error: unknown widget for field "{{ fieldCondition.field }}"
       </div>
     </template>
-    <div v-else>
-      Error
-    </div>
   </div>
 </template>

@@ -2,7 +2,7 @@ export type TagFacetCount = {
   id: number;
   name: string;
   count: number;
-  addedIfRemoved: number | null;
+  countAddedIfRemoved: number | null;
 };
 export type SourceFacetCount = {
   liaseSourceId: string;

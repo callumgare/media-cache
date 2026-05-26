@@ -277,6 +277,59 @@ async function waitForScaleWhere(
   return (await handle.jsonValue()) as number;
 }
 
+/**
+ * Wait until the media element's scale is both near `target` and stable for
+ * a short period. This avoids capturing an in-flight animation frame.
+ */
+async function waitForScaleNearStable(
+  page: Page,
+  testId: string,
+  target: number,
+  tolerance = 0.02,
+  timeout = 5_000,
+): Promise<number> {
+  const handle = await page.waitForFunction(
+    ({ id, expected, tol }) => {
+      const el = document.querySelector(
+        `[data-testid="${id}"]`,
+      ) as HTMLElement | null;
+      if (!el) return null;
+
+      const t = getComputedStyle(el).transform;
+      const m = t.match(/matrix\(([^,]+)/);
+      const s = m ? Number.parseFloat(m[1] ?? "1") : 1;
+
+      const stateKey = `__zoomStable_${id}`;
+      const w = window as unknown as Record<
+        string,
+        { lastScale: number; nearSince: number | null } | undefined
+      >;
+      const prev = w[stateKey] ?? { lastScale: s, nearSince: null };
+
+      const nearTarget = Math.abs(s - expected) <= tol;
+      const frameStable = Math.abs(s - prev.lastScale) <= 0.001;
+
+      if (nearTarget && frameStable) {
+        if (prev.nearSince === null) prev.nearSince = performance.now();
+      } else {
+        prev.nearSince = null;
+      }
+
+      prev.lastScale = s;
+      w[stateKey] = prev;
+
+      return prev.nearSince !== null &&
+        performance.now() - prev.nearSince >= 120
+        ? s
+        : null;
+    },
+    { id: testId, expected: target, tol: tolerance },
+    { timeout },
+  );
+
+  return (await handle.jsonValue()) as number;
+}
+
 async function pauseVideo(page: Page) {
   await page.evaluate(() => {
     const video = document.querySelector(
@@ -1176,10 +1229,11 @@ test.describe("Feed – zoom levels: standard video (320×240, 3 levels)", () =>
 
     // ── Step 1: contain → cover ──────────────────────────────────────────
     await clickZoomButton(page, slide);
-    const scaleAtCover = await waitForScaleWhere(
+    const scaleAtCover = await waitForScaleNearStable(
       page,
       "feed-slide-video",
-      (s) => Math.abs(s - 1.333) < 0.05,
+      SCALE.VIDEO_COVER,
+      0.02,
       3_000,
     );
     // Cover ratio for 320×240 in 800×800 ≈ 1.333
@@ -1189,10 +1243,11 @@ test.describe("Feed – zoom levels: standard video (320×240, 3 levels)", () =>
 
     // ── Step 2: cover → natural ──────────────────────────────────────────
     await clickZoomButton(page, slide);
-    const scaleAtNatural = await waitForScaleWhere(
+    const scaleAtNatural = await waitForScaleNearStable(
       page,
       "feed-slide-video",
-      (s) => Math.abs(s - 0.4) < 0.05,
+      SCALE.VIDEO_NATURAL,
+      0.02,
       3_000,
     );
     // Natural-size scale for 320×240 in 800×800 = 320/800 = 0.4
@@ -1202,10 +1257,11 @@ test.describe("Feed – zoom levels: standard video (320×240, 3 levels)", () =>
 
     // ── Step 3: natural → contain (wraps back) ───────────────────────────
     await clickZoomButton(page, slide);
-    const scaleBackAtContain = await waitForScaleWhere(
+    const scaleBackAtContain = await waitForScaleNearStable(
       page,
       "feed-slide-video",
-      (s) => Math.abs(s - 1.0) < 0.05,
+      SCALE.VIDEO_CONTAIN,
+      0.02,
       3_000,
     );
     expect(scaleBackAtContain).toBeCloseTo(SCALE.VIDEO_CONTAIN, 1);
@@ -1246,10 +1302,11 @@ test.describe("Feed – zoom levels: HLS video (320×240, 3 levels)", () => {
 
     // contain → cover
     await clickZoomButton(page, slide);
-    const scaleAtCover = await waitForScaleWhere(
+    const scaleAtCover = await waitForScaleNearStable(
       page,
       "feed-slide-video",
-      (s) => Math.abs(s - 1.333) < 0.05,
+      SCALE.VIDEO_COVER,
+      0.02,
       3_000,
     );
     expect(scaleAtCover).toBeCloseTo(SCALE.VIDEO_COVER, 1);
@@ -1258,10 +1315,11 @@ test.describe("Feed – zoom levels: HLS video (320×240, 3 levels)", () => {
 
     // cover → natural
     await clickZoomButton(page, slide);
-    const scaleAtNatural = await waitForScaleWhere(
+    const scaleAtNatural = await waitForScaleNearStable(
       page,
       "feed-slide-video",
-      (s) => Math.abs(s - 0.4) < 0.05,
+      SCALE.VIDEO_NATURAL,
+      0.02,
       3_000,
     );
     expect(scaleAtNatural).toBeCloseTo(SCALE.VIDEO_NATURAL, 1);
@@ -1270,10 +1328,11 @@ test.describe("Feed – zoom levels: HLS video (320×240, 3 levels)", () => {
 
     // natural → contain
     await clickZoomButton(page, slide);
-    const scaleBackAtContain = await waitForScaleWhere(
+    const scaleBackAtContain = await waitForScaleNearStable(
       page,
       "feed-slide-video",
-      (s) => Math.abs(s - 1.0) < 0.05,
+      SCALE.VIDEO_CONTAIN,
+      0.02,
       3_000,
     );
     expect(scaleBackAtContain).toBeCloseTo(SCALE.VIDEO_CONTAIN, 1);
@@ -1313,10 +1372,11 @@ test.describe("Feed – zoom levels: image (200×150, 3 levels)", () => {
 
     // contain → cover
     await clickZoomButton(page, slide);
-    const scaleAtCover = await waitForScaleWhere(
+    const scaleAtCover = await waitForScaleNearStable(
       page,
       "feed-slide-image",
-      (s) => Math.abs(s - 1.333) < 0.05,
+      SCALE.IMAGE_COVER,
+      0.02,
       3_000,
     );
     expect(scaleAtCover).toBeCloseTo(SCALE.IMAGE_COVER, 1);
@@ -1325,10 +1385,11 @@ test.describe("Feed – zoom levels: image (200×150, 3 levels)", () => {
 
     // cover → natural
     await clickZoomButton(page, slide);
-    const scaleAtNatural = await waitForScaleWhere(
+    const scaleAtNatural = await waitForScaleNearStable(
       page,
       "feed-slide-image",
-      (s) => Math.abs(s - 0.25) < 0.05,
+      SCALE.IMAGE_NATURAL,
+      0.02,
       3_000,
     );
     expect(scaleAtNatural).toBeCloseTo(SCALE.IMAGE_NATURAL, 1);
@@ -1337,10 +1398,11 @@ test.describe("Feed – zoom levels: image (200×150, 3 levels)", () => {
 
     // natural → contain
     await clickZoomButton(page, slide);
-    const scaleBackAtContain = await waitForScaleWhere(
+    const scaleBackAtContain = await waitForScaleNearStable(
       page,
       "feed-slide-image",
-      (s) => Math.abs(s - 1.0) < 0.05,
+      SCALE.IMAGE_CONTAIN,
+      0.02,
       3_000,
     );
     expect(scaleBackAtContain).toBeCloseTo(SCALE.IMAGE_CONTAIN, 1);

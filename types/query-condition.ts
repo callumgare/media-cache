@@ -38,3 +38,21 @@ export const queryConditionSchema: z.ZodType<QueryCondition> = z.union([
   queryConditionGroupSchema,
   queryConditionFieldSchema,
 ]);
+
+// Flat (parent-pointer) representations used by the media-query store and saved searches.
+export type QueryConditionFlatNode = (
+  | Omit<QueryGroupCondition, "conditions">
+  | QueryFieldCondition
+) & { parent: number | null };
+
+export type QueryConditionFlatFieldNode = Extract<
+  QueryConditionFlatNode,
+  { type: "field" }
+>;
+
+export const queryConditionFlatNodeSchema = z.union([
+  queryConditionGroupSchema.omit({ conditions: true }).extend({
+    parent: z.number().nullable(),
+  }),
+  queryConditionFieldSchema.extend({ parent: z.number().nullable() }),
+]);

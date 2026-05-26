@@ -249,6 +249,12 @@ function buildCacheMediaValues(
     .map((fm) => (fm.dateUploaded ? new Date(fm.dateUploaded) : null))
     .filter((d): d is Date => d !== null);
 
+  const createdDates = liaseMedias
+    .map((fm) =>
+      fm.dateOriginallyPublished ? new Date(fm.dateOriginallyPublished) : null,
+    )
+    .filter((d): d is Date => d !== null);
+
   const mainFile =
     files.find((f) => f.type === "full") ??
     files.find((f) => f.type === "main") ??
@@ -261,6 +267,10 @@ function buildCacheMediaValues(
     earliestUploadedAt:
       uploadDates.length > 0
         ? new Date(Math.min(...uploadDates.map((d) => d.getTime())))
+        : null,
+    earliestCreatedAt:
+      createdDates.length > 0
+        ? new Date(Math.min(...createdDates.map((d) => d.getTime())))
         : null,
     creators: [
       ...new Set(
@@ -352,7 +362,7 @@ export async function createOrUpdateCacheMedia({
       )
       .where(
         and(
-          sql`${dbSchema.liaseQueryMedia.liaseId} = ANY(ARRAY[${cacheMediaLiaseIds}])`,
+          inArray(dbSchema.liaseQueryMedia.liaseId, cacheMediaLiaseIds),
           eq(dbSchema.liaseQueryMedia.foundInLatestExecution, true),
         ),
       )

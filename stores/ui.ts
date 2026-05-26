@@ -4,7 +4,6 @@ import { GAMEPAD_MAPPINGS } from "~/lib/gamepad-mappings";
 export const useUiState = defineStore("ui", {
   state: () => ({
     sidebarMobileCollapsed: true,
-    randomSeed: Math.floor(Math.random() * (100000 - 1)),
     debugMode: false,
     mediaBlurred: false,
     lastMediaView: "grid",
@@ -19,7 +18,6 @@ export const useUiState = defineStore("ui", {
     defaultStorage: "cookies",
     keyStorage: {
       sidebarMobileCollapsed: "none",
-      randomSeed: "sessionStorage",
       gamepadMapping: "localStorage",
     },
   },

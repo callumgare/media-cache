@@ -1,3 +1,6 @@
+import type { QueryConditionFlatNode } from "@@/types/query-condition";
+import type { WidgetId } from "@@/types/query-field-type-definitions";
+import type { SortConfig } from "@@/types/sort-config";
 import { explain } from "@drizzle-lab/api/extensions";
 import type { GenericFile, GenericMedia, GenericRequest } from "@liase/core";
 import { relations, sql } from "drizzle-orm";
@@ -139,11 +142,14 @@ export const cacheMedia = pgTable(
   "cache_media",
   {
     id: serial("id").notNull().primaryKey(),
-    createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
+    firstIndexedAt: timestamp("first_indexed_at", { precision: 3 })
+      .notNull()
+      .defaultNow(),
     updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
     title: text("title"),
     description: text("description"),
     earliestUploadedAt: timestamp("earliest_uploaded_at", { precision: 3 }),
+    earliestCreatedAt: timestamp("earliest_created_at", { precision: 3 }),
     creators: text("creators").array().notNull().default(sql`ARRAY[]::text[]`),
     uploaders: text("uploaders")
       .array()
@@ -347,6 +353,45 @@ export const querySecret = pgTable("query_secret", {
 });
 
 export type QuerySecret = typeof querySecret.$inferSelect;
+
+/*
+savedSearch
+
+A per-user saved media search, capturing filter conditions, sort order,
+and per-field widget display preferences.
+*/
+export const savedSearch = pgTable(
+  "saved_search",
+  {
+    id: serial("id").notNull().primaryKey(),
+    createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => user.id),
+    name: text("name").notNull(),
+    conditionNodes: jsonb("condition_nodes")
+      .$type<QueryConditionFlatNode[]>()
+      .notNull(),
+    sort: jsonb("sort").$type<SortConfig>().notNull(),
+    widgetOverrides: jsonb("widget_overrides")
+      .$type<Record<number, WidgetId>>()
+      .notNull()
+      .default({}),
+  },
+  (t) => [
+    uniqueIndex("saved_search__user_id_name_unique_idx").on(t.userId, t.name),
+  ],
+);
+
+export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
+  user: one(user, {
+    fields: [savedSearch.userId],
+    references: [user.id],
+  }),
+}));
+
+export type SavedSearch = typeof savedSearch.$inferSelect;
 
 /*
 liaseQuery

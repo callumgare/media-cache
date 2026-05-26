@@ -2,23 +2,19 @@
 import "primeicons/primeicons.css";
 import { useMediaQuery } from "@@/stores/media-query";
 import type { QueryFieldCondition } from "@@/types/query-condition";
+import { QUERY_FIELD_DEFINITIONS } from "@@/types/query-field-definitions";
 import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
 
 const props = defineProps<{
   fieldCondition: QueryFieldCondition;
   schemaConfig: QuerySchemaConfig;
 }>();
-const fieldConfig = computed(() => {
-  const fieldConfig = props.schemaConfig.availableFields.find(
-    (field) => field.id === props.fieldCondition.field,
-  );
-  if (!fieldConfig) {
-    throw Error(
-      `Got query field condition for undefined field: "${props.fieldCondition.field}"`,
-    );
-  }
-  return fieldConfig;
-});
+const fieldDef = computed(() =>
+  QUERY_FIELD_DEFINITIONS.find((f) => f.id === props.fieldCondition.field),
+);
+const fieldOptions = computed(
+  () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
+);
 const mediaQuery = useMediaQuery();
 
 const listHeight = ref(200);
@@ -46,17 +42,13 @@ const selectedOptions = computed(() =>
     ? (props.fieldCondition.value as string[])
     : []
   )
-    .map((id) =>
-      (fieldConfig.value.availableOptions ?? []).find(
-        (o) => String(o.id) === id,
-      ),
-    )
+    .map((id) => fieldOptions.value.find((o) => String(o.id) === id))
     .filter((o): o is NonNullable<typeof o> => o != null),
 );
 
 const unselectedOptions = computed(() => {
   const query = filterValue.value.toLowerCase();
-  return (fieldConfig.value.availableOptions ?? [])
+  return fieldOptions.value
     .filter((o) => !selectedIds.value.has(String(o.id)))
     .filter((o) => !query || o.name.toLowerCase().includes(query));
 });
@@ -135,7 +127,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
           <InputText
             v-model="filterValue"
             class="filter-input"
-            :placeholder="`Search ${fieldConfig.displayName}`"
+            :placeholder="`Search ${fieldDef?.displayName}`"
           />
           <InputIcon v-if="schemaConfig.loading" class="loading-icon pi pi-spinner pi-spin" />
         </IconField>
@@ -150,9 +142,9 @@ function onResizeHandleTouchstart(event: TouchEvent) {
             <span class="option-label">
               <span class="option-name">{{ option.name }}</span>
               <span
-                v-if="option.addedIfRemoved != null"
+                v-if="option.countAddedIfRemoved != null"
                 class="option-count added-if-removed"
-              >+{{ option.addedIfRemoved }}</span>
+              >+{{ option.countAddedIfRemoved }}</span>
               <span
                 v-else
                 class="option-count"
@@ -204,6 +196,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
         width: 100%;
 
         &:deep(.p-inputtext) {
+          display: block;
           box-shadow: none;
           font-family: inherit;
           font-size: inherit;
