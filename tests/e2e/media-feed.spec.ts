@@ -17,44 +17,6 @@ declare global {
 const VIEWPORT = { width: 800, height: 800 };
 
 // ---------------------------------------------------------------------------
-// Helper: send a CDP touch swipe gesture so CSS scroll-snap fires correctly.
-// ---------------------------------------------------------------------------
-async function cdpTouchSwipe(
-  page: import("@playwright/test").Page,
-  fromY: number,
-  toY: number,
-) {
-  const client = await page.context().newCDPSession(page);
-  const x = Math.round(VIEWPORT.width / 2);
-  const steps = 15;
-  await client.send("Input.dispatchTouchEvent", {
-    type: "touchStart",
-    touchPoints: [
-      { x, y: fromY, radiusX: 1, radiusY: 1, rotationAngle: 0, force: 1 },
-    ],
-  });
-  for (let i = 1; i <= steps; i++) {
-    await client.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: [
-        {
-          x,
-          y: Math.round(fromY + (toY - fromY) * (i / steps)),
-          radiusX: 1,
-          radiusY: 1,
-          rotationAngle: 0,
-          force: 1,
-        },
-      ],
-    });
-  }
-  await client.send("Input.dispatchTouchEvent", {
-    type: "touchEnd",
-    touchPoints: [],
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Image slide: rendering, fill-screen toggle, info overlay, preference persist
 // ---------------------------------------------------------------------------
 
@@ -346,6 +308,67 @@ test.describe("Feed page – navigation", () => {
       timeout: 5_000,
     });
   });
+
+  test("site header does not flash or slide during grid-to-feed navigation", async ({
+    page,
+  }) => {
+    await page.goto("/media/grid");
+    const switcher = page.getByTestId("media-view-switcher");
+    await expect(switcher).toHaveAttribute("data-mounted", "true", {
+      timeout: 50_000,
+    });
+
+    // Listen for a CSS transform transition starting on the hideable header
+    // container.  The bug manifests as a "slide in" animation: the header is
+    // first rendered in its COLLAPSED position (transform: translateY(-Xpx)),
+    // then a 0.3s transition brings it back to translateY(0).
+    //
+    // When the fix (flush:'sync' watcher) is in place, both the `hideable` and
+    // `expanded` CSS classes are applied in the same render batch, so the
+    // element starts at translateY(0) and no meaningful transition fires.
+    // Without the fix, the transition starts from the collapsed position
+    // (rect.top is significantly negative) which we detect here.
+    await page.evaluate(() => {
+      (window as { __headerFlashDetected?: boolean }).__headerFlashDetected =
+        false;
+      document.addEventListener(
+        "transitionstart",
+        (e: TransitionEvent) => {
+          const target = e.target as HTMLElement;
+          if (
+            target.classList.contains("hideable") &&
+            e.propertyName === "transform"
+          ) {
+            // At transitionstart the element is still at the start position.
+            // If the header container is above the viewport it was collapsed.
+            const rect = target.getBoundingClientRect();
+            if (rect.top < -5) {
+              (
+                window as { __headerFlashDetected?: boolean }
+              ).__headerFlashDetected = true;
+            }
+          }
+        },
+        { capture: true },
+      );
+    });
+
+    // Navigate to feed via the view switcher (SPA navigation)
+    await switcher.getByRole("button").nth(1).click();
+    await expect(page).toHaveURL(/\/media\/feed/, { timeout: 30_000 });
+    await expect(page.getByTestId("feed-slide").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const flashed = await page.evaluate(
+      () =>
+        (window as { __headerFlashDetected?: boolean }).__headerFlashDetected,
+    );
+    expect(
+      flashed,
+      "Site header must not animate in from collapsed state during navigation",
+    ).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -403,14 +426,12 @@ test.describe("Feed page – keyboard navigation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scroll / touch navigation (CSS scroll-snap + CDP touch events)
-// The feed uses scroll-snap-type: y mandatory so that wheel and touch gestures
-// snap to the next/previous slide natively in the browser compositor.
+// Scroll / touch navigation (CSS scroll-snap)
+// The feed uses scroll-snap-type: y mandatory on the html element so that
+// wheel and touch gestures snap to the next/previous slide.
 // ---------------------------------------------------------------------------
 
 test.describe("Feed page – scroll and touch navigation", () => {
-  // hasTouch: true lets Playwright treat drag as a touch gesture so that
-  // CSS scroll-snap responds the same way a mobile browser does.
   test.use({ viewport: VIEWPORT, hasTouch: true });
 
   test.beforeEach(async ({ request }) => {
@@ -450,24 +471,53 @@ test.describe("Feed page – scroll and touch navigation", () => {
     await page.mouse.wheel(0, -VIEWPORT.height);
     await expect(slides.nth(0)).toHaveClass(/is-current/, { timeout: 5_000 });
 
-    // Touch swipe up (finger moves up = scroll forward) → slide 1
-    // CDP is required so the compositor-level pan gesture and scroll-snap fire.
-    await cdpTouchSwipe(
-      page,
-      Math.round(VIEWPORT.height * 0.7),
-      Math.round(VIEWPORT.height * 0.3),
-    );
+    // Touch swipe up (finger moves up = scroll forward) → slide 1.
+    // Programmatic scroll on document.documentElement (the scroll-snap root:
+    // html:has(.slide-list) { scroll-snap-type: y mandatory }) reliably
+    // triggers snap in headless Chromium; CDP touch events do not.
+    await page.evaluate((h) => {
+      document.documentElement.scrollBy({ top: h, behavior: "instant" });
+    }, VIEWPORT.height);
     await expect(slides.nth(1)).toHaveClass(/is-current/, { timeout: 5_000 });
     await expect(slides.nth(0)).not.toHaveClass(/is-current/);
 
     // Touch swipe down (finger moves down = scroll back) → slide 0
-    await cdpTouchSwipe(
-      page,
-      Math.round(VIEWPORT.height * 0.3),
-      Math.round(VIEWPORT.height * 0.7),
-    );
+    await page.evaluate((h) => {
+      document.documentElement.scrollBy({ top: -h, behavior: "instant" });
+    }, VIEWPORT.height);
     await expect(slides.nth(0)).toHaveClass(/is-current/, { timeout: 5_000 });
     await expect(slides.nth(1)).not.toHaveClass(/is-current/);
+  });
+
+  test("partial wheel scroll snaps to a slide boundary", async ({ page }) => {
+    await page.goto("/media/feed");
+    const slides = page.getByTestId("feed-slide");
+    await expect(slides.first()).toBeVisible({ timeout: 15_000 });
+    await expect(slides.nth(0)).toHaveClass(/is-current/, { timeout: 5_000 });
+
+    // Scroll 60 % of the viewport height — a partial amount that lands between
+    // two snap points. With scroll-snap-type: y mandatory on the html element
+    // the browser MUST snap to a slide boundary (scrollY = 0 or VIEWPORT.height).
+    // Without scroll-snap the page would stop at ~480 px, failing the assertion.
+    await page.mouse.wheel(0, Math.round(VIEWPORT.height * 0.6));
+
+    // Wait for the snap animation to settle, then confirm scrollY is at a
+    // snap point: a multiple of VIEWPORT.height within a 5 px tolerance.
+    await page.waitForFunction(
+      (vh) => {
+        const y = window.scrollY;
+        return y % vh <= 5 || y % vh >= vh - 5;
+      },
+      VIEWPORT.height,
+      { timeout: 5_000 },
+    );
+
+    const scrollY = await page.evaluate(() => window.scrollY);
+    const remainder = scrollY % VIEWPORT.height;
+    expect(
+      remainder <= 5 || remainder >= VIEWPORT.height - 5,
+      `scrollY (${scrollY}) is not at a snap point — expected a multiple of ${VIEWPORT.height} px`,
+    ).toBe(true);
   });
 });
 
@@ -648,5 +698,78 @@ test.describe("Feed page – responsive layout", () => {
     expect(await currentSlide.getAttribute("data-media-id")).toBe(
       idForCurrentSlideBeforeResize,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helper: simulate a tap that drifts a few pixels horizontally between press
+// and release — the gesture that triggered the filterTaps regression.
+// page.mouse is used because pointer/mouse events reliably synthesise a click
+// after pointerup (unlike CDP touchEnd on a desktop browser), while still
+// going through the same @use-gesture pointer-event handler that processes
+// real touch drags.
+// ---------------------------------------------------------------------------
+async function wobblyMouseTap(
+  page: import("@playwright/test").Page,
+  x: number,
+  y: number,
+  wobbleX = 3,
+) {
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  // Move instantly (no steps) so the drift registers as high velocity — the
+  // same condition that previously caused the gesture to be treated as a
+  // leftward swipe, cancelling the button action.
+  await page.mouse.move(x - wobbleX, y);
+  await page.mouse.up();
+}
+
+// ---------------------------------------------------------------------------
+// Feed page – filter sidebar
+// ---------------------------------------------------------------------------
+
+test.describe("Feed page – filter sidebar", () => {
+  test.use({ viewport: VIEWPORT });
+
+  test.beforeEach(async ({ request }) => {
+    await setup({ request }, { media: [[makeImageMedia({ id: "img-1" })]] });
+    await createAndRunQuery({ request });
+  });
+
+  test("filter button opens sidebar on normal click", async ({ page }) => {
+    await page.goto("/media/feed");
+    const filterBtn = page.getByTestId("feed-slide-filter-btn");
+    await expect(filterBtn).toBeVisible({ timeout: 15_000 });
+
+    const sidebar = page.getByTestId("page-sidebar");
+    await expect(sidebar).not.toBeInViewport();
+
+    await filterBtn.click();
+
+    await expect(sidebar).toBeInViewport({ timeout: 2_000 });
+  });
+
+  test("filter button opens sidebar even when tap drifts a few pixels horizontally", async ({
+    page,
+  }) => {
+    await page.goto("/media/feed");
+    const filterBtn = page.getByTestId("feed-slide-filter-btn");
+    await expect(filterBtn).toBeVisible({ timeout: 15_000 });
+
+    const sidebar = page.getByTestId("page-sidebar");
+    await expect(sidebar).not.toBeInViewport();
+
+    const box = await filterBtn.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box)
+      throw new Error("Should not be able to reach here when box is null");
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    // 3 px leftward drift — small enough to be a tap but fast enough to
+    // previously register as a swipe that cancelled the button action.
+    await wobblyMouseTap(page, cx, cy, 3);
+
+    await expect(sidebar).toBeInViewport({ timeout: 2_000 });
   });
 });

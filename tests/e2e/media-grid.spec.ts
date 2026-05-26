@@ -218,12 +218,13 @@ test.describe("Media grid – infinite scroll", () => {
 
     await expect(items).toHaveCount(10, { timeout: 5_000 });
 
-    // Scroll to the bottom to trigger loading the next page
+    // Scroll to the bottom to trigger loading the next page.
+    // useInfiniteScroll watches .base-layout-contents (the overflow container),
+    // not .page (a non-scrolling descendant inside it).
     await page.evaluate(() => {
-      const el = document.querySelector(".page");
-      if (!el) throw new Error(".page element not found");
+      const el = document.querySelector(".base-layout-contents");
+      if (!el) throw new Error(".base-layout-contents element not found");
       el.scrollTop = el.scrollHeight;
-      el.dispatchEvent(new Event("scroll", { bubbles: true }));
     });
 
     await expect(items).toHaveCount(20, { timeout: 15_000 });

@@ -72,7 +72,7 @@ const {
 const scrollContainer = ref<HTMLElement | null>(null);
 
 onMounted(() => {
-  scrollContainer.value = document.querySelector(".page");
+  scrollContainer.value = document.querySelector(".base-layout-contents");
 });
 
 const { reset: resetInfiniteScroll } = useInfiniteScroll(

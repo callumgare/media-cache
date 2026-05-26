@@ -6,6 +6,11 @@ import { useDrag } from "@vueuse/gesture";
 import type MediaFilterSidebar from "~/components/MediaFilterSidebar.vue";
 import { clamp } from "~/lib/general";
 
+const props = defineProps<{
+  alwaysOverlay?: boolean;
+  hideHeader?: boolean;
+}>();
+
 const uiState = useUiState();
 const sidebarRef =
   useTemplateRef<InstanceType<typeof MediaFilterSidebar>>("sidebar");
@@ -15,6 +20,9 @@ const sidebarExpandButtonElm = ref<HTMLButtonElement | null>(null);
 
 const windowSize = useWindowSize({ initialWidth: 1000 });
 const windowWidth = computed(() => windowSize.width.value);
+const isOverlayMode = computed(
+  () => props.alwaysOverlay || windowWidth.value <= 500,
+);
 
 // Pixel transform applied during drag. null = CSS class handles open/closed position.
 // CSS uses translateX(-100%) for closed (= sidebar's own width, always correct without JS).
@@ -77,7 +85,20 @@ onMounted(() => {
 // Update sidebar position when container is dragged. We use the container rather than the sidebar
 // itself so that it can be dragged out from its closed state off the edge of the page.
 const dragController = useDrag(
-  ({ offset: [dx], last, swipe }) => {
+  ({ offset: [dx], last, first, event, cancel, canceled, swipe }) => {
+    // If the gesture starts on an interactive element, cancel it immediately so
+    // the element's own click handler fires uninterrupted. Without this,
+    // filterTaps would call stopPropagation() on the click event when movement
+    // >= TAP_DISTANCE_THRESHOLD (3 px), swallowing the button action.
+    if (first) {
+      const target = event?.target as HTMLElement | null;
+      if (target?.closest('button, a, [role="button"]')) {
+        cancel();
+        return;
+      }
+    }
+    if (canceled) return;
+
     const w = getSidebarWidth();
     if (w === 0) return; // not mounted yet
     if (last) {
@@ -112,18 +133,23 @@ const dragController = useDrag(
   },
 );
 
-// Enable dragging only when window is narrow enough for collapsible sidebar.
-// Also collapse sidebar when crossing the threshold.
+// Enable dragging in overlay mode (mobile viewport or alwaysOverlay prop).
+// Also collapse sidebar when crossing the mobile threshold (but not when alwaysOverlay).
 watch(
   windowWidth,
   (newWidth, oldWidth) => {
     if (!dragController.config.drag) return;
-    dragController.config.drag.enabled = newWidth <= 500;
-    if (newWidth > 500) {
+    dragController.config.drag.enabled = isOverlayMode.value;
+    if (!isOverlayMode.value) {
       dragTranslateX.value = null;
       isDragAnimating.value = false;
     }
-    if (oldWidth !== undefined && oldWidth > 500 && newWidth <= 500) {
+    if (
+      !props.alwaysOverlay &&
+      oldWidth !== undefined &&
+      oldWidth > 500 &&
+      newWidth <= 500
+    ) {
       uiState.sidebarMobileCollapsed = true;
       syncDragOffset(true);
     }
@@ -163,7 +189,10 @@ async function toggleSidebar() {
 </script>
 
 <template>
-  <NuxtLayout name="base">
+  <NuxtLayout
+    name="base"
+    :hide-header="props.hideHeader"
+  >
     <template #header-center>
       <slot name="header-center" />
     </template>
@@ -178,7 +207,11 @@ async function toggleSidebar() {
     <div
       ref="containerElm"
       class="container"
-      :class="uiState.sidebarMobileCollapsed && 'sidebar-collapsed-on-mobile'"
+      :class="[
+        uiState.sidebarMobileCollapsed && 'sidebar-collapsed-on-mobile',
+        isOverlayMode && 'as-overlay',
+        props.hideHeader && 'hide-header',
+      ]"
     >
       <MediaFilterSidebar
         id="page-sidebar"
@@ -219,23 +252,26 @@ async function toggleSidebar() {
 
   .container {
     --default-sidebar-width: 250px;
+    --sidebar-z-index: 3;
 
-    overflow: auto;
     display: grid;
     grid-template-columns: var(--default-sidebar-width) 1fr;
     gap: 0;
     transition: grid-template-columns 0.3s ease-in-out;
-    flex: 1 1 auto;
+    flex: 1 0 auto;
 
     .page {
-      overflow: auto;
       padding: 1em;
     }
 
+
     .sidebar {
-      width: var(--default-sidebar-width);
-      height: 100%;
-      z-index: 3;
+      width: min(var(--default-sidebar-width), 90vw);
+      position: sticky;
+      top: 0;
+      align-self: start;
+      max-height: 100vh;
+      z-index: var(--sidebar-z-index);
       transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out;
       overflow: hidden auto;
       background: var(--primary-background);
@@ -243,7 +279,7 @@ async function toggleSidebar() {
 
     .toggle-sidebar {
       position: absolute;
-      z-index: 2;
+      z-index: calc(var(--sidebar-z-index) - 1);
       top: 2em;
       background: #ffffff91;
       border-radius: 0 1em 1em 0;
@@ -265,6 +301,58 @@ async function toggleSidebar() {
       padding-left: 0.5em;
     }
 
+    /* Overlay mode: sidebar slides in over the page content.
+    Applied on mobile (via JS adding this class) and when alwaysOverlay prop is set. */
+    &.as-overlay {
+      position: relative;
+      grid-template-columns: 1fr;
+      flex: 1 1 auto;
+      --sidebar-z-index: calc(var(--z-index-overlay) + 10); /* put on top of header */
+
+      .page {
+        padding: 1em 0;
+      }
+
+      /* Sidebar is fixed to the viewport so it overlays header and all content. */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        max-height: 100vh;
+        align-self: unset;
+        transform: translateX(-100%); /* closed by default */
+        transition: transform 0.3s ease-out;
+      }
+
+      &:not(.sidebar-collapsed-on-mobile) .sidebar {
+        transform: translateX(0);
+      }
+
+      /* Shadow is also fixed so it covers the full viewport including the header. */
+      .sidebar-shadow {
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        top: 0;
+        left: 0;
+        z-index: calc(var(--sidebar-z-index) - 1);
+        background-color: light-dark(#0000005e, #0000008e);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease-in-out;
+        transition-delay: 0s;
+      }
+
+      &:not(.sidebar-collapsed-on-mobile) .sidebar-shadow {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+
+    &.hide-header .page {
+      padding: 0;
+    }
   }
 
   @media (width <= 500px) {
@@ -272,61 +360,14 @@ async function toggleSidebar() {
       display: initial;
     }
 
-    .container {
-      /* Use overflow:hidden so the sidebar can slide in from off-screen without being clipped
-         by an overflow:auto scroll container (which breaks position:fixed on iOS Safari).
-         The .page div handles its own scrolling via its own overflow:auto. */
-      overflow: hidden;
-      position: relative;
-      grid-template-columns: 1fr;
-
-      .page {
-        padding: 1em 0;
-        overflow: auto;
-      }
-
-      /* Sidebar overlays the page. Width is pure CSS (90vw), so it's always correct
-         without JS. Closed position uses translateX(-100%) = exactly the element's
-         own width, so it stays perfectly off-screen on any resize without JS updates. */
-      .sidebar {
-        position: absolute;
-        top: 0;
-        left: 0;
-        height: 100%;
-        width: 90vw;
-        transform: translateX(-100%); /* closed by default */
-      }
-
-      /* Open state */
-      &:not(.sidebar-collapsed-on-mobile) .sidebar {
-        transform: translateX(0);
-      }
-
-      &.sidebar-collapsed-on-mobile {
-        .sidebar {
-          padding-left: 0;
-          padding-right: 0;
-        }
-      }
-
-      &:not(.sidebar-collapsed-on-mobile) {
-        .sidebar-shadow {
-          content: '';
-          display: block;
-          position: absolute;
-          width: 100%;
-          background-color: light-dark(#0000005e, #0000008e);
-          height: 100%;
-          top: 0;
-          left: 0;
-          z-index: 1;
-        }
-      }
+    /* On mobile the sidebar takes full-width treatment; JS applies .as-overlay for the rest */
+    .container.as-overlay .sidebar {
+      width: 90vw;
     }
   }
 
   @media (width > 500px) {
-    .sidebar {
+    .container:not(.as-overlay) .sidebar {
       transform: initial !important; /* override any inline drag transform */
       transition: none !important;
     }

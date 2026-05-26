@@ -39,6 +39,15 @@
     <!-- Right-side action buttons -->
     <div class="action-buttons" data-testid="feed-slide-actions">
       <Button
+        icon="pi pi-filter"
+        rounded
+        text
+        class="action-btn"
+        aria-label="Show filters"
+        data-testid="feed-slide-filter-btn"
+        @click="uiState.sidebarMobileCollapsed = false"
+      />
+      <Button
         icon="pi pi-sync"
         rounded
         text
@@ -101,6 +110,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUiState } from "@@/stores/ui";
 import { useUserPreferences } from "@@/stores/user-preferences";
 import type { APIMedia } from "@@/types/api-media";
 import type { z } from "zod";
@@ -118,6 +128,8 @@ const emit = defineEmits<(e: "ended") => void>();
 
 const prefs = useUserPreferences();
 prefs.init();
+
+const uiState = useUiState();
 
 // ─── Media file resolution ─────────────────────────────────────────────────
 

@@ -1,5 +1,9 @@
 <template>
-  <NuxtLayout name="base">
+  <NuxtLayout
+    name="with-sidebar"
+    :always-overlay="true"
+    :hide-header="true"
+  >
     <template #header-center>
       <MediaViewSwitcher />
     </template>
@@ -53,7 +57,6 @@ import { useEventListener } from "@vueuse/core";
 
 definePageMeta({
   layout: false,
-  hideHeader: true,
 });
 
 const {

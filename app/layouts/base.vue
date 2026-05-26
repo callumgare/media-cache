@@ -55,11 +55,28 @@ const breadcrumbs = computed(() => {
   return isBreadcrumbs(meta) ? meta : undefined;
 });
 
+const props = defineProps<{
+  hideHeader?: boolean;
+}>();
+
 const uiState = useUiState();
 
 const headerContainerRef = ref<HTMLElement | null>(null);
-const headerHiddenByDefault = computed(() => !!route.meta.hideHeader);
-const headerExpanded = ref(false);
+const headerHiddenByDefault = computed(
+  () => props.hideHeader ?? !!route.meta.hideHeader,
+);
+// On a SPA navigation to a hideable page, base.vue may be remounted from
+// scratch (different layout configuration between pages). Initialising
+// headerExpanded here — before the first render — ensures the template always
+// sees `hideable + expanded` together and never renders the collapsed state.
+// We guard with import.meta.client because window is not available on the
+// server; direct page loads have history.state.back === null so they still
+// start collapsed.
+const headerExpanded = ref(
+  import.meta.client
+    ? headerHiddenByDefault.value && !!window.history.state?.back
+    : false,
+);
 
 // Detect a fine-pointer (mouse/trackpad) device. Set in onMounted to avoid SSR mismatch.
 const hasMouse = ref(false);
@@ -77,15 +94,6 @@ onMounted(() => {
   hasMouse.value = window.matchMedia(
     "(hover: hover) and (pointer: fine)",
   ).matches;
-
-  // Vue Router resets history.state.back to null on every fresh page load
-  // and reload (via its own replaceState during initialisation), and sets it
-  // to the previous path on every SPA push. So non-null == SPA navigation.
-  const fromSpaNavigation = !!window.history.state?.back;
-
-  if (headerHiddenByDefault.value && fromSpaNavigation) {
-    headerExpanded.value = true;
-  }
 
   // Auto-collapse the header when the cursor leaves the top region, but only
   // after it has entered the region at least once since the header was expanded.
@@ -134,27 +142,36 @@ onMounted(() => {
   document.addEventListener("keydown", keydownHandler);
 });
 
-// SPA navigation to a hideable page: always show the header, then let the
-// timer collapse it if the mouse is already outside the top region.
-// Direct load / page reload of a hideable page: headerExpanded stays false
-// (its initial value) so the header is collapsed from the start.
-watch(headerHiddenByDefault, (isHideable, wasHideable) => {
-  if (isHideable && !wasHideable) {
-    // Always show on SPA navigation.
-    headerExpanded.value = true;
-  } else if (!isHideable) {
-    // Defer the state reset to the next tick so that the CSS collapse
-    // transition doesn't play while the hideable page is still in the DOM
-    // during the layout swap.
-    clearTimeout(collapseTimer ?? undefined);
-    collapseTimer = null;
-    nextTick(() => {
-      if (!headerHiddenByDefault.value) {
-        headerExpanded.value = false;
-      }
-    });
-  }
-});
+// Handles the case where base.vue is kept alive across navigations and
+// headerHiddenByDefault changes value in the same component instance — e.g.
+// navigating between two pages that both use an explicit <NuxtLayout> but with
+// different hideHeader values.
+//
+// SPA navigations that fully remount base.vue are handled by the headerExpanded
+// ref initialisation above instead.
+//
+// flush:'sync' ensures headerExpanded is set before the first post-change
+// render, preventing a frame where the element has 'hideable' without 'expanded'.
+watch(
+  headerHiddenByDefault,
+  (isHideable, wasHideable) => {
+    if (isHideable && !wasHideable) {
+      headerExpanded.value = true;
+    } else if (!isHideable) {
+      // Defer the state reset to the next tick so that the CSS collapse
+      // transition doesn't play while the hideable page is still in the DOM
+      // during the layout swap.
+      clearTimeout(collapseTimer ?? undefined);
+      collapseTimer = null;
+      nextTick(() => {
+        if (!headerHiddenByDefault.value) {
+          headerExpanded.value = false;
+        }
+      });
+    }
+  },
+  { flush: "sync" },
+);
 
 // Touch device: collapse when a pointer-down lands outside the header.
 let removeOutsideTapListener: (() => void) | null = null;

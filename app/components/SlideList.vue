@@ -312,6 +312,7 @@ html:has(.slide-list) {
 .slide-list {
   position: relative;
   width: 100%;
+  min-height: 100vh;
 }
 .status-indicator {
   position: fixed;
