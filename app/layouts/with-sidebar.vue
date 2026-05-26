@@ -20,8 +20,14 @@ const sidebarExpandButtonElm = ref<HTMLButtonElement | null>(null);
 
 const windowSize = useWindowSize({ initialWidth: 1000 });
 const windowWidth = computed(() => windowSize.width.value);
+
+// isMounted is false during SSR and hydration, true after mount.
+// This prevents a hydration class mismatch: the server renders without 'as-overlay'
+// (initialWidth: 1000 → not narrow), and the client must match that during hydration
+// even when the actual window is narrow.
+const isMounted = ref(false);
 const isOverlayMode = computed(
-  () => props.alwaysOverlay || windowWidth.value <= 500,
+  () => props.alwaysOverlay || (isMounted.value && windowWidth.value <= 500),
 );
 
 // Pixel transform applied during drag. null = CSS class handles open/closed position.
@@ -53,6 +59,9 @@ function syncDragOffset(collapsed: boolean) {
 
 // Disable Safari iOS back gesture so it doesn't interfere with sidebar gesture
 onMounted(() => {
+  // Allow isOverlayMode to reflect the real window width now that we're on the client.
+  isMounted.value = true;
+
   // Sync drag controller's internal offset with the real sidebar pixel width
   syncDragOffset(uiState.sidebarMobileCollapsed);
 
@@ -139,28 +148,33 @@ const dragController = useDrag(
 );
 
 // Enable dragging in overlay mode (mobile viewport or alwaysOverlay prop).
-// Also collapse sidebar when crossing the mobile threshold (but not when alwaysOverlay).
+// Watch isOverlayMode directly so drag is also enabled/disabled on the post-mount
+// update when isMounted flips to true (windowWidth itself doesn't change then).
 watch(
-  windowWidth,
-  (newWidth, oldWidth) => {
+  isOverlayMode,
+  (overlay) => {
     if (!dragController.config.drag) return;
-    dragController.config.drag.enabled = isOverlayMode.value;
-    if (!isOverlayMode.value) {
+    dragController.config.drag.enabled = overlay;
+    if (!overlay) {
       dragTranslateX.value = null;
       isDragAnimating.value = false;
-    }
-    if (
-      !props.alwaysOverlay &&
-      oldWidth !== undefined &&
-      oldWidth > 500 &&
-      newWidth <= 500
-    ) {
-      uiState.sidebarMobileCollapsed = true;
-      syncDragOffset(true);
     }
   },
   { immediate: true },
 );
+
+// Collapse sidebar when crossing the 500px threshold (but not when alwaysOverlay).
+watch(windowWidth, (newWidth, oldWidth) => {
+  if (
+    !props.alwaysOverlay &&
+    oldWidth !== undefined &&
+    oldWidth > 500 &&
+    newWidth <= 500
+  ) {
+    uiState.sidebarMobileCollapsed = true;
+    syncDragOffset(true);
+  }
+});
 
 // When sidebarMobileCollapsed changes programmatically (not via toggle button), clear any
 // drag state and re-sync the drag controller offset.
@@ -216,6 +230,7 @@ async function toggleSidebar() {
         uiState.sidebarMobileCollapsed && 'sidebar-collapsed-on-mobile',
         isOverlayMode && 'as-overlay',
         props.hideHeader && 'hide-header',
+        isMounted && 'has-mounted',
       ]"
     >
       <MediaFilterSidebar
@@ -260,6 +275,7 @@ async function toggleSidebar() {
 
     .page {
       padding: 1em;
+      grid-column: 2;
     }
 
 
@@ -270,7 +286,7 @@ async function toggleSidebar() {
       align-self: start;
       max-height: 100vh;
       z-index: var(--sidebar-z-index);
-      transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out;
+      transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out, transform 0.3s ease-out;
       overflow: hidden auto;
       background: var(--primary-background);
     }
@@ -280,6 +296,7 @@ async function toggleSidebar() {
       display: block;
       position: absolute;
       background-color: inherit;
+      opacity: 0;
       transition: background-color 0.1s ease-in-out;
       transition-delay: 0.05s;
     }
@@ -288,7 +305,7 @@ async function toggleSidebar() {
     Applied on mobile (via JS adding this class) and when alwaysOverlay prop is set. */
     &.as-overlay {
       position: relative;
-      grid-template-columns: 1fr;
+      grid-template-columns: 0 1fr;
       flex: 1 1 auto;
       --sidebar-z-index: calc(var(--z-index-overlay) + 10); /* put on top of header */
 
@@ -344,6 +361,18 @@ async function toggleSidebar() {
   @media (width <= 500px) {
     .toggle-sidebar {
       display: initial;
+    }
+
+    /* Before JS applies .as-overlay (i.e. before mount), hide the sidebar so it
+       doesn't flash in the grid layout and then slide out via CSS transition.
+       After mount (.has-mounted), the sidebar stays in the grid so it can
+       animate out when the viewport crosses the threshold. */
+    .container:not(.as-overlay):not(.has-mounted) {
+      grid-template-columns: 1fr;
+
+      .sidebar {
+        display: none;
+      }
     }
 
     /* On mobile the sidebar takes full-width treatment; JS applies .as-overlay for the rest */

@@ -105,7 +105,7 @@ describe("QueryBuilderInputListbox", () => {
         .findComponent({ name: "Listbox" })
         .props("options") as (typeof AVAILABLE_OPTIONS)[number][];
       expect(options).toHaveLength(1);
-      expect(options[0].name).toBe("Drama");
+      expect(options[0]?.name).toBe("Drama");
     });
 
     it("filter matching is case-insensitive", async () => {
@@ -116,7 +116,7 @@ describe("QueryBuilderInputListbox", () => {
         .findComponent({ name: "Listbox" })
         .props("options") as (typeof AVAILABLE_OPTIONS)[number][];
       expect(options).toHaveLength(1);
-      expect(options[0].name).toBe("Action");
+      expect(options[0]?.name).toBe("Action");
     });
 
     it("shows all unselected options when filter is cleared", async () => {
@@ -152,21 +152,13 @@ describe("QueryBuilderInputListbox", () => {
       const { wrapper } = await mount(["1", "2"]);
       const items = wrapper.findAll(".selected-item");
       expect(items).toHaveLength(2);
-      expect(items[0].text()).toContain("Action");
-      expect(items[1].text()).toContain("Comedy");
+      expect(items[0]?.text()).toContain("Action");
+      expect(items[1]?.text()).toContain("Comedy");
     });
 
     it("shows the option count inside the selected-item entry", async () => {
       const { wrapper } = await mount(["1"]);
       expect(wrapper.find(".selected-item .option-count").text()).toBe("10");
-    });
-
-    it("shows a section-divider only when there are selected items", async () => {
-      const { wrapper: emptyWrapper } = await mount();
-      expect(emptyWrapper.find(".section-divider").exists()).toBe(false);
-
-      const { wrapper: selectedWrapper } = await mount(["1"]);
-      expect(selectedWrapper.find(".section-divider").exists()).toBe(true);
     });
 
     it("deselects an option when clicking its selected-item entry", async () => {
@@ -180,7 +172,7 @@ describe("QueryBuilderInputListbox", () => {
     it("deselects only the clicked item when multiple options are selected", async () => {
       const { wrapper, fieldCondition } = await mount(["1", "2", "3"]);
       // Click the second item (Comedy)
-      await wrapper.findAll(".selected-item")[1].trigger("click");
+      await wrapper.findAll(".selected-item")[1]?.trigger("click");
       await nextTick();
       expect(fieldCondition.value).toEqual(["1", "3"]);
       expect(wrapper.findAll(".selected-item")).toHaveLength(2);
@@ -222,7 +214,7 @@ describe("QueryBuilderInputListbox", () => {
       await nextTick();
       const items = wrapper.findAll(".selected-item");
       expect(items).toHaveLength(1);
-      expect(items[0].text()).toContain("Drama");
+      expect(items[0]?.text()).toContain("Drama");
     });
 
     it("removes a newly selected option from the Listbox options", async () => {

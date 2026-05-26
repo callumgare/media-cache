@@ -65,17 +65,17 @@ const headerContainerRef = ref<HTMLElement | null>(null);
 const headerHiddenByDefault = computed(
   () => props.hideHeader ?? !!route.meta.hideHeader,
 );
-// On a SPA navigation to a hideable page, base.vue may be remounted from
-// scratch (different layout configuration between pages). Initialising
-// headerExpanded here — before the first render — ensures the template always
-// sees `hideable + expanded` together and never renders the collapsed state.
-// We guard with import.meta.client because window is not available on the
-// server; direct page loads have history.state.back === null so they still
-// start collapsed.
+// On a SPA navigation to a hideable page, base.vue is remounted on the
+// client only (no SSR). Initialising headerExpanded here — before the first
+// render — ensures the template always sees `hideable + expanded` together
+// and never renders the collapsed state that would trigger a slide-in
+// transition. We guard with import.meta.client because window is not
+// available during SSR. For a direct page load history.state.back is null,
+// so the header starts collapsed and matches the server-rendered HTML.
 const headerExpanded = ref(
-  import.meta.client
-    ? headerHiddenByDefault.value && !!window.history.state?.back
-    : false,
+  import.meta.client &&
+    headerHiddenByDefault.value &&
+    !!window.history.state?.back,
 );
 
 // Detect a fine-pointer (mouse/trackpad) device. Set in onMounted to avoid SSR mismatch.
@@ -307,6 +307,11 @@ onUnmounted(() => {
   /********************
   Custom
   ********************/
+  html,
+  body {
+    /* Prevent iOS Safari swipe-right-to-go-back navigation gesture (iOS 16+). */
+    overscroll-behavior-x: contain;
+  }
   body {
     font-family: sans-serif;
     background: var(--primary-background);

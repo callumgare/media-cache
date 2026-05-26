@@ -134,9 +134,10 @@ function onResizeHandleTouchstart(event: TouchEvent) {
           <InputIcon class="pi pi-search" />
           <InputText
             v-model="filterValue"
+            class="filter-input"
             :placeholder="`Search ${fieldConfig.displayName}`"
           />
-          <InputIcon v-if="schemaConfig.loading" class="pi pi-spinner pi-spin" />
+          <InputIcon v-if="schemaConfig.loading" class="loading-icon pi pi-spinner pi-spin" />
         </IconField>
 
         <template v-if="selectedOptions.length">

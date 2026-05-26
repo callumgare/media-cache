@@ -369,6 +369,44 @@ test.describe("Feed page – navigation", () => {
       "Site header must not animate in from collapsed state during navigation",
     ).toBe(false);
   });
+  test("no Vue hydration errors when reloading feed after SPA navigation", async ({
+    page,
+  }) => {
+    // Navigate from grid to feed via SPA — this sets history.state.back.
+    await page.goto("/media/grid");
+    const switcher = page.getByTestId("media-view-switcher");
+    await expect(switcher).toHaveAttribute("data-mounted", "true", {
+      timeout: 50_000,
+    });
+    await switcher.getByRole("button").nth(1).click();
+    await expect(page).toHaveURL(/\/media\/feed/, { timeout: 30_000 });
+    await expect(page.getByTestId("feed-slide").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Now reload — the server renders headerExpanded=false but without the fix
+    // the client initialises to true (because history.state.back is set),
+    // causing a Vue hydration mismatch warning.
+    const hydrationWarnings: string[] = [];
+    page.on("console", (msg) => {
+      if (
+        (msg.type() === "warning" || msg.type() === "error") &&
+        msg.text().includes("Hydration")
+      ) {
+        hydrationWarnings.push(msg.text());
+      }
+    });
+
+    await page.reload();
+    await expect(page.getByTestId("feed-slide").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    expect(
+      hydrationWarnings,
+      "No Vue hydration warnings/errors should occur when reloading /media/feed after SPA navigation",
+    ).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -917,7 +955,7 @@ test.describe("Feed page – filter sidebar", () => {
     );
 
     const heightAfter = (await listbox.boundingBox())?.height;
-    expect(heightAfter).toBeGreaterThan(heightBefore);
+    expect(heightAfter).toBeGreaterThan(heightBefore ?? 0);
   });
 });
 
