@@ -43,7 +43,7 @@ const TEST_REQUEST = { source: "test-source", queryType: "test-handler" };
 const VIEWPORT = { width: 800, height: 800 };
 
 /**
- * Expected Panzoom scales for a 320×240 media in an 800×800 viewport:
+ * Expected CSS scales for a 320×240 media in an 800×800 viewport:
  *  - natural:  scale = 320/800 = 0.4   (visual content = 320×240 px)
  *  - contain:  scale = 1.0             (visual content = 800×600 px)
  *  - cover:    scale = (800/240)/(800/320) ≈ 1.333 (fills container)
@@ -232,7 +232,7 @@ async function waitForImageLoad(page: Page) {
 }
 
 /**
- * Read the current Panzoom scale from the CSS transform of the media element
+ * Read the current scale from the CSS transform of the media element
  * identified by `testId`.  Returns 1 if no transform is set.
  */
 async function getMediaScale(page: Page, testId: string): Promise<number> {
@@ -248,7 +248,7 @@ async function getMediaScale(page: Page, testId: string): Promise<number> {
 }
 
 /**
- * Wait until the media element's Panzoom scale satisfies `condition`
+ * Wait until the media element's scale satisfies `condition`
  * (a serialisable expression evaluated in the browser with `s` as the scale).
  * Returns the scale value when the condition is met.
  */
@@ -545,7 +545,7 @@ async function movePinch(
 /**
  * Poll until the named media element's visual centre (via getBoundingClientRect)
  * is within `tolerance` pixels of `(expectedCx, expectedCy)`.
- * Handles the requestAnimationFrame delay that Panzoom uses for DOM updates.
+ * Handles CSS transition delays on the element.
  */
 async function waitForMediaCenterNear(
   page: Page,
@@ -566,7 +566,12 @@ async function waitForMediaCenterNear(
       const actualCy = r.top + r.height / 2;
       return Math.abs(actualCx - cx) < tol && Math.abs(actualCy - cy) < tol;
     },
-    [testId, expectedCx, expectedCy, tolerance] as [string, number, number, number],
+    [testId, expectedCx, expectedCy, tolerance] as [
+      string,
+      number,
+      number,
+      number,
+    ],
     { timeout },
   );
 }
@@ -893,8 +898,7 @@ test.describe("Feed – pinch to zoom", () => {
       const box = await getMediaAreaBox(slide);
       const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 
-      // Wait for Panzoom to apply the cover scale.  The composable loads
-      // Panzoom via a dynamic import in onMounted, so the transform may not be
+      // Wait for the cover scale to be applied.  The transform may not be
       // set immediately when loadedmetadata fires — poll until it appears.
       // The video fixture (320 × 240, 4:3) in an 800 × 800 viewport gives
       // coverRatio = 800/240 / (800/320) ≈ 1.333.
@@ -943,7 +947,7 @@ test.describe("Feed – pinch to zoom", () => {
       await releasePinch(page, center, 170);
       await expect(slide).toHaveClass(/fill-screen/, { timeout: 1_000 });
 
-      // After release, Panzoom snaps back to coverScale.
+      // After release, snaps back to coverScale.
       const scaleAfterRelease = await page.evaluate(() => {
         const video = document.querySelector(
           '[data-testid="feed-slide-video"]',
@@ -963,11 +967,11 @@ test.describe("Feed – pinch to zoom", () => {
 //
 // Single-touch swipes on the media area must NOT block the browser's native
 // CSS scroll-snap navigation between slides.  The root cause of breakage is
-// Panzoom's default of setting `touch-action: none` on the video element and
-// its parent, which tells the browser to suppress ALL touch-based scrolling.
+// `touch-action: none` on the video element (the browser default when the
+// property isn't explicitly set), which suppresses ALL touch-based scrolling.
 //
-// Fix: pass `touchAction: 'pan-y'` to the Panzoom constructor so the browser
-// is free to handle vertical swipes while we still intercept 2-touch pinches.
+// Fix: set `touch-action: pan-y` on the media element in initTransform so the
+// browser is free to handle vertical swipes while we still intercept 2-touch pinches.
 
 test.describe("Feed – scroll: single-touch must not block native navigation", () => {
   test.use({ viewport: VIEWPORT, hasTouch: true });
@@ -980,21 +984,21 @@ test.describe("Feed – scroll: single-touch must not block native navigation", 
     await createAndRunQuery({ request });
   });
 
-  test("video element touch-action is not none after Panzoom is applied", async ({
+  test("video element touch-action allows vertical scroll", async ({
     page,
   }) => {
     await gotoFeedWithSlide(page);
     await waitForVideoMetadata(page);
 
-    // Wait for Panzoom to initialise (it sets inline style on the element).
+    // Wait for initTransform to run (it sets inline style on the element).
     await page.waitForFunction(
       () => document.querySelector('[data-testid="feed-slide-video"]') !== null,
       { timeout: 5_000 },
     );
 
-    // Panzoom sets `el.style.touchAction` (inline).  If the value is 'none'
-    // (the Panzoom default) the browser refuses to scroll when the user swipes
-    // anywhere over the video, breaking slide-to-slide navigation.
+    // initTransform sets `el.style.touchAction = 'pan-y'` (inline).  If the value
+    // is 'none' the browser refuses to scroll when the user swipes anywhere over
+    // the video, breaking slide-to-slide navigation.
     const { videoTouchAction, parentTouchAction } = await page.evaluate(() => {
       const video = document.querySelector(
         '[data-testid="feed-slide-video"]',
@@ -1048,8 +1052,8 @@ test.describe("Feed – unlimited zoom during pinch gesture", () => {
     const { slide } = await gotoFeedWithSlide(page);
     await waitForVideoMetadata(page);
 
-    // Wait for Panzoom to finish its async init: it sets inline touch-action
-    // and style.transform on the media element once it's ready.
+    // Wait for initTransform to run: it sets inline touch-action and
+    // style.transform on the media element.
     await page.waitForFunction(
       () => {
         const el = document.querySelector(
@@ -1064,12 +1068,11 @@ test.describe("Feed – unlimited zoom during pinch gesture", () => {
     const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 
     // Spread from 20 → 300 px = 15× scale.
-    // Panzoom applies the transform via requestAnimationFrame, so we must
-    // poll until the scale updates rather than reading it synchronously.
+    // Poll until the scale updates rather than reading it synchronously.
     await holdPinch(page, center, 20, 300);
 
-    // Wait for Panzoom to apply the new scale (rAF-based), then capture it
-    // while the pinch is still held (before releasePinch fires touchend).
+    // Poll until the scale updates, then capture it while the pinch is
+    // still held (before releasePinch fires touchend).
     const scaleDuringPinch = await waitForScaleWhere(
       page,
       "feed-slide-video",
@@ -1160,7 +1163,7 @@ test.describe("Feed – zoom levels: standard video (320×240, 3 levels)", () =>
     await waitForVideoMetadata(page);
 
     // ── Step 0: contain ──────────────────────────────────────────────────
-    // Panzoom scale should reach ≈ 1.0 after media loads.
+    // Scale should reach ≈ 1.0 after media loads.
     await waitForScaleWhere(
       page,
       "feed-slide-video",
@@ -1351,12 +1354,12 @@ test.describe("Feed – zoom levels: image (200×150, 3 levels)", () => {
 // zoom is at the "contain" level.
 //
 // The hls-video custom element has display:contents set by @videojs/html.
-// We override to display:block so that CSS transforms (Panzoom) work.
+// We override to display:block so that CSS transforms work.
 // Without also setting width:100% / height:100%, hls-video does not fill its
-// container and the Panzoom transform-origin ends up at the wrong position,
+// container and the transform-origin ends up at the wrong position,
 // causing the visible content to appear off-centre.
 
-async function waitForPanzoomTransform(page: Page, testId: string) {
+async function waitForTransform(page: Page, testId: string) {
   await page.waitForFunction(
     (id) => {
       const el = document.querySelector(
@@ -1416,7 +1419,7 @@ test.describe("Feed – media element fills and is centred in the media area", (
     await setVideoFit({ request }, "contain");
     await gotoFeedWithSlide(page);
     await waitForNaturalSize(page);
-    await waitForPanzoomTransform(page, "feed-slide-video");
+    await waitForTransform(page, "feed-slide-video");
     await expectMediaCentredInArea(page, "feed-slide-video");
   });
 
@@ -1432,7 +1435,7 @@ test.describe("Feed – media element fills and is centred in the media area", (
     await setVideoFit({ request }, "contain");
     await gotoFeedWithSlide(page);
     await waitForNaturalSize(page);
-    await waitForPanzoomTransform(page, "feed-slide-video");
+    await waitForTransform(page, "feed-slide-video");
     await expectMediaCentredInArea(page, "feed-slide-video");
   });
 
@@ -1448,7 +1451,7 @@ test.describe("Feed – media element fills and is centred in the media area", (
     await setVideoFit({ request }, "contain");
     await gotoFeedWithSlide(page);
     await waitForNaturalSize(page);
-    await waitForPanzoomTransform(page, "feed-slide-image");
+    await waitForTransform(page, "feed-slide-image");
     await expectMediaCentredInArea(page, "feed-slide-image");
   });
 });
@@ -1484,7 +1487,7 @@ test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
     await setVideoFit({ request }, "contain");
     const { slide } = await gotoFeedWithSlide(page);
     await waitForNaturalSize(page);
-    await waitForPanzoomTransform(page, "feed-slide-image");
+    await waitForTransform(page, "feed-slide-image");
 
     const areaBox = await getMediaAreaBox(slide);
     const areaCx = areaBox.x + areaBox.width / 2;
@@ -1500,8 +1503,12 @@ test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
     const pinchCenter = { x: areaCx - 100, y: areaCy - 100 };
     await holdPinch(page, pinchCenter, 50, 100);
 
-    // Wait for the Panzoom rAF to apply scale ≈ 2 and the accompanying pan.
-    await waitForScaleWhere(page, "feed-slide-image", (s) => Math.abs(s - 2) < 0.2);
+    // Wait for the scale and pan to be applied.
+    await waitForScaleWhere(
+      page,
+      "feed-slide-image",
+      (s) => Math.abs(s - 2) < 0.2,
+    );
 
     // The element should have panned so its centre is areaCx+100, areaCy+100
     // (the pinch focal point is being held at the same screen position).
@@ -1521,7 +1528,7 @@ test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
     await setVideoFit({ request }, "contain");
     const { slide } = await gotoFeedWithSlide(page);
     await waitForNaturalSize(page);
-    await waitForPanzoomTransform(page, "feed-slide-image");
+    await waitForTransform(page, "feed-slide-image");
 
     const areaBox = await getMediaAreaBox(slide);
     const areaCx = areaBox.x + areaBox.width / 2;
@@ -1556,7 +1563,7 @@ test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
     await setVideoFit({ request }, "contain");
     const { slide } = await gotoFeedWithSlide(page);
     await waitForNaturalSize(page);
-    await waitForPanzoomTransform(page, "feed-slide-image");
+    await waitForTransform(page, "feed-slide-image");
 
     const areaBox = await getMediaAreaBox(slide);
     const areaCx = areaBox.x + areaBox.width / 2;
@@ -1567,7 +1574,11 @@ test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
     await holdPinch(page, pinchCenter, 50, 100);
 
     // Wait for scale ≈ 2 so the rAF for both scale and pan has run.
-    await waitForScaleWhere(page, "feed-slide-image", (s) => Math.abs(s - 2) < 0.2);
+    await waitForScaleWhere(
+      page,
+      "feed-slide-image",
+      (s) => Math.abs(s - 2) < 0.2,
+    );
 
     // Confirm the element is actually off-centre (requires the focal-point fix).
     // Before the fix the element stays centred, so this assertion fails.
@@ -1581,14 +1592,20 @@ test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
     }, "feed-slide-image");
     expect(
       Math.abs(elCxDuring - areaCx),
-      `element should be off-centre during panned gesture ` +
-        `(cx=${elCxDuring}, area cx=${areaCx})`,
+      `element should be off-centre during panned gesture (cx=${elCxDuring}, area cx=${areaCx})`,
     ).toBeGreaterThan(50);
 
     // Release — scale snaps to nearest level, pan springs back to (0, 0).
     await releasePinch(page, pinchCenter, 100);
 
     // Wait for the 200 ms snap animation to finish and verify centred position.
-    await waitForMediaCenterNear(page, "feed-slide-image", areaCx, areaCy, 3, 2_000);
+    await waitForMediaCenterNear(
+      page,
+      "feed-slide-image",
+      areaCx,
+      areaCy,
+      3,
+      2_000,
+    );
   });
 });

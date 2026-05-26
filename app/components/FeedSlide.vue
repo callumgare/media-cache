@@ -169,7 +169,7 @@ const mediaAreaRef = ref<HTMLElement | null>(null);
 const imageRef = ref<HTMLImageElement | null>(null);
 
 /**
- * The element Panzoom is applied to. Set after the media has loaded so we
+ * The media element that receives CSS transforms. Set after the media has loaded so we
  * know its natural dimensions and have the right element reference.
  */
 const mediaElementRef = ref<Element | null>(null);
@@ -311,7 +311,7 @@ function onMetadataLoaded() {
   const h = playerRef.value?.videoHeight ?? 0;
   if (w > 0 && h > 0) naturalSizeRef.value = { width: w, height: h };
 
-  // Wire up Panzoom to the real media element now that we know its size.
+  // Wire up zoom transforms to the real media element now that we know its size.
   mediaElementRef.value = playerRef.value?.mediaElement ?? null;
 
   // Auto-play if this is already the current slide when metadata loads
@@ -379,9 +379,13 @@ function onEnded() {
 .media-area {
   position: absolute;
   inset: 0;
+  /* Clip scaled/translated media to the container so the browser never sees
+     content visually overflowing the slide, which would trigger a mobile
+     viewport zoom-out to fit the overflow. */
+  overflow: hidden;
 }
 
-/* Panzoom manages transform on the media element directly via inline style.
+/* The media element's transform is set inline by useFeedZoom.
    Keep object-fit: contain always — zoom levels are expressed as scale(). */
 .media-area > img,
 .media-area :deep(video),
@@ -389,7 +393,7 @@ function onEnded() {
 .media-area :deep(dash-video) {
   transform-origin: center center;
   /* hls-video and dash-video have display:contents by default (from @videojs/html),
-     which makes CSS transforms have no visual effect. Override to block so Panzoom works.
+     which makes CSS transforms have no visual effect. Override to block so transforms work.
      width/height:100% ensures the element fills its container so the transform-origin
      is at the container's centre (required for correct centering at all zoom levels). */
   display: block;
@@ -408,7 +412,7 @@ function onEnded() {
   width: 100%;
   height: 100%;
 
-  /* Always contain — Panzoom's scale(coverRatio) visually fills the screen. */
+  /* Always contain — the cover zoom level is expressed as scale(coverRatio). */
   &,
   & :deep(video),
   & :deep(hls-video::part(video)),

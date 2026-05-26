@@ -45,7 +45,6 @@ export default defineNuxtConfig({
         "@videojs/html/media/dash-video",
         "@tanstack/vue-virtual",
         "lucide-vue-next",
-        "@panzoom/panzoom",
       ],
     },
   },

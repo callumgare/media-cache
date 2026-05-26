@@ -1,16 +1,9 @@
-import type { PanzoomObject, PanzoomOptions } from "@panzoom/panzoom";
 import { useResizeObserver } from "@vueuse/core";
 import { onMounted, onUnmounted, readonly, ref, watch } from "vue";
 import type { Ref } from "vue";
 
-// Panzoom is browser-only; load it lazily so the SSR bundle never imports it.
-type PanzoomConstructor = (
-  el: HTMLElement,
-  opts?: PanzoomOptions,
-) => PanzoomObject;
-
 /**
- * Manages pinch-to-zoom on the feed slide using @panzoom/panzoom.
+ * Manages pinch-to-zoom on the feed slide.
  *
  * Zoom levels are represented as CSS scale transforms on the media element:
  *   - natural: scale = 1/min(containerW/mediaW, containerH/mediaH)
@@ -37,6 +30,11 @@ const SNAP_OUT_RATIO = 1.25;
 /** Pinch this much relative to start scale → retreat one level down. */
 const SNAP_IN_RATIO = 0.8;
 
+/** Duration in ms for animated zoom/pan transitions. */
+const TRANSITION_DURATION = 200;
+/** CSS easing for zoom/pan animations. */
+const TRANSITION_EASING = "ease-out";
+
 export interface UseFeedZoomOptions {
   /** Returns the current zoom preference. */
   getZoomLevel: () => ZoomLevel;
@@ -51,7 +49,7 @@ export function useFeedZoom(
   /** Element that receives touch events for the pinch gesture. */
   touchTargetRef: Ref<HTMLElement | null>,
   /**
-   * The element Panzoom transforms.  Set to the video / img element once the
+   * The element that receives CSS transforms.  Set to the video / img element once the
    * media has loaded; clear to null when it unmounts.
    *
    * IMPORTANT: dimensions must come from the actual loaded media
@@ -69,17 +67,16 @@ export function useFeedZoom(
 ) {
   const isPinching = ref(false);
 
-  let PanzoomCtor: PanzoomConstructor | null = null;
-  let panzoom: PanzoomObject | null = null;
   let startDistance = 0;
   let startScale = 1;
   let currentScale = 1;
   /** Finger midpoint at gesture start (client/screen coordinates). */
   let startMidpoint = { x: 0, y: 0 };
   /**
-   * The Panzoom focal-point origin in client coordinates.
+   * The focal-point origin in client coordinates.
    * Equals the centre of the media element's parent container.
-   * Pan values (tx, ty) satisfy: screen_x = elementCenter.x + scale*(mediaX + tx).
+   * With `transform-origin: center center`, pan values (tx, ty) satisfy:
+   *   screen_x = elementCenter.x + scale*(mediaX + tx)
    */
   let elementCenter = { x: 0, y: 0 };
 
@@ -95,7 +92,7 @@ export function useFeedZoom(
     return w && h ? { w, h } : null;
   }
 
-  /** Panzoom scale at which the media covers the entire container. */
+  /** CSS scale at which the media covers the entire container. */
   function coverScale(): number {
     const cs = containerSize();
     const size = naturalSizeRef.value;
@@ -106,7 +103,7 @@ export function useFeedZoom(
   }
 
   /**
-   * Panzoom scale at which the media is shown at its natural pixel dimensions.
+   * CSS scale at which the media is shown at its natural pixel dimensions.
    * Returns a value < 1 when the media is smaller than the container (meaning
    * the "natural" zoom level is valid), or ≥ 1 when it is not.
    */
@@ -131,7 +128,7 @@ export function useFeedZoom(
       : ["contain", "cover"];
   }
 
-  /** Panzoom scale for the given zoom level. */
+  /** CSS scale for the given zoom level. */
   function scaleForLevel(level: ZoomLevel): number {
     switch (level) {
       case "natural":
@@ -143,15 +140,38 @@ export function useFeedZoom(
     }
   }
 
-  // ─── Panzoom lifecycle ────────────────────────────────────────────────────
+  // ─── Transform helpers ────────────────────────────────────────────────────
 
   /**
-   * Sync the Panzoom transform to the current zoom preference.
+   * Apply a scale + translate transform to the media element.
+   * `animate: true` plays a CSS transition; `false` snaps immediately.
+   */
+  function applyTransform(s: number, tx: number, ty: number, animate: boolean) {
+    const el = mediaElementRef.value as HTMLElement | null;
+    if (!el) return;
+    el.style.transition = animate
+      ? `transform ${TRANSITION_DURATION}ms ${TRANSITION_EASING}`
+      : "none";
+    el.style.transform = `scale(${s}) translate(${tx}px, ${ty}px)`;
+  }
+
+  /**
+   * Set up the media element for transforms and sync to the current zoom level.
+   * Called whenever the media element is (re-)mounted.
+   */
+  function initTransform(el: Element) {
+    const htmlEl = el as HTMLElement;
+    htmlEl.style.transformOrigin = "center center";
+    syncZoom(false);
+  }
+
+  /**
+   * Sync the CSS transform to the current zoom preference.
    * Also handles the edge case where `videoFit === 'natural'` but the
    * natural level is no longer available (e.g. the viewport was resized).
    */
   function syncZoom(animated: boolean) {
-    if (!panzoom || isPinching.value) return;
+    if (!mediaElementRef.value || isPinching.value) return;
     let level = options.getZoomLevel();
     const levels = availableLevels();
     // If the stored level doesn't exist in the current viewport (e.g. stored
@@ -161,40 +181,14 @@ export function useFeedZoom(
       level = levels[0] ?? "contain";
       options.onSnap(level);
     }
-    panzoom.zoom(scaleForLevel(level), { animate: animated, force: true });
-    // Always keep the element centred when not in a gesture.
-    panzoom.pan(0, 0, { animate: animated, force: true });
-  }
-
-  function initPanzoom(el: Element) {
-    if (!PanzoomCtor) return;
-    panzoom = PanzoomCtor(el as HTMLElement, {
-      // We handle all input ourselves — disable Panzoom's own event handling.
-      disableZoom: true,
-      disablePan: true,
-      // Prevent Panzoom from calling preventDefault on pointerdown.
-      handleStartEvent: () => {},
-      duration: 200,
-      easing: "ease-out",
-      // Allow pan-y so the browser can still scroll vertically when the user
-      // swipes with a single finger over the media element.
-      touchAction: "pan-y",
-      // Remove Panzoom's built-in scale limits; we manage snapping ourselves.
-      minScale: 0,
-      maxScale: 100,
-    });
-    syncZoom(false);
+    applyTransform(scaleForLevel(level), 0, 0, animated);
   }
 
   watch(
     mediaElementRef,
     (el) => {
-      if (panzoom) {
-        panzoom.destroy();
-        panzoom = null;
-      }
-      if (!el || !PanzoomCtor) return;
-      initPanzoom(el);
+      if (!el) return;
+      initTransform(el);
     },
     { immediate: false },
   );
@@ -231,8 +225,9 @@ export function useFeedZoom(
     }
     currentScale = startScale;
 
-    const t1 = event.touches[0]!;
-    const t2 = event.touches[1]!;
+    const t1 = event.touches[0];
+    const t2 = event.touches[1];
+    if (!t1 || !t2) return;
     startDistance = getDistance(t1, t2);
 
     // Record the finger midpoint so we can compute the focal-point pan in
@@ -242,7 +237,7 @@ export function useFeedZoom(
       y: (t1.clientY + t2.clientY) / 2,
     };
 
-    // The "Panzoom origin" – the reference point that pan values are relative
+    // The focal-point origin – the reference point that pan values are relative
     // to – equals the centre of the element's parent container.  The touch
     // target fills the same area as that container, so its centre is the
     // correct value and avoids having to traverse the DOM to find the parent.
@@ -254,11 +249,10 @@ export function useFeedZoom(
       };
     }
 
-    // Ensure Panzoom starts at exactly the current preference scale with
-    // pan reset to (0, 0) – this cancels any residual pan from a previous
-    // gesture and makes the focal-point calculation below well-defined.
-    panzoom?.zoom(startScale, { animate: false, force: true });
-    panzoom?.pan(0, 0, { animate: false, force: true });
+    // Reset to exactly the current preference scale with pan (0, 0) — this
+    // cancels any residual pan from a previous gesture and makes the
+    // focal-point calculation below well-defined.
+    applyTransform(startScale, 0, 0, false);
   }
 
   function onTouchMove(event: TouchEvent) {
@@ -288,7 +282,7 @@ export function useFeedZoom(
     //      media-space (focal-point zoom), and
     //   b) pans the media by the drag delta of the midpoint.
     //
-    // In Panzoom's transform model — scale(s) translate(tx, ty) with
+    // In the transform model — scale(s) translate(tx, ty) with
     // transform-origin at elementCenter — a screen position g maps to
     // media-space via: mediaX = (g.x - elementCenter.x) / s - tx
     //
@@ -302,8 +296,7 @@ export function useFeedZoom(
       (currentMidpoint.y - elementCenter.y) / currentScale -
       (startMidpoint.y - elementCenter.y) / startScale;
 
-    panzoom?.zoom(currentScale, { animate: false, force: true });
-    panzoom?.pan(tx, ty, { animate: false, force: true });
+    applyTransform(currentScale, tx, ty, false);
   }
 
   function finalizeGesture() {
@@ -327,13 +320,9 @@ export function useFeedZoom(
     }
 
     const snapLevel = levels[snapIdx] ?? currentLevel;
-    // Snap to the target zoom level and spring the pan back to (0, 0) so the
-    // media is always centred after a gesture.  Both Panzoom calls schedule a
-    // requestAnimationFrame callback; because they run in the same JS task
-    // both callbacks execute before the next paint, producing a single smooth
-    // CSS-transition animation from the current (scale, tx, ty) to (snapScale, 0, 0).
-    panzoom?.zoom(scaleForLevel(snapLevel), { animate: true, force: true });
-    panzoom?.pan(0, 0, { animate: true, force: true });
+    // Animate to the snap level, springing pan back to (0, 0) so the
+    // media is always centred after a gesture.
+    applyTransform(scaleForLevel(snapLevel), 0, 0, true);
 
     if (snapLevel !== currentLevel) {
       options.onSnap(snapLevel);
@@ -348,13 +337,10 @@ export function useFeedZoom(
     finalizeGesture();
   }
 
-  onMounted(async () => {
-    PanzoomCtor = (await import("@panzoom/panzoom"))
-      .default as unknown as PanzoomConstructor;
-
+  onMounted(() => {
     const mediaEl = mediaElementRef.value;
-    if (mediaEl && !panzoom) {
-      initPanzoom(mediaEl);
+    if (mediaEl) {
+      initTransform(mediaEl);
     }
 
     const el = touchTargetRef.value;
@@ -373,14 +359,12 @@ export function useFeedZoom(
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchCancel);
     }
-    panzoom?.destroy();
-    panzoom = null;
   });
 
   return {
     isPinching: readonly(isPinching),
     /**
-     * Sync the Panzoom transform to the current zoom preference.
+     * Sync the CSS transform to the current zoom preference.
      * Pass `animated: true` when the change comes from a user button tap;
      * `false` on initial render or media swap.
      */

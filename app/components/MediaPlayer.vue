@@ -138,7 +138,7 @@ defineExpose({
   get audioTracks() {
     return videoRef.value?.audioTracks;
   },
-  /** The raw media element (video / hls-video / dash-video) for external use such as Panzoom. */
+  /** The raw media element (video / hls-video / dash-video) for external use such as CSS transforms. */
   get mediaElement(): Element | null {
     return (videoRef.value as unknown as Element | null) ?? null;
   },
