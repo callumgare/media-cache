@@ -244,7 +244,7 @@ async function toggleSidebar() {
   }
 
   .container {
-    --default-sidebar-width: 250px;
+    --default-sidebar-width: 300px;
     --sidebar-z-index: 3;
 
     display: grid;

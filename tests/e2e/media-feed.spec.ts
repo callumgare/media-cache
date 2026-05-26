@@ -772,4 +772,256 @@ test.describe("Feed page – filter sidebar", () => {
 
     await expect(sidebar).toBeInViewport({ timeout: 2_000 });
   });
+
+  test("tags listbox allows selecting and deselecting an option", async ({
+    page,
+    request,
+  }) => {
+    // Re-seed with media that has tags so the Tags listbox has options
+    await setup(
+      { request },
+      {
+        media: [
+          [
+            makeImageMedia({
+              id: "tag-1",
+              tags: ["nature"],
+            } as Partial<GenericMedia>),
+          ],
+          [
+            makeImageMedia({
+              id: "tag-2",
+              tags: ["nature", "animals"],
+            } as Partial<GenericMedia>),
+          ],
+        ],
+      },
+    );
+    await createAndRunQuery({ request });
+
+    await page.goto("/media/feed");
+    const filterBtn = page.getByTestId("feed-slide-filter-btn");
+    await expect(filterBtn).toBeVisible({ timeout: 15_000 });
+    await filterBtn.click();
+
+    const sidebar = page.getByTestId("page-sidebar");
+    await expect(sidebar).toBeInViewport({ timeout: 2_000 });
+
+    // Scope to the Tags input section (a .root div that contains the "Tags" label)
+    const tagsSection = sidebar.locator(".root").filter({
+      has: page.locator("label", { hasText: /^Tags$/ }),
+    });
+
+    // Wait for facets to load and the "nature" option to appear in the listbox
+    const natureOption = tagsSection.locator(".p-listbox-option", {
+      hasText: "nature",
+    });
+    await expect(natureOption).toBeVisible({ timeout: 10_000 });
+
+    // Click "nature" to select it
+    await natureOption.click();
+
+    // It should now appear in the selected-items section above the list
+    const natureSelectedItem = tagsSection.locator(".selected-item", {
+      hasText: "nature",
+    });
+    await expect(natureSelectedItem).toBeVisible();
+
+    // It should no longer appear in the unselected listbox
+    await expect(natureOption).not.toBeVisible();
+
+    // Click the selected item to deselect it
+    await natureSelectedItem.click();
+
+    // It should be back in the unselected listbox
+    await expect(natureOption).toBeVisible();
+
+    // The selected-items section should be empty again
+    await expect(natureSelectedItem).not.toBeVisible();
+  });
+
+  test("tags listbox can be resized by dragging the handle", async ({
+    page,
+    request,
+  }) => {
+    await setup(
+      { request },
+      {
+        media: [
+          [
+            makeImageMedia({
+              id: "tag-resize-1",
+              tags: ["nature"],
+            } as Partial<GenericMedia>),
+          ],
+        ],
+      },
+    );
+    await createAndRunQuery({ request });
+
+    await page.goto("/media/feed");
+    const filterBtn = page.getByTestId("feed-slide-filter-btn");
+    await expect(filterBtn).toBeVisible({ timeout: 15_000 });
+    await filterBtn.click();
+
+    const sidebar = page.getByTestId("page-sidebar");
+    await expect(sidebar).toBeInViewport({ timeout: 2_000 });
+
+    const tagsSection = sidebar.locator(".root").filter({
+      has: page.locator("label", { hasText: /^Tags$/ }),
+    });
+
+    // Wait for facets so the listbox is fully rendered
+    await expect(
+      tagsSection.locator(".p-listbox-option", { hasText: "nature" }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    const listbox = tagsSection.locator(".p-listbox");
+    const heightBefore = (await listbox.boundingBox())?.height;
+
+    // Drag the resize handle down by 100px
+    const handle = tagsSection.locator(".resize-handle");
+    const handleBox = await handle.boundingBox();
+    expect(handleBox).not.toBeNull();
+    if (!handleBox) throw new Error("resize-handle bounding box is null");
+
+    const cx = handleBox.x + handleBox.width / 2;
+    const cy = handleBox.y + handleBox.height / 2;
+
+    // Dispatch mousedown on the specific handle element, then mousemove/mouseup on window.
+    // (Playwright page.mouse cannot reliably hit-test through overflow:hidden wrappers.)
+    await handle.evaluate(
+      (el, { cx, cy }) =>
+        el.dispatchEvent(
+          new MouseEvent("mousedown", {
+            clientX: cx,
+            clientY: cy,
+            bubbles: true,
+            cancelable: true,
+          }),
+        ),
+      { cx, cy },
+    );
+    await page.evaluate(
+      ({ cx, cy }) => {
+        window.dispatchEvent(
+          new MouseEvent("mousemove", {
+            clientX: cx,
+            clientY: cy + 100,
+            bubbles: true,
+          }),
+        );
+        window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      },
+      { cx, cy },
+    );
+
+    const heightAfter = (await listbox.boundingBox())?.height;
+    expect(heightAfter).toBeGreaterThan(heightBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Feed page – filter sidebar (touch gesture)
+// The sidebar drag uses @vueuse/gesture's preventWindowScrollY option so that
+// once a horizontal drag is recognised, subsequent touchmove events on the
+// window are prevented — stopping the feed from scrolling vertically while
+// the user is mid-gesture opening the sidebar.
+// ---------------------------------------------------------------------------
+
+test.describe("Feed page – filter sidebar touch gesture", () => {
+  test.use({ viewport: VIEWPORT, hasTouch: true });
+
+  test.beforeEach(async ({ request }) => {
+    await setup(
+      { request },
+      { media: [[makeImageMedia({ id: "sidebar-touch-1" })]] },
+    );
+    await createAndRunQuery({ request });
+  });
+
+  test("starting a horizontal drag to open the sidebar prevents vertical scroll", async ({
+    page,
+  }) => {
+    await page.goto("/media/feed");
+    await expect(page.getByTestId("feed-slide").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Simulate: finger down on the container, drag right (horizontal gesture
+    // recognised), then check whether a touchmove on the window is prevented.
+    //
+    // The fix uses `preventWindowScrollY: true` on useDrag.  That makes the
+    // library call setUpWindowScrollDetection on touchstart, which registers a
+    // passive:false window touchmove listener.  Once horizontal movement is
+    // confirmed, _dragPreventScroll=true causes that listener to call
+    // preventDefault() on every subsequent touchmove — including vertical ones
+    // that would otherwise scroll the feed.
+    //
+    // Without the fix the window listener is never registered, so
+    // event.defaultPrevented stays false and the feed can scroll.
+    const prevented = await page.evaluate(() => {
+      const container = document.querySelector(".container") as HTMLElement;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+
+      const makeTouch = (x: number, y: number) =>
+        new Touch({
+          identifier: 1,
+          target: container,
+          clientX: x,
+          clientY: y,
+          radiusX: 2.5,
+          radiusY: 2.5,
+          rotationAngle: 0,
+          force: 1,
+        });
+
+      const dispatch = (
+        el: EventTarget,
+        type: string,
+        x: number,
+        y: number,
+      ) => {
+        const t = makeTouch(x, y);
+        // targetTouches must be set explicitly — @vueuse/gesture reads
+        // event.targetTouches (not event.touches) to extract clientX/clientY.
+        el.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            touches: type !== "touchend" ? [t] : [],
+            targetTouches: type !== "touchend" ? [t] : [],
+            changedTouches: [t],
+          }),
+        );
+      };
+
+      // Finger down, then drag right to trigger horizontal gesture recognition.
+      dispatch(container, "touchstart", cx, cy);
+      for (let i = 1; i <= 15; i++) {
+        dispatch(container, "touchmove", cx + i * 8, cy);
+      }
+
+      // Dispatch a touchmove directly on the window (simulating finger
+      // continuing to move, possibly vertically) and record whether it was
+      // prevented.
+      const t = makeTouch(cx + 120, cy - 40);
+      const testEvent = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+        touches: [t],
+        changedTouches: [t],
+      });
+      window.dispatchEvent(testEvent);
+
+      dispatch(container, "touchend", cx + 120, cy - 40);
+      return testEvent.defaultPrevented;
+    });
+
+    expect(
+      prevented,
+      "touchmove must be prevented while a horizontal sidebar drag is in progress",
+    ).toBe(true);
+  });
 });

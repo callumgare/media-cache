@@ -167,7 +167,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
     {
       name: "list of text",
       operators: ["includes all"],
-      getInputType: () => "multi-select dropdown",
+      getInputType: () => "multi-select listbox",
     },
     {
       name: "number range",

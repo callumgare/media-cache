@@ -51,6 +51,11 @@ const fieldType = computed(() => {
         :field-condition="fieldCondition"
         :schema-config="schemaConfig"
       />
+      <QueryBuilderInputListbox
+        v-else-if="fieldType.getInputType() === 'multi-select listbox'"
+        :field-condition="fieldCondition"
+        :schema-config="schemaConfig"
+      />
       <div v-else>
         Error
       </div>
