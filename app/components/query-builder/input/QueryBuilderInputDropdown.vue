@@ -32,6 +32,8 @@ const mediaQuery = useMediaQuery();
       :options="fieldConfig.availableOptions ?? []"
       option-label="name"
       class="control"
+      :loading="schemaConfig.loading ?? false"
+      :virtual-scroller-options="{ itemSize: 38 }"
       :placeholder="`Select ${fieldConfig.displayName}`"
       :show-clear="true"
       @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"

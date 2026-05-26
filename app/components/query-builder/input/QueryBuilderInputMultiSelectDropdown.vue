@@ -32,7 +32,9 @@ const mediaQuery = useMediaQuery();
       :options="fieldConfig.availableOptions"
       option-label="name"
       filter
+      :loading="schemaConfig.loading ?? false"
       :placeholder="`Select ${fieldConfig.displayName}`"
+      :virtual-scroller-options="{ itemSize: 44 }"
       :model-value="(Array.isArray(fieldCondition.value) ? fieldCondition.value : []).map(
         (id: string) => (fieldConfig.availableOptions ?? []).find(option => option.id === id),
       )"

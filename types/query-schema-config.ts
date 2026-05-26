@@ -29,6 +29,7 @@ export const querySchemaConfigSchema = z.object({
       })
       .strict(),
   ),
+  loading: z.boolean().optional(),
 });
 
 export type QuerySchemaConfig = z.infer<typeof querySchemaConfigSchema>;

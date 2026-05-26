@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMediaQuery } from "@@/stores/media-query";
 import { useUiState } from "@@/stores/ui";
+import { keepPreviousData } from "@tanstack/vue-query";
 import { Shuffle } from "lucide-vue-next";
 
 const uiState = useUiState();
@@ -54,14 +55,40 @@ const selectedGroupIds = computed<number[]>(() => {
   return value.filter((id): id is number => typeof id === "number");
 });
 
-const { data: facets } = useQuery({
+const { data: facets, isFetching } = useQuery({
   queryKey: ["media-facets", mediaQueryCondition],
   enabled: import.meta.client,
+  placeholderData: keepPreviousData,
   queryFn: () =>
     $fetch<APIMediaFacetsResponse>("/api/media-facets", {
       method: "POST",
       body: mediaQueryCondition.value,
     }),
+});
+
+// Only show the loading indicator if the fetch takes longer than 500 ms,
+// to avoid a flash for fast responses. Clears immediately when done.
+const showLoading = ref(false);
+let loadingTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+  isFetching,
+  (fetching) => {
+    if (fetching) {
+      loadingTimer = setTimeout(() => {
+        showLoading.value = true;
+      }, 500);
+    } else {
+      if (loadingTimer !== null) {
+        clearTimeout(loadingTimer);
+        loadingTimer = null;
+      }
+      showLoading.value = false;
+    }
+  },
+  { immediate: true },
+);
+onUnmounted(() => {
+  if (loadingTimer !== null) clearTimeout(loadingTimer);
 });
 
 const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
@@ -148,6 +175,7 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       getInputType: () => "number range",
     },
   ],
+  loading: showLoading.value,
 }));
 </script>
 
