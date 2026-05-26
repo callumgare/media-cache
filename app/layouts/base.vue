@@ -254,11 +254,15 @@ onUnmounted(() => {
       }
       .chevron-icon {
         font-size: 0.9rem;
-        color: rgba(255, 255, 255, 0.45);
-        transition: transform 0.15s ease, color 0.15s ease;
+        color: var(--p-surface-0);
+        opacity: 0.45;
+        -webkit-text-stroke: 1px var(--p-surface-400);
+        paint-order: stroke fill;
+        transition: transform 0.15s ease, color 0.15s ease, opacity 0.15s ease;
       }
       &:hover .chevron-icon {
-        color: rgba(255, 255, 255, 0.85);
+        color: var(--p-surface-0);
+        opacity: 0.85;
       }
 
       &:not(.is-expanded):hover .chevron-icon {
