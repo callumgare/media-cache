@@ -74,6 +74,14 @@ export function useFeedZoom(
   let startDistance = 0;
   let startScale = 1;
   let currentScale = 1;
+  /** Finger midpoint at gesture start (client/screen coordinates). */
+  let startMidpoint = { x: 0, y: 0 };
+  /**
+   * The Panzoom focal-point origin in client coordinates.
+   * Equals the centre of the media element's parent container.
+   * Pan values (tx, ty) satisfy: screen_x = elementCenter.x + scale*(mediaX + tx).
+   */
+  let elementCenter = { x: 0, y: 0 };
 
   // ─── Scale computations ───────────────────────────────────────────────────
   // All computations use live container dimensions so they automatically
@@ -154,6 +162,8 @@ export function useFeedZoom(
       options.onSnap(level);
     }
     panzoom.zoom(scaleForLevel(level), { animate: animated, force: true });
+    // Always keep the element centred when not in a gesture.
+    panzoom.pan(0, 0, { animate: animated, force: true });
   }
 
   function initPanzoom(el: Element) {
@@ -221,12 +231,34 @@ export function useFeedZoom(
     }
     currentScale = startScale;
 
-    if (event.touches[0] && event.touches[1]) {
-      startDistance = getDistance(event.touches[0], event.touches[1]);
+    const t1 = event.touches[0]!;
+    const t2 = event.touches[1]!;
+    startDistance = getDistance(t1, t2);
+
+    // Record the finger midpoint so we can compute the focal-point pan in
+    // onTouchMove.
+    startMidpoint = {
+      x: (t1.clientX + t2.clientX) / 2,
+      y: (t1.clientY + t2.clientY) / 2,
+    };
+
+    // The "Panzoom origin" – the reference point that pan values are relative
+    // to – equals the centre of the element's parent container.  The touch
+    // target fills the same area as that container, so its centre is the
+    // correct value and avoids having to traverse the DOM to find the parent.
+    const targetRect = touchTargetRef.value?.getBoundingClientRect();
+    if (targetRect) {
+      elementCenter = {
+        x: targetRect.left + targetRect.width / 2,
+        y: targetRect.top + targetRect.height / 2,
+      };
     }
 
-    // Ensure Panzoom starts at exactly the current preference scale.
+    // Ensure Panzoom starts at exactly the current preference scale with
+    // pan reset to (0, 0) – this cancels any residual pan from a previous
+    // gesture and makes the focal-point calculation below well-defined.
     panzoom?.zoom(startScale, { animate: false, force: true });
+    panzoom?.pan(0, 0, { animate: false, force: true });
   }
 
   function onTouchMove(event: TouchEvent) {
@@ -237,11 +269,41 @@ export function useFeedZoom(
     if (event.touches.length < 2 || !event.touches[0] || !event.touches[1])
       return;
 
-    const dist = getDistance(event.touches[0], event.touches[1]);
+    const t1 = event.touches[0];
+    const t2 = event.touches[1];
+    const dist = getDistance(t1, t2);
+
     // No clamping — the user can zoom freely during the gesture.
     currentScale =
       startDistance > 0 ? startScale * (dist / startDistance) : startScale;
+
+    // Current midpoint of the two fingers in client coordinates.
+    const currentMidpoint = {
+      x: (t1.clientX + t2.clientX) / 2,
+      y: (t1.clientY + t2.clientY) / 2,
+    };
+
+    // Compute the pan (tx, ty) that simultaneously:
+    //   a) keeps the initial pinch midpoint anchored to the same point in
+    //      media-space (focal-point zoom), and
+    //   b) pans the media by the drag delta of the midpoint.
+    //
+    // In Panzoom's transform model — scale(s) translate(tx, ty) with
+    // transform-origin at elementCenter — a screen position g maps to
+    // media-space via: mediaX = (g.x - elementCenter.x) / s - tx
+    //
+    // Setting the same media point under the midpoint for start and current:
+    //   tx = (currentMidpoint.x - elementCenter.x) / currentScale
+    //      - (startMidpoint.x  - elementCenter.x) / startScale
+    const tx =
+      (currentMidpoint.x - elementCenter.x) / currentScale -
+      (startMidpoint.x - elementCenter.x) / startScale;
+    const ty =
+      (currentMidpoint.y - elementCenter.y) / currentScale -
+      (startMidpoint.y - elementCenter.y) / startScale;
+
     panzoom?.zoom(currentScale, { animate: false, force: true });
+    panzoom?.pan(tx, ty, { animate: false, force: true });
   }
 
   function finalizeGesture() {
@@ -265,7 +327,13 @@ export function useFeedZoom(
     }
 
     const snapLevel = levels[snapIdx] ?? currentLevel;
+    // Snap to the target zoom level and spring the pan back to (0, 0) so the
+    // media is always centred after a gesture.  Both Panzoom calls schedule a
+    // requestAnimationFrame callback; because they run in the same JS task
+    // both callbacks execute before the next paint, producing a single smooth
+    // CSS-transition animation from the current (scale, tx, ty) to (snapScale, 0, 0).
     panzoom?.zoom(scaleForLevel(snapLevel), { animate: true, force: true });
+    panzoom?.pan(0, 0, { animate: true, force: true });
 
     if (snapLevel !== currentLevel) {
       options.onSnap(snapLevel);

@@ -483,6 +483,94 @@ async function releasePinch(
   );
 }
 
+/**
+ * Dispatch additional touchmove events on top of a held pinch gesture,
+ * smoothly translating the finger midpoint from `fromCenter` to `toCenter`
+ * while keeping the spread constant.  Does not fire touchend.
+ */
+async function movePinch(
+  page: Page,
+  fromCenter: { x: number; y: number },
+  toCenter: { x: number; y: number },
+  spread: number,
+  steps = 8,
+) {
+  await page.evaluate(
+    ({ fromCx, fromCy, toCx, toCy, spread, steps }) => {
+      const target = document.querySelector(
+        '[data-testid="feed-slide-media-area"]',
+      ) as HTMLElement | null;
+      if (!target) throw new Error("No feed-slide-media-area element");
+
+      const makeTouch = (id: number, x: number, y: number) =>
+        new Touch({
+          identifier: id,
+          target,
+          clientX: x,
+          clientY: y,
+          radiusX: 2.5,
+          radiusY: 2.5,
+          rotationAngle: 0,
+          force: 1,
+        });
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const cx = fromCx + (toCx - fromCx) * t;
+        const cy = fromCy + (toCy - fromCy) * t;
+        const t1 = makeTouch(10, cx - spread / 2, cy);
+        const t2 = makeTouch(11, cx + spread / 2, cy);
+        target.dispatchEvent(
+          new TouchEvent("touchmove", {
+            bubbles: true,
+            cancelable: true,
+            touches: [t1, t2],
+            targetTouches: [t1, t2],
+            changedTouches: [t1, t2],
+          }),
+        );
+      }
+    },
+    {
+      fromCx: fromCenter.x,
+      fromCy: fromCenter.y,
+      toCx: toCenter.x,
+      toCy: toCenter.y,
+      spread,
+      steps,
+    },
+  );
+}
+
+/**
+ * Poll until the named media element's visual centre (via getBoundingClientRect)
+ * is within `tolerance` pixels of `(expectedCx, expectedCy)`.
+ * Handles the requestAnimationFrame delay that Panzoom uses for DOM updates.
+ */
+async function waitForMediaCenterNear(
+  page: Page,
+  testId: string,
+  expectedCx: number,
+  expectedCy: number,
+  tolerance = 15,
+  timeout = 3_000,
+): Promise<void> {
+  await page.waitForFunction(
+    ([id, cx, cy, tol]: [string, number, number, number]) => {
+      const el = document.querySelector(
+        `[data-testid="${id}"]`,
+      ) as HTMLElement | null;
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      const actualCx = r.left + r.width / 2;
+      const actualCy = r.top + r.height / 2;
+      return Math.abs(actualCx - cx) < tol && Math.abs(actualCy - cy) < tol;
+    },
+    [testId, expectedCx, expectedCy, tolerance] as [string, number, number, number],
+    { timeout },
+  );
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 test.describe("Feed – pinch to zoom", () => {
@@ -1362,5 +1450,145 @@ test.describe("Feed – media element fills and is centred in the media area", (
     await waitForNaturalSize(page);
     await waitForPanzoomTransform(page, "feed-slide-image");
     await expectMediaCentredInArea(page, "feed-slide-image");
+  });
+});
+
+// ─── Focal-point zoom, pan during gesture, and snap-back ─────────────────
+//
+// When a two-finger pinch is performed:
+//   1. The zoom must centre on the midpoint of the two fingers, not on the
+//      element centre.  A pinch 100 px above/left of the container centre
+//      should shift the element so the pinched point stays fixed in the
+//      viewport.
+//   2. Moving both fingers together (same spread, different position) must
+//      pan the media by the matching amount.
+//   3. Releasing the gesture must spring the media back to translate(0,0)
+//      (centred) as well as snapping to the nearest zoom level.
+
+test.describe("Feed – gesture: focal-point zoom, pan, and snap-back", () => {
+  test.use({ viewport: VIEWPORT, hasTouch: true });
+
+  // Use an image – simpler than video (no codec loading, no HLS playlist).
+  test.beforeEach(async ({ request }) => {
+    await setup(
+      { request },
+      { media: [[makeImageMedia({ id: "gesture-img" })]] },
+    );
+    await createAndRunQuery({ request });
+  });
+
+  test("zoom is centred on the pinch midpoint, not the element centre", async ({
+    page,
+    request,
+  }) => {
+    await setVideoFit({ request }, "contain");
+    const { slide } = await gotoFeedWithSlide(page);
+    await waitForNaturalSize(page);
+    await waitForPanzoomTransform(page, "feed-slide-image");
+
+    const areaBox = await getMediaAreaBox(slide);
+    const areaCx = areaBox.x + areaBox.width / 2;
+    const areaCy = areaBox.y + areaBox.height / 2;
+
+    // Pinch 100 px left of and 100 px above the area centre.  Zoom 2× (spread
+    // 50 → 100 px).
+    //
+    // Expected pan after gesture:
+    //   tx = (pinch.x − ecx)/newScale − (pinch.x − ecx)/startScale
+    //      = (−100)/2 − (−100)/1 = +50
+    // Element centre X = ecx + newScale × tx = areaCx + 2×50 = areaCx + 100
+    const pinchCenter = { x: areaCx - 100, y: areaCy - 100 };
+    await holdPinch(page, pinchCenter, 50, 100);
+
+    // Wait for the Panzoom rAF to apply scale ≈ 2 and the accompanying pan.
+    await waitForScaleWhere(page, "feed-slide-image", (s) => Math.abs(s - 2) < 0.2);
+
+    // The element should have panned so its centre is areaCx+100, areaCy+100
+    // (the pinch focal point is being held at the same screen position).
+    await waitForMediaCenterNear(
+      page,
+      "feed-slide-image",
+      areaCx + 100,
+      areaCy + 100,
+      15,
+    );
+  });
+
+  test("dragging both fingers pans the media during the gesture", async ({
+    page,
+    request,
+  }) => {
+    await setVideoFit({ request }, "contain");
+    const { slide } = await gotoFeedWithSlide(page);
+    await waitForNaturalSize(page);
+    await waitForPanzoomTransform(page, "feed-slide-image");
+
+    const areaBox = await getMediaAreaBox(slide);
+    const areaCx = areaBox.x + areaBox.width / 2;
+    const areaCy = areaBox.y + areaBox.height / 2;
+    const areaCenter = { x: areaCx, y: areaCy };
+
+    // Start a pinch at the area centre with a constant spread (scale stays 1).
+    await holdPinch(page, areaCenter, 100, 100);
+
+    // Drag both fingers 100 px to the left (same spread → no scale change).
+    //
+    // Expected pan:
+    //   tx = (currentMidpoint.x − ecx)/1 − (startMidpoint.x − ecx)/1
+    //      = (areaCx−100 − areaCx) − 0 = −100
+    // Element centre X = ecx + 1×(−100) = areaCx − 100
+    const draggedCenter = { x: areaCx - 100, y: areaCy };
+    await movePinch(page, areaCenter, draggedCenter, 100);
+
+    await waitForMediaCenterNear(
+      page,
+      "feed-slide-image",
+      areaCx - 100,
+      areaCy,
+      15,
+    );
+  });
+
+  test("media springs back to centre after releasing a panned gesture", async ({
+    page,
+    request,
+  }) => {
+    await setVideoFit({ request }, "contain");
+    const { slide } = await gotoFeedWithSlide(page);
+    await waitForNaturalSize(page);
+    await waitForPanzoomTransform(page, "feed-slide-image");
+
+    const areaBox = await getMediaAreaBox(slide);
+    const areaCx = areaBox.x + areaBox.width / 2;
+    const areaCy = areaBox.y + areaBox.height / 2;
+
+    // Pinch at an off-centre position → gesture creates a pan offset.
+    const pinchCenter = { x: areaCx - 100, y: areaCy - 100 };
+    await holdPinch(page, pinchCenter, 50, 100);
+
+    // Wait for scale ≈ 2 so the rAF for both scale and pan has run.
+    await waitForScaleWhere(page, "feed-slide-image", (s) => Math.abs(s - 2) < 0.2);
+
+    // Confirm the element is actually off-centre (requires the focal-point fix).
+    // Before the fix the element stays centred, so this assertion fails.
+    const elCxDuring = await page.evaluate((id) => {
+      const el = document.querySelector(
+        `[data-testid="${id}"]`,
+      ) as HTMLElement | null;
+      if (!el) throw new Error(`No element data-testid="${id}"`);
+      const r = el.getBoundingClientRect();
+      return r.left + r.width / 2;
+    }, "feed-slide-image");
+    expect(
+      Math.abs(elCxDuring - areaCx),
+      `element should be off-centre during panned gesture ` +
+        `(cx=${elCxDuring}, area cx=${areaCx})`,
+    ).toBeGreaterThan(50);
+
+    // Release — scale snaps to nearest level, pan springs back to (0, 0).
+    await releasePinch(page, pinchCenter, 100);
+
+    // Wait for the 200 ms snap animation to finish and verify centred position.
+    await waitForMediaCenterNear(page, "feed-slide-image", areaCx, areaCy, 3, 2_000);
   });
 });
