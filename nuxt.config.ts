@@ -2,6 +2,7 @@ import Aura from "@primevue/themes/aura";
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+  compatibilityDate: "2026-05-28",
   // Allow per-worker override during e2e testing to avoid cache conflicts
   // between parallel nuxt dev instances.
   buildDir: process.env.NUXT_BUILD_DIR ?? ".nuxt",
@@ -21,7 +22,6 @@ export default defineNuxtConfig({
     "nuxt-superjson",
   ],
   devtools: { enabled: true },
-  compatibilityDate: "2024-04-03",
   vite: {
     server: {
       warmup: {
