@@ -19,20 +19,39 @@ export function removeField(
 }
 
 /**
- * Builds a WHERE clause optimised for this database (ParadeDB / pg_search).
+ * Builds an optimal WHERE clause given how it will be used.
  *
- * - source/tags conditions use BM25 `===` operators so that `pdb.agg` can read
- *   directly from the columnar index — avoiding full heap scans.
- * - type conditions use regular SQL boolean comparisons (boolean columns are not
- *   in the BM25 index), combined with a BM25 anchor so the planner uses the index.
- * - OR groups that mix BM25 and regular-SQL children fall back entirely to
- *   standard SQL to preserve correct semantics.
- * - Empty / no-op conditions → `id @@@ pdb.all()` (match-all BM25 scan).
+ * `optimisationHint` describes the calling context so the function can pick the
+ * right index strategy:
  *
- * The result is always valid SQL in ParadeDB and can be used in both `pdb.agg`
- * queries and plain `SELECT`/`COUNT` queries.
+ * - `"pdb.agg"` (default) — the clause will be used inside a `pdb.agg()` call.
+ *   Emits BM25 `===` operators (+ a `@@@` anchor when needed) so ParadeDB can
+ *   aggregate directly from the columnar index without touching the heap.
+ *   Always returns a non-undefined SQL value.
+ *
+ * - `"select"` — the clause will be used in a plain `SELECT`/`COUNT` query.
+ *   Emits standard GIN `@>` / boolean operators so PostgreSQL can use covering
+ *   BTree indexes for parallel index-only scans. Returns `undefined` when no
+ *   conditions are active (i.e. match-all — omit the WHERE clause entirely).
  */
-export function calculateWhereValue(condition: QueryCondition): SQL {
+export function calculateWhereValue(
+  condition: QueryCondition,
+  options: { optimisationHint: "pdb.agg" },
+): SQL;
+export function calculateWhereValue(
+  condition: QueryCondition,
+  options: { optimisationHint: "select" },
+): SQL | undefined;
+export function calculateWhereValue(condition: QueryCondition): SQL;
+export function calculateWhereValue(
+  condition: QueryCondition,
+  options: { optimisationHint: "pdb.agg" | "select" } = {
+    optimisationHint: "pdb.agg",
+  },
+): SQL | undefined {
+  if (options.optimisationHint === "select") {
+    return _buildStandardWhere(condition) ?? undefined;
+  }
   const { bm25Sql, regularSql } = _buildBM25Parts(condition);
   const anchor: SQL = bm25Sql ?? sql`${dbSchema.cacheMedia.id} @@@ pdb.all()`;
   if (regularSql) return and(anchor, regularSql) ?? anchor;
@@ -66,9 +85,9 @@ function _buildStandardWhere(condition: QueryCondition): SQL | null {
     if (operator === "includes all") {
       if (!Array.isArray(value) || !value.length) return null;
       return sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${sql.join(
-        value.map((id) => sql`${String(id)}`),
+        value.map((id) => sql`${Number(id)}`),
         sql`, `,
-      )}]::text[]`;
+      )}]::integer[]`;
     }
     throw Error(`Unknown operator for ${field} field: ${operator}`);
   }
@@ -192,10 +211,9 @@ function _buildBM25FieldParts(condition: QueryFieldCondition): {
     if (operator === "includes all") {
       if (!Array.isArray(value) || !value.length)
         return { bm25Sql: null, regularSql: null };
-      const sqls = (value as unknown[]).map(
-        (id) => sql`${dbSchema.cacheMedia.groupIds} === ${String(id)}`,
-      );
-      return { bm25Sql: and(...sqls) ?? null, regularSql: null };
+      // group_ids is integer[] — ParadeDB's === operator requires a direct column
+      // reference and does not support cast expressions. Use GIN (@>) instead.
+      return { bm25Sql: null, regularSql: _buildStandardWhere(condition) };
     }
   }
 

@@ -75,6 +75,8 @@ export async function fetchFieldCounts(
       ? body
       : blankConditionById(body, condition.id);
   const where = calculateWhereValue(baseCondition);
+  const whereStandard =
+    calculateWhereValue(baseCondition, { optimisationHint: "select" }) ?? null;
 
   if (condition.field === "source") {
     const [row] = await db.execute<{
@@ -94,20 +96,18 @@ export async function fetchFieldCounts(
   }
 
   if (condition.field === "tags" || condition.field === "groups") {
-    const [tagRow] = await db.execute<{
-      agg: {
-        buckets: Array<{ key: string; doc_count: number }>;
-        sum_other_doc_count: number;
-      };
-    }>(sql`
-      SELECT pdb.agg('{"terms": {"field": "group_ids", "size": 5000}}') AS agg
+    // Use unnest(group_ids) GROUP BY with the GIN index — group_ids is integer[] and
+    // cannot be indexed by pdb.literal, so we avoid the BM25 pdb.agg path here.
+    const tagRows = await db.execute<{ gid: number; doc_count: number }>(sql`
+      SELECT unnest(${dbSchema.cacheMedia.groupIds}) AS gid, count(*)::int AS doc_count
       FROM cache_media
-      WHERE ${where}
+      WHERE ${whereStandard ?? sql`TRUE`}
+      GROUP BY gid
     `);
-    const allBuckets = tagRow?.agg?.buckets ?? [];
-    // ParadeDB emits a "__PDB_NULL__" sentinel (with invisible Unicode prefix chars) for rows
-    // with empty arrays. Filter to only numeric keys since group IDs are always integers.
-    const buckets = allBuckets.filter((b) => !Number.isNaN(Number(b.key)));
+    const buckets = tagRows.map((r) => ({
+      key: String(r.gid),
+      doc_count: r.doc_count,
+    }));
 
     const currentValues = new Set(
       Array.isArray(condition.value) ? condition.value.map(Number) : [],
@@ -125,16 +125,18 @@ export async function fetchFieldCounts(
 
     const countAddedIfRemovedByTagId = new Map<number, number>();
     if (currentValues.size > 0) {
-      const currentTotal = await countWhere(where);
+      const currentTotal = await countWhere(whereStandard);
       const selectedIds = [...currentValues];
       // Single UNION ALL query instead of one query per selected tag
       const unionQuery = sql.join(
         selectedIds.map((selectedId) => {
           const newValues = selectedIds.filter((v) => v !== selectedId);
-          const modifiedWhere = calculateWhereValue(
-            replaceConditionValue(body, condition.id, newValues),
-          );
-          return sql`SELECT ${selectedId}::int AS tag_id, count(*)::int AS tag_count FROM cache_media WHERE ${modifiedWhere ?? sql`TRUE`}`;
+          const modifiedWhere =
+            calculateWhereValue(
+              replaceConditionValue(body, condition.id, newValues),
+              { optimisationHint: "select" },
+            ) ?? sql`TRUE`;
+          return sql`SELECT ${selectedId}::int AS tag_id, count(*)::int AS tag_count FROM cache_media WHERE ${modifiedWhere}`;
         }),
         sql` UNION ALL `,
       );
@@ -201,7 +203,7 @@ export async function fetchFieldCounts(
         ).mapWith(Number),
       })
       .from(dbSchema.cacheMedia)
-      .where(where);
+      .where(whereStandard ?? undefined);
     return [
       { value: "video", count: row?.video ?? 0 },
       { value: "video-with-audio", count: row?.videoWithAudio ?? 0 },

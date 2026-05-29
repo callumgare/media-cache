@@ -76,61 +76,69 @@ export async function createExecutionLogEntry({
   return log;
 }
 
-export async function createOrUpdateLiaseQueryMedia({
+/**
+ * Batch-upsert an entire page of liase media in a single transaction:
+ * one multi-row INSERT for content, one for the query-media references.
+ * Replaces the per-item loop of ensureLiaseQueryMediaContentExists +
+ * createOrUpdateLiaseQueryMedia (N transactions → 1 transaction).
+ */
+export async function batchUpsertLiaseQueryMediaPage({
   dbTx,
-  liaseMedia,
+  liaseMediaList,
   liaseQueryExecution,
 }: {
-  liaseMedia: GenericMedia;
+  liaseMediaList: GenericMedia[];
   liaseQueryExecution: dbSchema.LiaseQueryExecution;
   dbTx: DbTransaction;
-}) {
-  const contentHash = objectHash(liaseMedia);
-  return dbTx
+}): Promise<void> {
+  if (liaseMediaList.length === 0) return;
+  const now = new Date();
+  const allItems = liaseMediaList.map((liaseMedia) => ({
+    liaseId: getIdFromLiaseMedia(liaseMedia),
+    contentHash: objectHash(liaseMedia),
+    content: liaseMedia,
+  }));
+  // Deduplicate by contentHash: if the same media item appears more than once
+  // in a page, a single-statement ON CONFLICT DO UPDATE would fail with
+  // "cannot affect row a second time". Keep the last occurrence (matching the
+  // original sequential-insert behaviour where the final write wins).
+  const items = [
+    ...new Map(allItems.map((item) => [item.contentHash, item])).values(),
+  ];
+
+  await dbTx
+    .insert(dbSchema.liaseQueryMediaContent)
+    .values(
+      items.map(({ liaseId, contentHash, content }) => ({
+        liaseId,
+        contentHash,
+        content,
+        updatedAt: now,
+      })),
+    )
+    .onConflictDoNothing({
+      target: dbSchema.liaseQueryMediaContent.contentHash,
+    });
+
+  await dbTx
     .insert(dbSchema.liaseQueryMedia)
-    .values({
-      updatedAt: new Date(),
-      liaseId: getIdFromLiaseMedia(liaseMedia),
-      foundInLatestExecution: true,
-      queryExecutionIdCreatedOn: liaseQueryExecution.id,
-      queryId: liaseQueryExecution.queryId,
-      contentHash,
-    })
+    .values(
+      items.map(({ liaseId, contentHash }) => ({
+        updatedAt: now,
+        liaseId,
+        foundInLatestExecution: true,
+        queryExecutionIdCreatedOn: liaseQueryExecution.id,
+        queryId: liaseQueryExecution.queryId,
+        contentHash,
+      })),
+    )
     .onConflictDoUpdate({
       target: [
         dbSchema.liaseQueryMedia.contentHash,
         dbSchema.liaseQueryMedia.queryId,
       ],
-      set: {
-        updatedAt: new Date(),
-        foundInLatestExecution: true,
-      },
-    })
-    .returning()
-    .then((result) => result[0]);
-}
-
-export async function ensureLiaseQueryMediaContentExists({
-  dbTx,
-  liaseMedia,
-}: {
-  liaseMedia: GenericMedia;
-  dbTx: DbTransaction;
-}) {
-  const contentHash = objectHash(liaseMedia);
-  return dbTx
-    .insert(dbSchema.liaseQueryMediaContent)
-    .values({
-      liaseId: getIdFromLiaseMedia(liaseMedia),
-      contentHash,
-      content: liaseMedia,
-      updatedAt: new Date(),
-    })
-    .onConflictDoNothing({
-      target: dbSchema.liaseQueryMediaContent.contentHash,
-    })
-    .returning()
-    .then((result) => result[0]);
+      set: { updatedAt: now, foundInLatestExecution: true },
+    });
 }
 
 export async function getCacheMedia({
@@ -444,7 +452,7 @@ export async function createOrUpdateCacheMediaGroups({
 
   const allTags = [...new Set(liaseMedias.flatMap((fm) => fm.tags || []))];
 
-  const groupIds: string[] = [];
+  const groupIds: number[] = [];
   // parentMap stores id → parentId for groups we've touched, so we can compute paths without extra queries
   const parentMap = new Map<number, number | null>([
     [rootTagsGroup.id, rootTagsGroup.parentId],
@@ -467,13 +475,13 @@ export async function createOrUpdateCacheMediaGroups({
       if (!group) throw new Error(`Failed to create tag group: ${tag}`);
     }
     parentMap.set(group.id, group.parentId);
-    groupIds.push(String(group.id));
+    groupIds.push(group.id);
   }
 
   // Build leaf→root paths using parentMap (e.g. '42\t15\t3\t')
-  const groupPaths = groupIds.map((idStr) => {
+  const groupPaths = groupIds.map((id) => {
     let path = "";
-    let current: number | null = Number(idStr);
+    let current: number | null = id;
     while (current !== null) {
       path += `${current}\t`;
       current = parentMap.has(current)

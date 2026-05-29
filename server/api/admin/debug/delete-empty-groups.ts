@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
                   .select({ id: dbSchema.cacheMedia.id })
                   .from(dbSchema.cacheMedia)
                   .where(
-                    sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${dbSchema.group.id}::text]`,
+                    sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${dbSchema.group.id}]`,
                   ),
               ),
             ),

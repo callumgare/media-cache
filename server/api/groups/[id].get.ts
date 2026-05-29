@@ -24,9 +24,7 @@ export default defineEventHandler(async (event) => {
       db
         .select({ mediaCount: count() })
         .from(dbSchema.cacheMedia)
-        .where(
-          sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${String(id)}]::text[]`,
-        ),
+        .where(sql`${dbSchema.cacheMedia.groupIds} @> ARRAY[${id}]::integer[]`),
       // Drizzle doesn't yet support WITH RECURSIVE https://github.com/drizzle-team/drizzle-orm/issues/209
       db.execute<{ id: number; name: string }>(sql`
       WITH RECURSIVE ancestors(id, name, "parent_id", depth) AS (

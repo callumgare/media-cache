@@ -31,7 +31,7 @@ async function insertMedia(groupIds: number[]) {
     .insert(dbSchema.cacheMedia)
     .values({
       updatedAt: new Date(),
-      groupIds: groupIds.map(String),
+      groupIds: groupIds,
     })
     .returning();
   if (!row) throw new Error("Failed to insert media");

@@ -265,13 +265,7 @@ function buildSingleMedia(
     uploaders: [creator],
     liaseSourceIds: mediaSources.map((s) => s.liaseSourceId),
     liaseIds: mediaSources.map((s) => `${s.liaseSourceId}\t${liaseMediaId}`),
-    groupIds: mediaTags.map((g) => {
-      if (g.parentId === null)
-        throw new Error(
-          `Tag group "${g.name}" (id: ${g.id}) has no parent — seed data is malformed`,
-        );
-      return `${g.id}\t${g.parentId}`;
-    }),
+    groupIds: mediaTags.map((g) => g.id),
     hasVideo,
     hasAudio,
     hasImage,

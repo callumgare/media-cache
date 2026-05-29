@@ -165,14 +165,17 @@ export const cacheMedia = pgTable(
       .default(sql`ARRAY[]::text[]`),
     // GIN-indexed array of 'sourceId<TAB>mediaId' composites for exact source+media lookups.
     liaseIds: text("liase_ids").array().notNull().default(sql`ARRAY[]::text[]`),
-    // GIN-indexed array of group IDs (as text) the media belongs to,
+    // GIN-indexed array of group IDs (integers) the media belongs to,
     // populated from liase results.
-    groupIds: text("group_ids").array().notNull().default(sql`ARRAY[]::text[]`),
-    // GIN-indexed array of group IDs for manually-assigned groups.
-    originalGroupIds: text("original_group_ids")
+    groupIds: integer("group_ids")
       .array()
       .notNull()
-      .default(sql`ARRAY[]::text[]`),
+      .default(sql`ARRAY[]::integer[]`),
+    // GIN-indexed array of group IDs for manually-assigned groups.
+    originalGroupIds: integer("original_group_ids")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::integer[]`),
     // GIN-indexed array of tab-separated group hierarchy paths (leaf<TAB>parent<TAB>...<TAB>root<TAB>)
     // for each group in groupIds. Enables ancestor-aware filtering.
     groupPaths: text("group_paths")
@@ -265,6 +268,13 @@ export const cacheMedia = pgTable(
     fileSizeIndex: index("cache_media__file_size_idx").on(cacheMedia.fileSize),
     heightIndex: index("cache_media__height_idx").on(cacheMedia.height),
     widthIndex: index("cache_media__width_idx").on(cacheMedia.width),
+    firstIndexedAtIndex: index("cache_media__first_indexed_at_idx").on(
+      cacheMedia.firstIndexedAt,
+    ),
+    updatedAtIndex: index("cache_media__updated_at_idx").on(
+      cacheMedia.updatedAt,
+    ),
+    titleIndex: index("cache_media__title_idx").on(cacheMedia.title),
   }),
 );
 

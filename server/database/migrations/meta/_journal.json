@@ -176,6 +176,20 @@
       "when": 1779797377239,
       "tag": "0024_cache_media_first_indexed_at_and_earliest_created_at",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779963545134,
+      "tag": "0025_add_sort_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779964199898,
+      "tag": "0026_group_ids_to_integer",
+      "breakpoints": true
     }
   ]
 }

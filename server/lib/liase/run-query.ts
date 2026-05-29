@@ -5,13 +5,12 @@ import { decryptValue } from "@@/server/lib/secrets-encryption";
 import type { GenericRequest } from "@liase/core";
 import { getLiaseQuery } from "../liase";
 import {
+  batchUpsertLiaseQueryMediaPage,
   createExecutionLogEntry,
   createLiaseQueryExecution,
   createOrUpdateCacheMedia,
-  createOrUpdateLiaseQueryMedia,
   deleteCacheMediaEntry,
   deleteOldLiaseQueryMedia,
-  ensureLiaseQueryMediaContentExists,
   getCacheMedia,
   getPreviousLiaseQueryExecution,
 } from "./utils";
@@ -359,22 +358,21 @@ export async function runLiaseQueryExecution({
             pageCount++;
             variationPagesFetched++;
 
-            for (const liaseMedia of response.media) {
-              await db.transaction(async (dbTx) => {
-                await ensureLiaseQueryMediaContentExists({ dbTx, liaseMedia });
-                await createOrUpdateLiaseQueryMedia({
-                  dbTx,
-                  liaseMedia,
-                  liaseQueryExecution,
-                });
+            // Batch the whole page into one transaction: two multi-row inserts
+            // instead of N individual transactions (N × 3 DB round-trips → 3).
+            await db.transaction(async (dbTx) => {
+              await batchUpsertLiaseQueryMediaPage({
+                dbTx,
+                liaseMediaList: response.media,
+                liaseQueryExecution,
               });
-              liaseMediaFound++;
+            });
+            liaseMediaFound += response.media.length;
 
-              await queryExecutionTaskSystem.updateTask(executionId, {
-                pageCount,
-                liaseMediaFound,
-              });
-            }
+            await queryExecutionTaskSystem.updateTask(executionId, {
+              pageCount,
+              liaseMediaFound,
+            });
 
             // All media from this page committed – advance the in-memory checkpoint
             // so the signal handler can persist it with the correct next-page value.
@@ -768,6 +766,13 @@ export async function runLiaseQueryExecution({
       .returning();
 
     await queryExecutionTaskSystem.updateTask(executionId, updatedTaskValues);
+
+    // Run VACUUM ANALYZE in the background to reclaim dead tuples from the
+    // inserts/updates/deletes above. Fire-and-forget so the caller sees
+    // "completed" immediately.
+    db.execute(sql`VACUUM ANALYZE cache_media`).catch((err) => {
+      console.error("VACUUM ANALYZE cache_media failed:", err);
+    });
   } catch (err) {
     const message = util.inspect(err, { depth: 4 });
     console.error(`Liase query execution ${executionId} failed:`, err);

@@ -1,8 +1,23 @@
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
+import mediaHandler from "@@/server/api/media";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import { calculateWhereValue } from "@@/server/utils/query-builder";
+import type { APIMedia } from "@@/types/api-media";
 import type { QueryGroupCondition } from "@@/types/query-condition";
 import type { SortConfig } from "@@/types/sort-config";
 import { asc, desc, sql } from "drizzle-orm";
+import { createEvent } from "h3";
+import { deserialize } from "superjson";
+import type { z } from "zod";
+
+type MediaHandlerResponse = {
+  totalCount: number;
+  pageSize: number;
+  media: z.infer<typeof APIMedia>[];
+  page: number;
+  date: Date;
+};
 /**
  * Tests for /api/media filtering logic.
  * We bypass HTTP and call calculateWhereValue + DB directly,
@@ -645,5 +660,46 @@ describe("/api/media — sort by random", () => {
     await seedSortMedia();
     const results = await querySorted({ field: "random" }, 42);
     expect(results).toHaveLength(4);
+  });
+});
+
+async function callMediaHandler(
+  body: { condition: QueryGroupCondition; sort: SortConfig; seed?: number },
+  page = 1,
+) {
+  const req = new IncomingMessage(new Socket());
+  req.method = "POST";
+  req.url = `/api/media?page=${page}`;
+  const event = createEvent(req, new ServerResponse(req));
+  event._requestBody = JSON.stringify(body);
+  const raw = await mediaHandler(event);
+  return deserialize(raw.toJSON()) as MediaHandlerResponse;
+}
+
+describe("/api/media — tags field in response", () => {
+  it("populates tags for media that have tag groups", async () => {
+    await seedMedia();
+    const result = await callMediaHandler({
+      condition: makeCondition(),
+      sort: { field: "title", direction: "asc" },
+    });
+    const byTitle = Object.fromEntries(
+      result.media.map((m) => [m.title, [...(m.tags ?? [])].sort()]),
+    );
+    expect(byTitle["Video A"]).toEqual(["cats"]);
+    expect(byTitle["Video B"]).toEqual(["dogs"]);
+    expect(byTitle["Image A"]).toEqual(["cats", "dogs"]);
+    expect(byTitle["Video C (audio)"]).toEqual([]);
+  });
+
+  it("returns empty tags array for media with no tag groups", async () => {
+    enqueueMedia([makeMedia({ id: "vid-no-tags", title: "No Tags" })]);
+    await runLiaseQuery();
+    const result = await callMediaHandler({
+      condition: makeCondition(),
+      sort: { field: "title", direction: "asc" },
+    });
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].tags).toEqual([]);
   });
 });

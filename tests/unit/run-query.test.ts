@@ -1,6 +1,7 @@
 import { startLiaseQueryExecution } from "@@/server/lib/liase/run-query";
 import { db, dbSchema } from "@@/server/utils/drizzle";
 import {
+  TEST_REQUEST_PAGINATED_OFFSET,
   createTestLiaseQuery,
   enqueueMedia,
   getCacheMediaAll,
@@ -75,6 +76,25 @@ describe("runLiaseQuery — basic lifecycle", () => {
     expect(vidRow.hasImage).toBe(false);
     expect(imgRow.hasImage).toBe(true);
     expect(imgRow.hasVideo).toBe(false);
+  });
+});
+
+describe("runLiaseQuery — duplicate media in same page", () => {
+  it("handles the same media item appearing twice in one page without error", async () => {
+    // If the batch ON CONFLICT DO UPDATE sees two rows with the same conflict key
+    // in one statement it throws "cannot affect row a second time". This test
+    // ensures the deduplication step prevents that.
+    const m = makeMedia({ id: "dup", title: "Duplicate" });
+    enqueueMedia([m, m]); // same item twice in one page
+
+    await runLiaseQuery();
+
+    const allMedia = await getCacheMediaAll();
+    expect(allMedia).toHaveLength(1);
+    expect(allMedia[0].title).toBe("Duplicate");
+
+    const allLiaseMedia = await getLiaseQueryMediaAll();
+    expect(allLiaseMedia).toHaveLength(1);
   });
 });
 
@@ -278,7 +298,7 @@ describe("runLiaseQuery — tags", () => {
     });
     // alpha group still exists in the DB but no cache_media should reference it
     const isLinked =
-      alphaGroup != null && all[0].groupIds.includes(String(alphaGroup.id));
+      alphaGroup != null && all[0].groupIds.includes(alphaGroup.id);
     expect(isLinked).toBe(false);
   });
 
@@ -786,7 +806,7 @@ describe("runLiaseQuery — detailed media field mapping", () => {
       dislikes: null,
       liaseSourceIds: ["test-source"],
       liaseIds: ["test-source\t42"],
-      groupIds: ["2", "3"],
+      groupIds: [2, 3],
       originalGroupIds: [],
       groupPaths: ["2\t1\t", "3\t1\t"],
       originalGroupPaths: [],
@@ -879,5 +899,167 @@ describe("runLiaseQuery — detailed media field mapping", () => {
         },
       ],
     });
+  });
+});
+
+describe("runLiaseQuery — combined lifecycle: all states in one query", () => {
+  it("handles new, updated, unchanged, removed, re-added, same-page dup, cross-page dup, and tag changes together", async () => {
+    const q = await createTestLiaseQuery(TEST_REQUEST_PAGINATED_OFFSET);
+
+    // ── Run 1: establish 8 unique items across 2 pages ──────────────────────
+    //
+    // Page 1: five distinct items with varying tag configurations
+    enqueueMedia([
+      makeMedia({ id: "keep-a", title: "Keep A" }),
+      makeMedia({
+        id: "keep-tagged",
+        title: "Keep Tagged",
+        tags: ["cats", "dogs"],
+      }),
+      makeMedia({ id: "update-title", title: "Old Title" }),
+      makeMedia({ id: "update-tags", title: "Update Tags", tags: ["alpha"] }),
+      makeMedia({ id: "strip-tags", title: "Strip Tags", tags: ["removeme"] }),
+    ]);
+    // Page 2: two items to be removed later, plus a same-page duplicate
+    const dupItem = makeMedia({ id: "same-page-dup", title: "Dup Item" });
+    enqueueMedia([
+      makeMedia({ id: "remove-forever", title: "Remove Forever" }),
+      makeMedia({ id: "remove-readd", title: "Remove Readd" }),
+      dupItem, // same object twice → same-page duplicate
+      dupItem,
+    ]);
+    await runLiaseQuery(q);
+    // 8 unique cache_media rows despite 9 API items (same-page dup counted once)
+    expect(await getCacheMediaAll()).toHaveLength(8);
+
+    // ── Run 2: every state fires simultaneously across 3 pages ──────────────
+    //
+    // Page 1: keep-a unchanged, keep-tagged unchanged, update-title title changed
+    enqueueMedia([
+      makeMedia({ id: "keep-a", title: "Keep A" }),
+      makeMedia({
+        id: "keep-tagged",
+        title: "Keep Tagged",
+        tags: ["cats", "dogs"],
+      }),
+      makeMedia({ id: "update-title", title: "New Title" }),
+    ]);
+    // Page 2: tag updates, same-page-dup (cross-page with p3), two new items
+    enqueueMedia([
+      makeMedia({ id: "update-tags", title: "Update Tags", tags: ["beta"] }),
+      makeMedia({ id: "strip-tags", title: "Strip Tags", tags: [] }),
+      makeMedia({ id: "same-page-dup", title: "Dup Item" }), // cross-page dup
+      makeMedia({ id: "new-a", title: "New A" }),
+    ]);
+    // Page 3: cross-page dup reappears, two more new items
+    // remove-forever and remove-readd are absent → will be removed
+    enqueueMedia([
+      makeMedia({ id: "same-page-dup", title: "Dup Item" }), // cross-page dup
+      makeImageMedia({ id: "new-b", title: "New B" }),
+      makeMedia({ id: "new-c", title: "New C" }),
+    ]);
+    await runLiaseQuery(q);
+
+    // ── Run 2 — cache_media state ────────────────────────────────────────────
+    const mediaAfterRun2 = await getCacheMediaAll();
+    expect(mediaAfterRun2.map((m) => m.title).sort()).toEqual([
+      "Dup Item",
+      "Keep A",
+      "Keep Tagged",
+      "New A",
+      "New B",
+      "New C",
+      "New Title", // was "Old Title"
+      "Strip Tags",
+      "Update Tags",
+    ]);
+    // remove-forever and remove-readd are gone
+    expect(
+      mediaAfterRun2.find((m) => m.title === "Remove Forever"),
+    ).toBeUndefined();
+    expect(
+      mediaAfterRun2.find((m) => m.title === "Remove Readd"),
+    ).toBeUndefined();
+
+    // Tags were correctly updated
+    const strippedItem = mediaAfterRun2.find((m) => m.title === "Strip Tags");
+    if (!strippedItem) throw new Error("Expected strip-tags item");
+    expect(strippedItem.groupIds).toHaveLength(0);
+
+    // ── Run 2 — deleted_cache_media ─────────────────────────────────────────
+    expect(await getDeletedCacheMediaAll()).toHaveLength(2);
+
+    // ── Run 2 — execution stats ──────────────────────────────────────────────
+    const execsAfterRun2 = (await getLiaseQueryExecutionAll()).sort(
+      (a, b) => a.id - b.id,
+    );
+    const run2Exec = execsAfterRun2[1];
+    if (!run2Exec) throw new Error("Expected a second execution");
+    expect(run2Exec.status).toBe("completed");
+    expect(run2Exec.pageCount).toBe(3);
+
+    // API delivered 10 items total (3+4+3); same-page-dup contributes 2 of them
+    expect(run2Exec.liaseMediaFound).toBe(10);
+    expect(run2Exec.liaseMediaNew).toBe(3); // new-a, new-b, new-c
+    // update-title (title changed), update-tags (tags changed), strip-tags (tags removed)
+    expect(run2Exec.liaseMediaUpdated).toBe(3);
+    // keep-a, keep-tagged, same-page-dup (once, despite appearing on 2 pages)
+    expect(run2Exec.liaseMediaUnchanged).toBe(3);
+    expect(run2Exec.liaseMediaRemoved).toBe(2); // remove-forever, remove-readd
+
+    expect(run2Exec.cacheMediaCreated).toBe(3);
+    expect(run2Exec.cacheMediaUpdated).toBe(3);
+    expect(run2Exec.cacheMediaUnchanged).toBe(3);
+    expect(run2Exec.cacheMediaDeleted).toBe(2);
+
+    // ── Run 3: re-add remove-readd alongside all surviving items ────────────
+    enqueueMedia([
+      makeMedia({ id: "keep-a", title: "Keep A" }),
+      makeMedia({
+        id: "keep-tagged",
+        title: "Keep Tagged",
+        tags: ["cats", "dogs"],
+      }),
+      makeMedia({ id: "update-title", title: "New Title" }),
+      makeMedia({ id: "update-tags", title: "Update Tags", tags: ["beta"] }),
+      makeMedia({ id: "strip-tags", title: "Strip Tags", tags: [] }),
+      makeMedia({ id: "same-page-dup", title: "Dup Item" }),
+      makeMedia({ id: "new-a", title: "New A" }),
+      makeImageMedia({ id: "new-b", title: "New B" }),
+      makeMedia({ id: "new-c", title: "New C" }),
+      makeMedia({ id: "remove-readd", title: "Re-added" }), // re-add
+    ]);
+    await runLiaseQuery(q);
+
+    // ── Run 3 — cache_media state ────────────────────────────────────────────
+    const mediaAfterRun3 = await getCacheMediaAll();
+    expect(mediaAfterRun3).toHaveLength(10);
+    expect(mediaAfterRun3.find((m) => m.title === "Re-added")).toBeDefined();
+    expect(
+      mediaAfterRun3.find((m) => m.title === "Remove Forever"),
+    ).toBeUndefined();
+
+    // deleted_cache_media still has 2 entries; re-adding remove-readd does not
+    // clear the earlier deletion record
+    expect(await getDeletedCacheMediaAll()).toHaveLength(2);
+
+    // ── Run 3 — execution stats ──────────────────────────────────────────────
+    const execsAfterRun3 = (await getLiaseQueryExecutionAll()).sort(
+      (a, b) => a.id - b.id,
+    );
+    const run3Exec = execsAfterRun3[2];
+    if (!run3Exec) throw new Error("Expected a third execution");
+    expect(run3Exec.status).toBe("completed");
+
+    expect(run3Exec.liaseMediaFound).toBe(10);
+    expect(run3Exec.liaseMediaNew).toBe(1); // remove-readd is new to this run's liase_query_media
+    expect(run3Exec.liaseMediaUpdated).toBe(0);
+    expect(run3Exec.liaseMediaUnchanged).toBe(9);
+    expect(run3Exec.liaseMediaRemoved).toBe(0);
+
+    expect(run3Exec.cacheMediaCreated).toBe(1); // remove-readd
+    expect(run3Exec.cacheMediaUpdated).toBe(0);
+    expect(run3Exec.cacheMediaUnchanged).toBe(9);
+    expect(run3Exec.cacheMediaDeleted).toBe(0);
   });
 });
