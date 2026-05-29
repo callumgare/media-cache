@@ -541,16 +541,20 @@ test.describe("Feed page – scroll and touch navigation", () => {
 
     // Wait for the snap animation to settle, then confirm scrollY is at a
     // snap point: a multiple of VIEWPORT.height within a 5 px tolerance.
-    await page.waitForFunction(
+    // Capture scrollY atomically inside waitForFunction (returning an object
+    // so y=0 is not treated as falsy) to avoid a TOCTOU race where a
+    // separate evaluate() call could read a changed scroll position.
+    const resultHandle = await page.waitForFunction(
       (vh) => {
         const y = window.scrollY;
-        return y % vh <= 5 || y % vh >= vh - 5;
+        const rem = y % vh;
+        return rem <= 5 || rem >= vh - 5 ? { y } : null;
       },
       VIEWPORT.height,
       { timeout: 5_000 },
     );
+    const { y: scrollY } = (await resultHandle.jsonValue()) as { y: number };
 
-    const scrollY = await page.evaluate(() => window.scrollY);
     const remainder = scrollY % VIEWPORT.height;
     expect(
       remainder <= 5 || remainder >= VIEWPORT.height - 5,
