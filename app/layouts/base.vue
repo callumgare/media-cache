@@ -245,7 +245,10 @@ onUnmounted(() => {
       background: transparent;
       border: none;
       cursor: pointer;
-      opacity: 0;
+      /* 0.01 not 0: iOS Safari won't fire a click on the first tap for
+         elements with opacity:0 (treats them as invisible). 0.01 is
+         imperceptible but still registers as a valid tap target. */
+      opacity: 0.01;
       transition: opacity 0.2s ease;
 
       &.is-expanded {
