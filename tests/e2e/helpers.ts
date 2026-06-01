@@ -69,18 +69,22 @@ export async function setup(
     delay?: number;
     pageSize?: number;
     groups?: Array<{ name: string; parentId?: number }>;
+    groupMedia?: Array<{ groupIndex: number; count: number }>;
   } = {},
-) {
+): Promise<{ groupIds: number[] }> {
   const res = await request.post("/api/_test/setup", {
     data: {
       media: opts.media ?? [],
       delay: opts.delay ?? 0,
       pageSize: opts.pageSize,
       groups: opts.groups,
+      groupMedia: opts.groupMedia,
     },
   });
   if (!res.ok())
     throw new Error(`Test setup failed: ${res.status()} ${await res.text()}`);
+  const data = (await res.json()) as { ok: boolean; groupIds: number[] };
+  return { groupIds: data.groupIds ?? [] };
 }
 
 export async function createQuery(

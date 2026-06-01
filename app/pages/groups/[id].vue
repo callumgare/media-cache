@@ -4,7 +4,6 @@ import {
   useMediaQuery,
 } from "@@/stores/media-query";
 import { useUiState } from "@@/stores/ui";
-import type { APIMediaResponse } from "@@/types/api-media";
 import {
   refDebounced,
   useInfiniteScroll,
@@ -13,7 +12,6 @@ import {
 } from "@vueuse/core";
 import { Shuffle } from "lucide-vue-next";
 import type { MenuItem } from "primevue/menuitem";
-import type { z } from "zod";
 
 const route = useRoute();
 const groupId = computed(() => Number(route.params.id));
@@ -61,7 +59,7 @@ watchEffect(() => {
     { label: "Groups", route: "/groups" },
     ...group.value.ancestors.map((a) => ({
       label: a.name,
-      route: `/group/${a.id}`,
+      route: `/groups/${a.id}`,
     })),
     { label: group.value.name },
   ];
@@ -155,46 +153,40 @@ const nextMediaSkeletonCount = computed(() => {
 });
 
 // Media with infinite scroll
-const randomSeed = Math.floor(Math.random() * 1000000);
+const randomSeed = ref(Math.floor(Math.random() * 1000000));
+
+function reshuffleMediaSeed() {
+  randomSeed.value = Math.floor(Math.random() * 1000000);
+}
+const groupCondition = computed(() => ({
+  id: 1,
+  type: "group",
+  operator: "AND",
+  conditions: [
+    {
+      id: 2,
+      type: "field",
+      field: "groups",
+      operator: "includes all",
+      value: [String(groupId.value)],
+    },
+  ],
+}));
+
 const {
   data: mediaQueryData,
+  isPending: mediaQueryLoading,
+  error: mediaQueryError,
   fetchNextPage: fetchNextMediaPage,
   isFetchingNextPage: fetchingMoreMedia,
   hasNextPage: hasMoreMedia,
-} = useInfiniteQuery({
-  queryKey: computed(() => ["media", "group", groupId.value]),
-  queryFn: ({ pageParam }) =>
-    $fetch<z.infer<typeof APIMediaResponse>>("/api/media", {
-      method: "POST",
-      query: { page: pageParam },
-      body: {
-        condition: {
-          id: 1,
-          type: "group",
-          operator: "AND",
-          conditions: [
-            {
-              id: 2,
-              type: "field",
-              field: "groups",
-              operator: "includes all",
-              value: [String(groupId.value)],
-            },
-          ],
-        },
-        sort: { field: "random" },
-        seed: randomSeed,
-      },
-    }),
-  initialPageParam: 1,
-  getNextPageParam: (lastPage) =>
-    lastPage.media.length < lastPage.pageSize ? null : lastPage.page + 1,
-  enabled: isMounted,
+  medias,
+} = useMediaResults({
+  condition: groupCondition,
+  sort: { field: "random" },
+  seed: randomSeed,
+  queryKeyPrefix: "media.group",
 });
-
-const medias = computed(
-  () => mediaQueryData.value?.pages.flatMap((p) => p.media) ?? [],
-);
 
 // Single scroll container drives both lists; child groups load first, media after
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -245,6 +237,8 @@ function openOnMediaPage() {
     groupsNode = newNode;
   }
   mediaQuery.setFieldConditionValue(groupsNode, [groupId.value]);
+  mediaQuery.sort = { field: "random" };
+  mediaQuery.randomSeed = randomSeed.value;
   navigateTo(`/media/${uiState.lastMediaView}`);
 }
 </script>
@@ -322,9 +316,19 @@ function openOnMediaPage() {
       <section v-if="group?.mediaCount" class="media-section">
         <div class="section-toolbar">
           <h2>Media</h2>
-          <Button variant="link" @click="openOnMediaPage">Open on Media page</Button>
+          <Button variant="link" data-testid="open-on-media-page-btn" @click="openOnMediaPage">Open on Media page</Button>
+          <Button
+            severity="secondary"
+            variant="text"
+            title="Reshuffle"
+            @click="reshuffleMediaSeed"
+          >
+            <Shuffle :size="16" />
+          </Button>
         </div>
-        <MediaList :medias="medias" :loading-count="nextMediaSkeletonCount" :total="group?.mediaCount" />
+        <div v-if="mediaQueryLoading" class="loading">Loading media…</div>
+        <div v-else-if="mediaQueryError" class="error">Failed to load media.</div>
+        <MediaList v-else :medias="medias" :loading-count="nextMediaSkeletonCount" :total="group?.mediaCount" />
       </section>
 
       <div

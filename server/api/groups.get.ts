@@ -206,14 +206,23 @@ async function fetchPreviewImages(
     sql`, `,
   );
 
+  // Inner subquery fetches up to 1000 candidates via the GIN index (no ORDER BY
+  // so PostgreSQL stops early).  The outer lateral then sorts those 1000 rows by
+  // a stable per-(media, group) hash and takes 4, giving each group a different
+  // deterministic selection without a full table scan.
   const rows = Array.from(
     await db.execute<PreviewRow>(sql`
       SELECT g.g_id, cm.id, cm.files
       FROM (VALUES ${valuesList}) AS g(g_id)
       CROSS JOIN LATERAL (
         SELECT id, files
-        FROM cache_media
-        WHERE group_ids @> ARRAY[g.g_id::int]
+        FROM (
+          SELECT id, files
+          FROM cache_media
+          WHERE group_ids @> ARRAY[g.g_id::int]
+          LIMIT 1000
+        ) candidates
+        ORDER BY hashint4(id + g.g_id)
         LIMIT 4
       ) cm
     `),

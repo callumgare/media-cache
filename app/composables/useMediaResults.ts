@@ -2,17 +2,42 @@ import { useMediaQuery } from "@@/stores/media-query";
 import { useUiState } from "@@/stores/ui";
 import type { APIMediaResponse } from "@@/types/api-media";
 import { useMounted } from "@vueuse/core";
+import { type MaybeRef, isRef } from "vue";
 import type z from "zod";
 
-export function useMediaResults() {
+interface UseMediaResultsOptions {
+  condition?: unknown;
+  sort?: { field: string; direction?: string };
+  seed?: MaybeRef<number>;
+  queryKeyPrefix?: string;
+}
+
+export function useMediaResults(options?: UseMediaResultsOptions) {
   const mediaQuery = useMediaQuery();
-  const mediaQueryCondition = ref(mediaQuery.condition);
-  mediaQuery.$subscribe(() => {
-    mediaQueryCondition.value = mediaQuery.condition;
-  });
+  const mediaQueryCondition = ref(options?.condition ?? mediaQuery.condition);
+
+  if (!options?.condition) {
+    mediaQuery.$subscribe(() => {
+      mediaQueryCondition.value = mediaQuery.condition;
+    });
+  }
 
   const uiState = useUiState();
-  const { sort, randomSeed } = storeToRefs(mediaQuery);
+  const sort = ref(options?.sort ?? mediaQuery.sort);
+  const randomSeed = isRef(options?.seed)
+    ? options.seed
+    : ref(options?.seed ?? mediaQuery.randomSeed);
+
+  if (!options?.sort) {
+    const { sort: storeSort, randomSeed: storeRandomSeed } =
+      storeToRefs(mediaQuery);
+    watch(storeSort, (val) => {
+      sort.value = val;
+    });
+    watch(storeRandomSeed, (val) => {
+      randomSeed.value = val;
+    });
+  }
 
   const isMounted = useMounted();
 
@@ -24,7 +49,12 @@ export function useMediaResults() {
     hasNextPage,
     error,
   } = useInfiniteQuery({
-    queryKey: ["media", mediaQueryCondition, sort, randomSeed],
+    queryKey: [
+      options?.queryKeyPrefix ?? "media",
+      mediaQueryCondition,
+      sort,
+      randomSeed,
+    ],
     queryFn: ({ pageParam }) => {
       const { $superFetch } = useNuxtApp();
       return $superFetch<z.infer<typeof APIMediaResponse>>("/api/media", {
@@ -32,10 +62,8 @@ export function useMediaResults() {
         method: "POST",
         body: {
           condition: mediaQueryCondition.value,
-          sort: mediaQuery.sort,
-          ...(mediaQuery.sort.field === "random"
-            ? { seed: mediaQuery.randomSeed }
-            : {}),
+          sort: sort.value,
+          ...(sort.value.field === "random" ? { seed: randomSeed.value } : {}),
         },
       });
     },

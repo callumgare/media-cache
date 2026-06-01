@@ -11,7 +11,7 @@ defineProps<{
 </script>
 
 <template>
-  <NuxtLink :to="`/group/${group.id}`" class="group-card">
+  <NuxtLink :to="`/groups/${group.id}`" class="group-card">
     <div class="preview-grid">
       <div
         v-for="(img, i) in group.previewImages.slice(0, 4)"

@@ -151,6 +151,7 @@ function handleMouseLeave() {
       ref="imgRef"
       :src="imageFile ? getSrc(imageFile) : ''"
       class="media-thumbnail"
+      data-testid="media-preview-thumbnail"
       @load="onMediaLoaded"
       @click.prevent="emits('mediaClick', media)"
     >
