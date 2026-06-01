@@ -459,3 +459,128 @@ describe("calculateBM25WhereValue — duration range", () => {
     ).toEqual(["medium", "nodur", "short"]);
   });
 });
+
+// ─── favourited filter ────────────────────────────────────────────────────────
+
+function favourited(value: "yes" | "no" | ""): QueryCondition {
+  return {
+    id: nextId(),
+    type: "field",
+    field: "favourited",
+    operator: "equals",
+    value,
+  };
+}
+
+/** Returns or creates the first user in the DB. */
+async function ensureUser(): Promise<number> {
+  const existing = await db
+    .select({ id: dbSchema.user.id })
+    .from(dbSchema.user)
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+  if (existing) return existing.id;
+  const created = await db
+    .insert(dbSchema.user)
+    .values({ username: "test-user", updatedAt: new Date() })
+    .returning({ id: dbSchema.user.id })
+    .then((rows) => rows[0]);
+  if (!created) throw new Error("Failed to create test user");
+  return created.id;
+}
+
+/** Variant of titlesWhere that also passes a userId for the favourited filter. */
+async function titlesWhereWithUser(
+  condition: QueryCondition,
+  userId: number,
+): Promise<string[]> {
+  const where = calculateWhereValue(condition, { userId });
+  const rows = await db.execute<{ title: string }>(
+    sql`SELECT title FROM cache_media WHERE ${where}`,
+  );
+  return rows.map((r: { title: string }) => r.title).sort();
+}
+
+describe("calculateWhereValue — favourited filter", () => {
+  it("empty string value → matches all rows", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    expect(
+      await titlesWhereWithUser(group("AND", [favourited("")]), userId),
+    ).toEqual(["img-a", "img-b", "vid-a", "vid-b"]);
+  });
+
+  it('value "yes" → only rows favourited by the user', async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const allRows = await db
+      .select({ id: dbSchema.cacheMedia.id, title: dbSchema.cacheMedia.title })
+      .from(dbSchema.cacheMedia)
+      .orderBy(dbSchema.cacheMedia.title);
+    if (allRows.length < 2) throw new Error("Expected at least 2 seeded rows");
+    // Favourite the first two rows
+    await db.insert(dbSchema.userCacheMediaInfo).values([
+      { userId, cacheMediaId: allRows[0].id, favourited: true },
+      { userId, cacheMediaId: allRows[1].id, favourited: true },
+    ]);
+    const expectedTitles = [allRows[0].title, allRows[1].title].sort();
+    expect(
+      await titlesWhereWithUser(group("AND", [favourited("yes")]), userId),
+    ).toEqual(expectedTitles);
+  });
+
+  it('value "no" → only rows not favourited by the user', async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const allRows = await db
+      .select({ id: dbSchema.cacheMedia.id, title: dbSchema.cacheMedia.title })
+      .from(dbSchema.cacheMedia)
+      .orderBy(dbSchema.cacheMedia.title);
+    if (allRows.length < 2) throw new Error("Expected at least 2 seeded rows");
+    const favouritedTitles = [allRows[0].title, allRows[1].title];
+    await db.insert(dbSchema.userCacheMediaInfo).values([
+      { userId, cacheMediaId: allRows[0].id, favourited: true },
+      { userId, cacheMediaId: allRows[1].id, favourited: true },
+    ]);
+    const allTitles = allRows.map((r) => r.title).sort();
+    const expectedTitles = allTitles.filter(
+      (t) => !favouritedTitles.includes(t),
+    );
+    expect(
+      await titlesWhereWithUser(group("AND", [favourited("no")]), userId),
+    ).toEqual(expectedTitles);
+  });
+
+  it('value "yes" without userId → matches all rows (no filter applied)', async () => {
+    await seedMedia();
+    // When no userId is passed, the favourited filter is silently skipped
+    expect(await titlesWhere(group("AND", [favourited("yes")]))).toEqual([
+      "img-a",
+      "img-b",
+      "vid-a",
+      "vid-b",
+    ]);
+  });
+
+  it("AND[yes, source] → intersection of favourited and source filter", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const sourceARows = await db
+      .select({ id: dbSchema.cacheMedia.id, title: dbSchema.cacheMedia.title })
+      .from(dbSchema.cacheMedia)
+      .where(
+        sql`${dbSchema.cacheMedia.liaseSourceIds} @> ARRAY['source-a']::text[]`,
+      );
+    if (sourceARows.length === 0) throw new Error("Expected source-a rows");
+    // Mark only the first source-a row as favourited
+    await db
+      .insert(dbSchema.userCacheMediaInfo)
+      .values({ userId, cacheMediaId: sourceARows[0].id, favourited: true });
+    expect(
+      await titlesWhereWithUser(
+        group("AND", [source("source-a"), favourited("yes")]),
+        userId,
+      ),
+    ).toEqual([sourceARows[0].title]);
+  });
+});

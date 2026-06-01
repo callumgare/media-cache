@@ -190,6 +190,13 @@
       "when": 1779964199898,
       "tag": "0026_group_ids_to_integer",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1780297560622,
+      "tag": "0027_add_user_media_favourites",
+      "breakpoints": true
     }
   ]
 }

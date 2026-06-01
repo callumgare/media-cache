@@ -50,12 +50,19 @@ export default defineEventHandler(async (event) => {
 
   const seed = sort.field === "random" ? (body.seed ?? 0) : 0;
 
+  const user = await db
+    .select({ id: dbSchema.user.id })
+    .from(dbSchema.user)
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
   // Use standard SQL (GIN/BTree operators) instead of the BM25 `===` operator.
   // The covering BTree index (id) INCLUDE (liase_source_ids, group_ids, has_video,
   // has_audio, has_image) allows index-only scans with 0 heap fetches, which is
   // ~6x faster than a BM25 scan that must visit the heap for every matching row.
   const whereClause = calculateWhereValue(condition, {
     optimisationHint: "select",
+    userId: user?.id ?? null,
   });
 
   // Build ORDER BY for the pagination query.

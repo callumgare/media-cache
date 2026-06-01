@@ -7,6 +7,7 @@ import { useUiState } from "@@/stores/ui";
 import { PhotoSwipeCustomVideoPlugin } from "~/lib/photo-swipe/plugins/custom-video";
 import { PhotoSwipeCustomZoomPlugin } from "~/lib/photo-swipe/plugins/custom-zoom";
 import { PhotoSwipeDebugPlugin } from "~/lib/photo-swipe/plugins/debug";
+import { PhotoSwipeFavouritePlugin } from "~/lib/photo-swipe/plugins/favourite";
 import { PhotoSwipeInfoPanelPlugin } from "~/lib/photo-swipe/plugins/info-panel";
 import { PhotoSwipePenAsMousePlugin } from "~/lib/photo-swipe/plugins/pen-as-mouse";
 import { PhotoSwipeScrollToThumbPlugin } from "~/lib/photo-swipe/plugins/scroll-to-thumb";
@@ -88,6 +89,7 @@ onMounted(() => {
   new PhotoSwipeCustomZoomPlugin(photoSwipe.value);
   new PhotoSwipePenAsMousePlugin(photoSwipe.value);
   new PhotoSwipeInfoPanelPlugin(photoSwipe.value);
+  new PhotoSwipeFavouritePlugin(photoSwipe.value);
   new PhotoSwipeScrollToThumbPlugin(photoSwipe.value);
 
   photoSwipe.value.addFilter("itemData", (itemData) => {

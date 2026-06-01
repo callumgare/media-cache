@@ -63,7 +63,7 @@ const schemaConfig: QuerySchemaConfig = {
 };
 
 /** Create a reactive field condition so the component re-renders when value changes. */
-function makeCondition(value: string[] = []): QueryFieldCondition {
+function makeCondition(value: (string | number)[] = []): QueryFieldCondition {
   return reactive<QueryFieldCondition>({
     id: 1,
     type: "field",
@@ -73,7 +73,7 @@ function makeCondition(value: string[] = []): QueryFieldCondition {
   });
 }
 
-async function mount(value: string[] = []) {
+async function mount(value: (string | number)[] = []) {
   const fieldCondition = makeCondition(value);
   const wrapper = await mountSuspended(QueryBuilderInputListbox, {
     props: { fieldCondition, schemaConfig },
@@ -127,7 +127,7 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("excludes already-selected options even when they match the filter", async () => {
-      const { wrapper } = await mount(["3"]);
+      const { wrapper } = await mount([3]);
       await wrapper.find(".filter-input").setValue("dr");
       await nextTick();
       const options = wrapper
@@ -144,7 +144,7 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("shows a selected-item entry for each selected option", async () => {
-      const { wrapper } = await mount(["1", "2"]);
+      const { wrapper } = await mount([1, 2]);
       const items = wrapper.findAll(".selected-item");
       expect(items).toHaveLength(2);
       expect(items[0]?.text()).toContain("Action");
@@ -152,12 +152,12 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("shows the option count inside the selected-item entry", async () => {
-      const { wrapper } = await mount(["1"]);
+      const { wrapper } = await mount([1]);
       expect(wrapper.find(".selected-item .option-count").text()).toBe("10");
     });
 
     it("deselects an option when clicking its selected-item entry", async () => {
-      const { wrapper, fieldCondition } = await mount(["1"]);
+      const { wrapper, fieldCondition } = await mount([1]);
       await wrapper.find(".selected-item").trigger("click");
       await nextTick();
       expect(wrapper.findAll(".selected-item")).toHaveLength(0);
@@ -165,11 +165,11 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("deselects only the clicked item when multiple options are selected", async () => {
-      const { wrapper, fieldCondition } = await mount(["1", "2", "3"]);
+      const { wrapper, fieldCondition } = await mount([1, 2, 3]);
       // Click the second item (Comedy)
       await wrapper.findAll(".selected-item")[1]?.trigger("click");
       await nextTick();
-      expect(fieldCondition.value).toEqual(["1", "3"]);
+      expect(fieldCondition.value).toEqual([1, 3]);
       expect(wrapper.findAll(".selected-item")).toHaveLength(2);
     });
   });
@@ -184,7 +184,7 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("excludes selected options from the Listbox", async () => {
-      const { wrapper } = await mount(["1"]);
+      const { wrapper } = await mount([1]);
       const options = wrapper
         .findComponent({ name: "Listbox" })
         .props("options") as (typeof AVAILABLE_OPTIONS)[number][];
@@ -198,7 +198,7 @@ describe("QueryBuilderInputListbox", () => {
         .findComponent({ name: "Listbox" })
         .vm.$emit("update:modelValue", { id: 3, name: "Drama", count: 8 });
       await nextTick();
-      expect(fieldCondition.value).toEqual(["3"]);
+      expect(fieldCondition.value).toEqual([3]);
     });
 
     it("moves a newly selected option into the selected-item section", async () => {
@@ -225,7 +225,7 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("re-adds a deselected option back into the Listbox", async () => {
-      const { wrapper } = await mount(["1"]);
+      const { wrapper } = await mount([1]);
       await wrapper.find(".selected-item").trigger("click");
       await nextTick();
       const options = wrapper
@@ -236,12 +236,12 @@ describe("QueryBuilderInputListbox", () => {
     });
 
     it("does not add an option twice if it is already selected", async () => {
-      const { wrapper, fieldCondition } = await mount(["3"]);
+      const { wrapper, fieldCondition } = await mount([3]);
       await wrapper
         .findComponent({ name: "Listbox" })
         .vm.$emit("update:modelValue", { id: 3, name: "Drama", count: 8 });
       await nextTick();
-      expect(fieldCondition.value).toEqual(["3"]);
+      expect(fieldCondition.value).toEqual([3]);
     });
   });
 

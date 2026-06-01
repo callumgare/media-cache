@@ -3,8 +3,10 @@ import { Socket } from "node:net";
 import mediaFacetsHandler from "@@/server/api/media-facets";
 import { fetchFieldCounts } from "@@/server/lib/media-facets";
 import { db } from "@@/server/utils/drizzle";
+import { dbSchema } from "@@/server/utils/drizzle";
 import type {
   FacetFieldResult,
+  FavouritedFacetCount,
   SourceFacetCount,
   TagFacetCount,
   TypeFacetCount,
@@ -13,6 +15,7 @@ import type {
   QueryFieldCondition,
   QueryGroupCondition,
 } from "@@/types/query-condition";
+import { eq } from "drizzle-orm";
 import { createEvent } from "h3";
 /**
  * Tests for /api/media-facets facet count logic.
@@ -60,6 +63,35 @@ function makeTypeCondition(
   value = "",
 ): QueryFieldCondition & { field: "type" } {
   return { id: 30, type: "field", field: "type", operator: "equals", value };
+}
+
+function makeFavouritedCondition(
+  value: "yes" | "no" | "" = "",
+): QueryFieldCondition & { field: "favourited" } {
+  return {
+    id: 40,
+    type: "field",
+    field: "favourited",
+    operator: "equals",
+    value,
+  };
+}
+
+/** Returns or creates the first user in the DB. */
+async function ensureUser(): Promise<number> {
+  const existing = await db
+    .select({ id: dbSchema.user.id })
+    .from(dbSchema.user)
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+  if (existing) return existing.id;
+  const created = await db
+    .insert(dbSchema.user)
+    .values({ username: "test-user", updatedAt: new Date() })
+    .returning({ id: dbSchema.user.id })
+    .then((rows) => rows[0]);
+  if (!created) throw new Error("Failed to create test user");
+  return created.id;
 }
 
 async function getGroupId(name: string): Promise<number> {
@@ -328,5 +360,161 @@ describe("/api/media-facets — all filters populated", () => {
     );
     expect(byType.video).toBe(2);
     expect(byType.image).toBe(1);
+  });
+});
+
+describe("/api/media-facets — favourited counts", () => {
+  it("returns empty array when no userId is provided", async () => {
+    await seedMedia();
+    const cond = makeFavouritedCondition();
+    const counts = await fetchFieldCounts(cond, makeBody([cond]));
+    expect(counts).toEqual([]);
+  });
+
+  it("returns yes=0 and no=N when no items are favourited", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const cond = makeFavouritedCondition();
+    const counts = (await fetchFieldCounts(
+      cond,
+      makeBody([cond]),
+      userId,
+    )) as FavouritedFacetCount[];
+    const byValue = Object.fromEntries(counts.map((c) => [c.value, c]));
+    expect(byValue.yes?.count).toBe(0);
+    expect(byValue.no?.count).toBe(4); // all 4 seeded items
+  });
+
+  it("counts yes/no correctly when some items are favourited", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    // Favourite 2 of the 4 items
+    const allRows = await db
+      .select({ id: dbSchema.cacheMedia.id })
+      .from(dbSchema.cacheMedia)
+      .orderBy(dbSchema.cacheMedia.id)
+      .limit(2);
+    await db
+      .insert(dbSchema.userCacheMediaInfo)
+      .values(
+        allRows.map((r) => ({ userId, cacheMediaId: r.id, favourited: true })),
+      );
+    const cond = makeFavouritedCondition();
+    const counts = (await fetchFieldCounts(
+      cond,
+      makeBody([cond]),
+      userId,
+    )) as FavouritedFacetCount[];
+    const byValue = Object.fromEntries(counts.map((c) => [c.value, c]));
+    expect(byValue.yes?.count).toBe(2);
+    expect(byValue.no?.count).toBe(2);
+  });
+
+  it("countAddedIfRemoved is null for unselected options", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const cond = makeFavouritedCondition(); // value = "" → nothing selected
+    const counts = (await fetchFieldCounts(
+      cond,
+      makeBody([cond]),
+      userId,
+    )) as FavouritedFacetCount[];
+    for (const c of counts) {
+      expect(c.countAddedIfRemoved).toBeNull();
+    }
+  });
+
+  it("countAddedIfRemoved for selected 'yes' = number of non-favourited items", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const allRows = await db
+      .select({ id: dbSchema.cacheMedia.id })
+      .from(dbSchema.cacheMedia)
+      .orderBy(dbSchema.cacheMedia.id)
+      .limit(2);
+    await db
+      .insert(dbSchema.userCacheMediaInfo)
+      .values(
+        allRows.map((r) => ({ userId, cacheMediaId: r.id, favourited: true })),
+      );
+    const cond = makeFavouritedCondition("yes");
+    const counts = (await fetchFieldCounts(
+      cond,
+      makeBody([cond]),
+      userId,
+    )) as FavouritedFacetCount[];
+    const byValue = Object.fromEntries(counts.map((c) => [c.value, c]));
+    // Removing the "yes" filter would show 2 more items (the non-favourited ones)
+    expect(byValue.yes?.countAddedIfRemoved).toBe(2);
+    expect(byValue.no?.countAddedIfRemoved).toBeNull();
+  });
+
+  it("favourited counts respect other active filters", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    // Favourite one image and one video
+    const imgRow = await db
+      .select({ id: dbSchema.cacheMedia.id })
+      .from(dbSchema.cacheMedia)
+      .where(eq(dbSchema.cacheMedia.hasImage, true))
+      .limit(1)
+      .then((rows) => rows[0]);
+    if (!imgRow) throw new Error("Expected an image row");
+    await db
+      .insert(dbSchema.userCacheMediaInfo)
+      .values({ userId, cacheMediaId: imgRow.id, favourited: true });
+
+    // With type=image filter active, only 1 item qualifies; it's favourited
+    const cond = makeFavouritedCondition();
+    const typeCond = makeTypeCondition("image");
+    const body = makeBody([cond, typeCond]);
+    const counts = (await fetchFieldCounts(
+      cond,
+      body,
+      userId,
+    )) as FavouritedFacetCount[];
+    const byValue = Object.fromEntries(counts.map((c) => [c.value, c]));
+    expect(byValue.yes?.count).toBe(1);
+    expect(byValue.no?.count).toBe(0);
+  });
+});
+
+describe("/api/media-facets — source counts with favourited filter active (regression)", () => {
+  it("source counts do not throw when favourited filter is active", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    const sourceCond = makeSourceCondition();
+    const favouritedCond = makeFavouritedCondition("yes");
+    const body = makeBody([sourceCond, favouritedCond]);
+    // This should NOT throw "pdb.agg() must be handled by ParadeDB's custom scan"
+    await expect(
+      fetchFieldCounts(sourceCond, body, userId),
+    ).resolves.not.toThrow();
+  });
+
+  it("source counts respect an active favourited=yes filter", async () => {
+    await seedMedia();
+    const userId = await ensureUser();
+    // Favourite 1 item from test-source
+    const firstRow = await db
+      .select({ id: dbSchema.cacheMedia.id })
+      .from(dbSchema.cacheMedia)
+      .orderBy(dbSchema.cacheMedia.id)
+      .limit(1)
+      .then((rows) => rows[0]);
+    if (!firstRow) throw new Error("Expected at least one media row");
+    await db
+      .insert(dbSchema.userCacheMediaInfo)
+      .values({ userId, cacheMediaId: firstRow.id, favourited: true });
+
+    const sourceCond = makeSourceCondition();
+    const favouritedCond = makeFavouritedCondition("yes");
+    const body = makeBody([sourceCond, favouritedCond]);
+    const counts = (await fetchFieldCounts(sourceCond, body, userId)) as {
+      liaseSourceId: string;
+      count: number;
+    }[];
+    // Only the 1 favourited item should be counted for the source
+    expect(counts[0]?.count).toBe(1);
   });
 });

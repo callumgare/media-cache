@@ -350,7 +350,7 @@ onUnmounted(() => {
     }
 
     .p-inputgroup .p-inputnumber:not(:first-child) input {
-      border-left: 0;
+      margin-left: -1px;
     }
 
     :root, :host {

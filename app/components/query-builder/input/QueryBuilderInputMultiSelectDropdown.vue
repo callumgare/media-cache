@@ -13,6 +13,11 @@ const fieldOptions = computed(
   () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
 );
 const mediaQuery = useMediaQuery();
+const hasValue = computed(
+  () =>
+    Array.isArray(props.fieldCondition.value) &&
+    props.fieldCondition.value.length > 0,
+);
 </script>
 
 <template>
@@ -25,6 +30,7 @@ const mediaQuery = useMediaQuery();
       :options="fieldOptions"
       option-label="name"
       filter
+      :class="{ 'has-value': hasValue }"
       :loading="schemaConfig.loading ?? false"
       :placeholder="`Select ${QUERY_FIELD_DEFINITIONS.find(f => f.id === fieldCondition.field)?.displayName}`"
       :virtual-scroller-options="{ itemSize: 44 }"
@@ -38,14 +44,10 @@ const mediaQuery = useMediaQuery();
       <template #option="{ option, selected }">
         <span :class="['option-label', { dimmed: !selected && !option.count }]">
           <span class="option-name">{{ option.name }}</span>
-          <span
-            v-if="selected && option.countAddedIfRemoved != null"
-            class="option-count added-if-removed"
-          >+{{ option.countAddedIfRemoved }}</span>
-          <span
-            v-else
-            class="option-count"
-          >{{ option.count ?? 0 }}</span>
+          <QueryBuilderOptionCount
+            :count="option.count ?? 0"
+            :count-added-if-removed="selected ? option.countAddedIfRemoved : null"
+          />
         </span>
       </template>
     </MultiSelect>
@@ -69,10 +71,16 @@ const mediaQuery = useMediaQuery();
     flex-wrap: wrap;
   }
 
+  :deep(.p-multiselect.has-value .p-multiselect-label) {
+    background: var(--p-highlight-background);
+    color: var(--p-highlight-color);
+  }
+
   .option-label {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.5em;
     flex: 1;
 
     &.dimmed {
@@ -82,15 +90,5 @@ const mediaQuery = useMediaQuery();
 
   .option-name {
     flex: 1;
-  }
-
-  .option-count {
-    color: var(--p-text-muted-color);
-    font-size: 0.85em;
-    margin-left: 0.5em;
-
-    &.added-if-removed {
-      opacity: 0.4;
-    }
   }
 </style>

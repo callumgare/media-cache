@@ -28,49 +28,61 @@ const listContainerHeight = computed(
 
 const filterValue = ref("");
 
-const selectedIds = computed(
-  () =>
-    new Set(
-      Array.isArray(props.fieldCondition.value)
-        ? (props.fieldCondition.value as string[])
-        : [],
-    ),
-);
+const toast = useToast();
+
+function toIdArray(value: unknown): (string | number)[] {
+  // Empty/unset is a valid state — no selection
+  if (value === "" || value === null || value === undefined) return [];
+  if (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === "string" || typeof item === "number")
+  ) {
+    return value;
+  }
+  console.error(
+    "QueryBuilderInputListbox: expected an array of string/number IDs but received:",
+    value,
+  );
+  toast.add({
+    severity: "warn",
+    summary: "Something unexpected happened",
+    detail: "Some filters may not work correctly.",
+    life: 5000,
+  });
+  return [];
+}
+
+const currentIds = computed(() => toIdArray(props.fieldCondition.value));
+
+const selectedIds = computed(() => new Set(currentIds.value));
 
 const selectedOptions = computed(() =>
-  (Array.isArray(props.fieldCondition.value)
-    ? (props.fieldCondition.value as string[])
-    : []
-  )
-    .map((id) => fieldOptions.value.find((o) => String(o.id) === id))
+  currentIds.value
+    .map((id) => fieldOptions.value.find((o) => o.id === id))
     .filter((o): o is NonNullable<typeof o> => o != null),
 );
 
 const unselectedOptions = computed(() => {
   const query = filterValue.value.toLowerCase();
   return fieldOptions.value
-    .filter((o) => !selectedIds.value.has(String(o.id)))
+    .filter((o) => !selectedIds.value.has(o.id))
     .filter((o) => !query || o.name.toLowerCase().includes(query));
 });
 
 function addOption(option: { id: string | number }) {
-  const current = Array.isArray(props.fieldCondition.value)
-    ? (props.fieldCondition.value as string[])
-    : [];
-  const id = String(option.id);
-  if (!current.includes(id)) {
-    mediaQuery.setFieldConditionValue(props.fieldCondition, [...current, id]);
+  if (!currentIds.value.includes(option.id)) {
+    mediaQuery.setFieldConditionValue(props.fieldCondition, [
+      ...currentIds.value,
+      option.id,
+    ]);
   }
 }
 
 function removeOption(id: string | number) {
-  const sid = String(id);
-  const newValues = (
-    Array.isArray(props.fieldCondition.value)
-      ? (props.fieldCondition.value as string[])
-      : []
-  ).filter((v) => v !== sid);
-  mediaQuery.setFieldConditionValue(props.fieldCondition, newValues);
+  mediaQuery.setFieldConditionValue(
+    props.fieldCondition,
+    currentIds.value.filter((v) => v !== id),
+  );
 }
 
 function startResize(startY: number) {
@@ -137,18 +149,15 @@ function onResizeHandleTouchstart(event: TouchEvent) {
             v-for="option in selectedOptions"
             :key="option.id"
             class="selected-item"
+            data-testid="listbox-selected-item"
             @click="removeOption(option.id)"
           >
             <span class="option-label">
               <span class="option-name">{{ option.name }}</span>
-              <span
-                v-if="option.countAddedIfRemoved != null"
-                class="option-count added-if-removed"
-              >+{{ option.countAddedIfRemoved }}</span>
-              <span
-                v-else
-                class="option-count"
-              >{{ option.count ?? 0 }}</span>
+              <QueryBuilderOptionCount
+                :count="option.count ?? 0"
+                :count-added-if-removed="option.countAddedIfRemoved"
+              />
             </span>
           </div>
         </template>
@@ -156,8 +165,10 @@ function onResizeHandleTouchstart(event: TouchEvent) {
 
       <!-- Unselected options only; selection is managed externally -->
       <Listbox
+        :key="fieldCondition.field"
         :options="unselectedOptions"
         option-label="name"
+        data-key="id"
         :virtual-scroller-options="{ itemSize: ITEM_SIZE }"
         :style="{ '--list-height': listContainerHeight }"
         :model-value="null"
@@ -166,7 +177,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
         <template #option="{ option }">
           <span :class="['option-label', { dimmed: !option.count }]">
             <span class="option-name">{{ option.name }}</span>
-            <span class="option-count">{{ option.count ?? 0 }}</span>
+            <QueryBuilderOptionCount :count="option.count ?? 0" />
           </span>
         </template>
         <template #footer>
@@ -201,7 +212,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
           font-family: inherit;
           font-size: inherit;
           border-radius: var(--p-listbox-border-radius) var(--p-listbox-border-radius) 0 0;
-          border-bottom: 0;
+          margin-bottom: -1px;
           width: 100%;
 
           &:focus {
@@ -218,7 +229,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
         color: var(--p-listbox-option-selected-color, var(--p-highlight-color));
         background: var(--p-listbox-option-selected-background, var(--p-highlight-background));
         border: 1px solid var(--p-inputtext-border-color);
-        border-top: 0;
+        margin-top: -1px;
 
         &:hover {
           background: var(--p-listbox-option-selected-focus-background, var(--p-highlight-focus-background));
@@ -231,7 +242,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
       width: 100%;
       box-shadow: none;
       border-radius: 0 0 var(--p-listbox-border-radius) var(--p-listbox-border-radius);
-      border-top: 0;
+      margin-top: -1px;
     }
 
     :deep(.p-listbox-list-container) {
@@ -291,6 +302,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 0.5em;
       flex: 1;
 
       &.dimmed {
@@ -300,16 +312,6 @@ function onResizeHandleTouchstart(event: TouchEvent) {
 
     .option-name {
       flex: 1;
-    }
-
-    .option-count {
-      color: var(--p-text-muted-color);
-      font-size: 0.85em;
-      margin-left: 0.5em;
-
-      &.added-if-removed {
-        opacity: 0.4;
-      }
     }
   }
 </style>

@@ -13,6 +13,7 @@ const fieldOptions = computed(
   () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
 );
 const mediaQuery = useMediaQuery();
+const hasValue = computed(() => !!props.fieldCondition.value);
 </script>
 
 <template>
@@ -24,7 +25,7 @@ const mediaQuery = useMediaQuery();
       :model-value="(fieldOptions).find(option => option.id === fieldCondition.value)"
       :options="fieldOptions"
       option-label="name"
-      class="control"
+      :class="['control', { 'has-value': hasValue }]"
       :loading="schemaConfig.loading ?? false"
       :virtual-scroller-options="{ itemSize: 38 }"
       :placeholder="`Select ${QUERY_FIELD_DEFINITIONS.find(f => f.id === fieldCondition.field)?.displayName}`"
@@ -53,6 +54,11 @@ const mediaQuery = useMediaQuery();
     .p-inputwrapper {
       min-width: 200px;
     }
+  }
+
+  .control.has-value {
+    background: var(--p-highlight-background);
+    color: var(--p-highlight-color);
   }
 
   .option-name {

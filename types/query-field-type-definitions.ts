@@ -6,6 +6,7 @@ export const widgetIdSchema = z.enum([
   "multi-select-dropdown",
   "listbox",
   "number-range",
+  "select-button",
 ]);
 
 export type WidgetId = z.infer<typeof widgetIdSchema>;
@@ -35,5 +36,17 @@ export const QUERY_FIELD_TYPE_DEFINITIONS: QueryFieldTypeDefinition[] = [
     operators: [{ id: "is between", displayName: "is between" }],
     availableWidgets: ["number-range"],
     defaultWidget: "number-range",
+  },
+  {
+    dataType: "list-of-values",
+    operators: [{ id: "equals", displayName: "is" }],
+    availableWidgets: ["multi-select-dropdown", "listbox"],
+    defaultWidget: "multi-select-dropdown",
+  },
+  {
+    dataType: "short-list-of-values",
+    operators: [{ id: "equals", displayName: "is" }],
+    availableWidgets: ["select-button", "multi-select-dropdown", "listbox"],
+    defaultWidget: "select-button",
   },
 ];

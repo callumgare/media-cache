@@ -598,3 +598,32 @@ export const liaseQueryMediaContentRelations = relations(
 );
 
 export type LiaseQueryMediaContent = typeof liaseQueryMediaContent.$inferSelect;
+
+/*
+userCacheMediaInfo
+
+Stores per-user, per-media info (e.g. favourited status). Generalised so
+additional user-level fields can be added in future without a new table.
+*/
+export const userCacheMediaInfo = pgTable(
+  "user_cache_media_info",
+  {
+    id: serial("id").notNull().primaryKey(),
+    createdAt: timestamp("created_at", { precision: 3 }).notNull().defaultNow(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    cacheMediaId: integer("cache_media_id")
+      .notNull()
+      .references(() => cacheMedia.id, { onDelete: "cascade" }),
+    favourited: boolean("favourited").notNull().default(false),
+  },
+  (t) => [
+    uniqueIndex("user_cache_media_info__user_id_cache_media_id_idx").on(
+      t.userId,
+      t.cacheMediaId,
+    ),
+  ],
+);
+
+export type UserCacheMediaInfo = typeof userCacheMediaInfo.$inferSelect;

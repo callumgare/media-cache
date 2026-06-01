@@ -13,6 +13,7 @@ const WIDGET_DISPLAY_NAMES: Record<WidgetId, string> = {
   "multi-select-dropdown": "Multi-select",
   listbox: "Listbox",
   "number-range": "Number range",
+  "select-button": "Select button",
 };
 
 const props = defineProps<{

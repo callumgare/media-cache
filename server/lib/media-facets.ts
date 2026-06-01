@@ -1,5 +1,6 @@
 import type {
   FacetCount,
+  FavouritedFacetCount,
   SourceFacetCount,
   TagFacetCount,
   TypeFacetCount,
@@ -9,7 +10,7 @@ import type {
   QueryFieldCondition,
   QueryGroupCondition,
 } from "@@/types/query-condition";
-import { type SQL, count, inArray, sql, sum } from "drizzle-orm";
+import { type SQL, and, count, inArray, sql, sum } from "drizzle-orm";
 import { db, dbSchema } from "../utils/drizzle";
 import { calculateWhereValue } from "../utils/query-builder";
 
@@ -53,44 +54,52 @@ export async function countWhere(where: SQL | null): Promise<number> {
 export function fetchFieldCounts(
   condition: QueryFieldCondition & { field: "source" },
   body: QueryGroupCondition,
+  userId?: number | null,
 ): Promise<SourceFacetCount[]>;
 export function fetchFieldCounts(
   condition: QueryFieldCondition & { field: "tags" | "groups" },
   body: QueryGroupCondition,
+  userId?: number | null,
 ): Promise<TagFacetCount[]>;
 export function fetchFieldCounts(
   condition: QueryFieldCondition & { field: "type" },
   body: QueryGroupCondition,
+  userId?: number | null,
 ): Promise<TypeFacetCount[]>;
 export function fetchFieldCounts(
   condition: QueryFieldCondition,
   body: QueryGroupCondition,
+  userId?: number | null,
 ): Promise<FacetCount[]>;
 export async function fetchFieldCounts(
   condition: QueryFieldCondition,
   body: QueryGroupCondition,
+  userId?: number | null,
 ): Promise<FacetCount[]> {
   const baseCondition =
     condition.operator === "includes all"
       ? body
       : blankConditionById(body, condition.id);
-  const where = calculateWhereValue(baseCondition);
   const whereStandard =
-    calculateWhereValue(baseCondition, { optimisationHint: "select" }) ?? null;
+    calculateWhereValue(baseCondition, {
+      optimisationHint: "select",
+      userId: userId ?? null,
+    }) ?? null;
 
   if (condition.field === "source") {
-    const [row] = await db.execute<{
-      agg: { buckets: Array<{ key: string; doc_count: number }> };
-    }>(sql`
-      SELECT pdb.agg('{"terms": {"field": "liase_source_ids", "size": 500}}') AS agg
+    // Use unnest + GROUP BY so that subquery conditions (e.g. favourited EXISTS) are supported.
+    // pdb.agg() cannot handle NOT EXISTS / EXISTS subqueries in the WHERE clause.
+    const rows = await db.execute<{ src: string; doc_count: number }>(sql`
+      SELECT unnest(${dbSchema.cacheMedia.liaseSourceIds}) AS src, count(*)::int AS doc_count
       FROM cache_media
-      WHERE ${where}
+      WHERE ${whereStandard ?? sql`TRUE`}
+      GROUP BY src
     `);
-    return (row?.agg?.buckets ?? []).map(
-      (b): SourceFacetCount => ({
-        liaseSourceId: b.key,
+    return rows.map(
+      (r): SourceFacetCount => ({
+        liaseSourceId: r.src,
         name: null,
-        count: b.doc_count,
+        count: r.doc_count,
       }),
     );
   }
@@ -134,7 +143,7 @@ export async function fetchFieldCounts(
           const modifiedWhere =
             calculateWhereValue(
               replaceConditionValue(body, condition.id, newValues),
-              { optimisationHint: "select" },
+              { optimisationHint: "select", userId: userId ?? null },
             ) ?? sql`TRUE`;
           return sql`SELECT ${selectedId}::int AS tag_id, count(*)::int AS tag_count FROM cache_media WHERE ${modifiedWhere}`;
         }),
@@ -210,6 +219,37 @@ export async function fetchFieldCounts(
       { value: "video-without-audio", count: row?.videoWithoutAudio ?? 0 },
       { value: "image", count: row?.image ?? 0 },
     ] satisfies TypeFacetCount[];
+  }
+
+  if (condition.field === "favourited") {
+    if (!userId) return [];
+    const { userCacheMediaInfo, cacheMedia } = dbSchema;
+    const favouritedSubquery = sql`EXISTS (SELECT 1 FROM ${userCacheMediaInfo} WHERE ${userCacheMediaInfo.cacheMediaId} = ${cacheMedia.id} AND ${userCacheMediaInfo.userId} = ${userId} AND ${userCacheMediaInfo.favourited} = true)`;
+    const notFavouritedSubquery = sql`NOT EXISTS (SELECT 1 FROM ${userCacheMediaInfo} WHERE ${userCacheMediaInfo.cacheMediaId} = ${cacheMedia.id} AND ${userCacheMediaInfo.userId} = ${userId} AND ${userCacheMediaInfo.favourited} = true)`;
+    const yesWhere = whereStandard
+      ? and(whereStandard, favouritedSubquery)
+      : favouritedSubquery;
+    const noWhere = whereStandard
+      ? and(whereStandard, notFavouritedSubquery)
+      : notFavouritedSubquery;
+    const [yesResult, noResult] = await Promise.all([
+      db.select({ count: count() }).from(cacheMedia).where(yesWhere),
+      db.select({ count: count() }).from(cacheMedia).where(noWhere),
+    ]);
+    const yesCount = yesResult[0]?.count ?? 0;
+    const noCount = noResult[0]?.count ?? 0;
+    return [
+      {
+        value: "yes" as const,
+        count: yesCount,
+        countAddedIfRemoved: condition.value === "yes" ? noCount : null,
+      },
+      {
+        value: "no" as const,
+        count: noCount,
+        countAddedIfRemoved: condition.value === "no" ? yesCount : null,
+      },
+    ] satisfies FavouritedFacetCount[];
   }
 
   return [];

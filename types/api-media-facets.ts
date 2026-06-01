@@ -10,7 +10,16 @@ export type SourceFacetCount = {
   count: number;
 };
 export type TypeFacetCount = { value: string; count: number };
-export type FacetCount = TagFacetCount | SourceFacetCount | TypeFacetCount;
+export type FavouritedFacetCount = {
+  value: "yes" | "no";
+  count: number;
+  countAddedIfRemoved: number | null;
+};
+export type FacetCount =
+  | TagFacetCount
+  | SourceFacetCount
+  | TypeFacetCount
+  | FavouritedFacetCount;
 
 export type FacetFieldResult = {
   id: number;

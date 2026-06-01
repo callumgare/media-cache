@@ -50,21 +50,26 @@ function onUpdate(next: RangeValue) {
       <InputNumber
         v-model="minValue"
         placeholder="Min (s)"
+        showClear
         :min="0"
         :max-fraction-digits="1"
-        class="range-input"
+        :class="['range-input', { 'has-value': minValue !== null }]"
       />
       <InputNumber
         v-model="maxValue"
         placeholder="Max (s)"
+        showClear
         :min="0"
         :max-fraction-digits="1"
-        class="range-input"
+        :class="['range-input', { 'has-value': maxValue !== null }]"
       />
     </InputGroup>
   </QueryBuilderInputBase>
 </template>
 
 <style scoped>
-
+.range-input.has-value :deep(.p-inputnumber-input) {
+  background: var(--p-highlight-background);
+  color: var(--p-highlight-color);
+}
 </style>

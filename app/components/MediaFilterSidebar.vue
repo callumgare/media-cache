@@ -9,6 +9,7 @@ import type {
   APIMediaFacetsResponse,
   FacetCount,
   FacetResult,
+  FavouritedFacetCount,
   SourceFacetCount,
   TagFacetCount,
   TypeFacetCount,
@@ -155,6 +156,19 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
           (f) => f.value === option.id,
         )?.count ?? null,
     })),
+    favourited: [
+      { id: "yes", name: "Yes" },
+      { id: "no", name: "No" },
+    ].map((option) => {
+      const facetCount = (
+        findFieldCounts(facets.value, "favourited") as FavouritedFacetCount[]
+      ).find((f) => f.value === option.id);
+      return {
+        ...option,
+        count: facetCount?.count ?? null,
+        countAddedIfRemoved: facetCount?.countAddedIfRemoved ?? null,
+      };
+    }),
   },
   loading: showLoading.value,
 }));

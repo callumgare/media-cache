@@ -1,4 +1,9 @@
-export type QueryFieldDataType = "text" | "list-of-ids" | "number-range";
+export type QueryFieldDataType =
+  | "text"
+  | "list-of-ids"
+  | "number-range"
+  | "list-of-values"
+  | "short-list-of-values";
 
 export type QueryFieldDefinition = {
   id: string;
@@ -12,4 +17,9 @@ export const QUERY_FIELD_DEFINITIONS: QueryFieldDefinition[] = [
   { id: "groups", displayName: "Groups", dataType: "list-of-ids" },
   { id: "duration", displayName: "Duration", dataType: "number-range" },
   { id: "type", displayName: "Type", dataType: "text" },
+  {
+    id: "favourited",
+    displayName: "Favourited",
+    dataType: "short-list-of-values",
+  },
 ];

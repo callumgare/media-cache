@@ -13,6 +13,15 @@ test.describe("Condition tree – drag and drop", () => {
   test("can drag a condition into an empty group", async ({ page }) => {
     await page.goto("/media/grid");
 
+    // Wait for the filter sidebar's ClientOnly content to render — this confirms
+    // Vue hydration is complete and the Edit button's click handler is attached.
+    // Labels inside the sidebar only appear after ClientOnly hydrates (they are not SSR-rendered).
+    // Using "#page-sidebar" (the id set by the layout) avoids Vue fallthrough attribute ambiguity.
+    // 30s timeout handles slow machines under heavy CPU load (e.g. running after vitest).
+    await expect(page.locator("#page-sidebar label").first()).toBeVisible({
+      timeout: 30_000,
+    });
+
     // Open the filter sidebar edit mode.
     const editBtn = page.getByRole("button", { name: "Edit" });
     await expect(editBtn).toBeVisible({ timeout: 10_000 });
@@ -20,7 +29,7 @@ test.describe("Condition tree – drag and drop", () => {
 
     // The condition tree should now be visible. Confirm at least one condition row is present.
     const tree = page.locator(".condition-tree");
-    await expect(tree).toBeVisible({ timeout: 5_000 });
+    await expect(tree).toBeVisible({ timeout: 10_000 });
 
     // Add a subgroup (which starts empty).
     const addSubgroupBtn = page.getByTestId("root-add-subgroup");

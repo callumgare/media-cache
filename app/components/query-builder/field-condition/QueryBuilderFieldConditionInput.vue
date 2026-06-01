@@ -59,6 +59,11 @@ const widgetId = computed(() => {
         :field-condition="fieldCondition"
         :schema-config="schemaConfig"
       />
+      <QueryBuilderInputSelectButton
+        v-else-if="widgetId === 'select-button'"
+        :field-condition="fieldCondition"
+        :schema-config="schemaConfig"
+      />
       <div v-else>
         Error: unknown widget for field "{{ fieldCondition.field }}"
       </div>

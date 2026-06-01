@@ -53,6 +53,16 @@
         @click="uiState.sidebarMobileCollapsed = false"
       />
       <Button
+        :icon="favourites.isFavourited(media.id) ? 'pi pi-heart-fill' : 'pi pi-heart'"
+        rounded
+        text
+        class="action-btn"
+        :class="{ active: favourites.isFavourited(media.id) }"
+        :aria-label="favourites.isFavourited(media.id) ? 'Remove from favourites' : 'Add to favourites'"
+        data-testid="feed-slide-favourite-btn"
+        @click="favourites.toggle(media.id)"
+      />
+      <Button
         icon="pi pi-sync"
         rounded
         text
@@ -115,6 +125,7 @@
 </template>
 
 <script setup lang="ts">
+import { useFavourites } from "@@/stores/favourites";
 import { useUiState } from "@@/stores/ui";
 import { useUserPreferences } from "@@/stores/user-preferences";
 import type { APIMedia } from "@@/types/api-media";
@@ -135,6 +146,7 @@ const prefs = useUserPreferences();
 prefs.init();
 
 const uiState = useUiState();
+const favourites = useFavourites();
 
 // ─── Media file resolution ─────────────────────────────────────────────────
 

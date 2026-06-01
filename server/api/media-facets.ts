@@ -13,6 +13,7 @@ import type {
 import { defineEventHandler, readBody } from "h3";
 import { getLiase } from "../lib/liase";
 import { fetchFieldCounts } from "../lib/media-facets";
+import { db, dbSchema } from "../utils/drizzle";
 
 function collectFieldConditions(
   condition: QueryCondition,
@@ -49,12 +50,20 @@ export default defineEventHandler(async (event): Promise<FacetResult> => {
   const facetsByNodeId = new Map<number, FacetCount[]>();
 
   const hasSourceCondition = fieldConditions.some((c) => c.field === "source");
+
+  const user = await db
+    .select({ id: dbSchema.user.id })
+    .from(dbSchema.user)
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+  const userId = user?.id ?? null;
+
   const [, sourceNameById] = await Promise.all([
     Promise.all(
       fieldConditions.map(async (condition) => {
         facetsByNodeId.set(
           condition.id,
-          await fetchFieldCounts(condition, body),
+          await fetchFieldCounts(condition, body, userId),
         );
       }),
     ),
