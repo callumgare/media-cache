@@ -12,10 +12,18 @@ const fieldOptions = computed(
   () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
 );
 const mediaQuery = useMediaQuery();
+const { medias, isPending } = useMediaResults();
+const zeroResults = computed(
+  () => !isPending.value && medias.value.length === 0,
+);
 
 const modelValue = computed(
   () =>
     fieldOptions.value.find((o) => o.id === props.fieldCondition.value) ?? null,
+);
+
+const isFiltersToZero = computed(
+  () => zeroResults.value && !!modelValue.value?.countAddedIfRemoved,
 );
 
 function onChange(option: { id: string | number } | null) {
@@ -43,7 +51,7 @@ function clearValue() {
         :options="fieldOptions"
         option-label="name"
         data-key="id"
-        class="control"
+        :class="['control', { 'filters-to-zero': isFiltersToZero }]"
         @update:model-value="onChange"
       >
         <template #option="{ option }">
@@ -52,6 +60,7 @@ function clearValue() {
             <QueryBuilderOptionCount
               :count="option.count"
               :count-added-if-removed="option.countAddedIfRemoved"
+              :filters-to-zero="zeroResults && !!option.countAddedIfRemoved"
             />
           </span>
         </template>
@@ -100,6 +109,14 @@ function clearValue() {
 
         .option-name {
           color: var(--p-highlight-color);
+        }
+      }
+
+      &.filters-to-zero:deep(.p-togglebutton-checked .p-togglebutton-content) {
+        background: var(--p-orange-100);
+
+        .option-name {
+          color: var(--p-orange-800);
         }
       }
   }

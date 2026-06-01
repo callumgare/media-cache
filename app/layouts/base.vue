@@ -6,6 +6,7 @@
     <Toast />
     <div
       ref="headerContainerRef"
+      class="header-container"
       :class="[headerHiddenByDefault ? ['hideable', { expanded: headerExpanded }] : '']"
     >
       <SiteHeader :breadcrumbs="breadcrumbs" class="site-header">
@@ -217,6 +218,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+  .header-container {
+    anchor-name: --site-header;
+  }
+
   .hideable {
     --handle-height: calc(2.5rem + env(safe-area-inset-top));
     position: fixed;
@@ -302,6 +307,10 @@ onUnmounted(() => {
     flex-direction: column;
     position: relative;
     flex: 1 1 auto;
+    /* Establishes a size container so descendants can use cqh units to get
+       the available height below the header without needing to know the
+       header's pixel size. */
+    container-type: size;
   }
 
   @property --handle-height {

@@ -18,6 +18,21 @@ const hasValue = computed(
     Array.isArray(props.fieldCondition.value) &&
     props.fieldCondition.value.length > 0,
 );
+const { medias, isPending } = useMediaResults();
+const zeroResults = computed(
+  () => !isPending.value && medias.value.length === 0,
+);
+const selectedOptions = computed(() =>
+  (Array.isArray(props.fieldCondition.value)
+    ? props.fieldCondition.value
+    : []
+  ).map((id: string) => fieldOptions.value.find((o) => o.id === id)),
+);
+const isFiltersToZero = computed(
+  () =>
+    zeroResults.value &&
+    selectedOptions.value.some((o) => o?.countAddedIfRemoved),
+);
 </script>
 
 <template>
@@ -30,7 +45,7 @@ const hasValue = computed(
       :options="fieldOptions"
       option-label="name"
       filter
-      :class="{ 'has-value': hasValue }"
+      :class="{ 'has-value': hasValue, 'filters-to-zero': isFiltersToZero }"
       :loading="schemaConfig.loading ?? false"
       :placeholder="`Select ${QUERY_FIELD_DEFINITIONS.find(f => f.id === fieldCondition.field)?.displayName}`"
       :virtual-scroller-options="{ itemSize: 44 }"
@@ -47,6 +62,7 @@ const hasValue = computed(
           <QueryBuilderOptionCount
             :count="option.count ?? 0"
             :count-added-if-removed="selected ? option.countAddedIfRemoved : null"
+            :filters-to-zero="zeroResults && selected && !!option.countAddedIfRemoved"
           />
         </span>
       </template>
@@ -74,6 +90,11 @@ const hasValue = computed(
   :deep(.p-multiselect.has-value .p-multiselect-label) {
     background: var(--p-highlight-background);
     color: var(--p-highlight-color);
+  }
+
+  :deep(.p-multiselect.filters-to-zero .p-multiselect-label) {
+    background: var(--p-orange-100);
+    color: var(--p-orange-800);
   }
 
   .option-label {

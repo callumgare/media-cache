@@ -114,15 +114,21 @@ const breadcrumbItems = computed<MenuItem[]>(() => {
       </div>
       <div class="right-side">
         <ExecutionIndicator />
-        <button
+        <Button
           v-if="uiState.debugMode"
+          :icon="uiState.mediaBlurred ? 'pi pi-eye' : 'pi pi-eye-slash'"
+          :aria-label="uiState.mediaBlurred ? 'Unblur media' : 'Blur media'"
+          severity="secondary"
+          text
           @click="uiState.mediaBlurred = !uiState.mediaBlurred"
-        >
-          {{ uiState.mediaBlurred ? 'Unblur' : 'Blur' }}
-        </button>
-        <button @click="uiState.debugMode = !uiState.debugMode">
-          Debug
-        </button>
+        />
+        <Button
+          icon="pi pi-wrench"
+          :aria-label="uiState.debugMode ? 'Disable debug mode' : 'Enable debug mode'"
+          :severity="uiState.debugMode ? 'warn' : 'secondary'"
+          text
+          @click="uiState.debugMode = !uiState.debugMode"
+        />
         <slot name="header-buttons" />
       </div>
     </div>

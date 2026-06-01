@@ -3,6 +3,7 @@ import "primeicons/primeicons.css";
 import { useUiState } from "@@/stores/ui";
 import { useWindowSize } from "@vueuse/core";
 import { useDrag } from "@vueuse/gesture";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import type MediaFilterSidebar from "~/components/MediaFilterSidebar.vue";
 import { clamp } from "~/lib/general";
 
@@ -216,12 +217,15 @@ async function toggleSidebar() {
       <slot name="header-center" />
     </template>
     <template #header-buttons>
-      <button
+      <Button
         class="toggle-sidebar"
+        :aria-label="uiState.sidebarMobileCollapsed ? 'Open sidebar' : 'Close sidebar'"
+        severity="secondary"
+        text
         @click="toggleSidebar"
       >
-        Sidebar
-      </button>
+        <component :is="uiState.sidebarMobileCollapsed ? PanelLeftOpen : PanelLeftClose" :size="18" />
+      </Button>
     </template>
     <div
       ref="containerElm"
@@ -284,7 +288,8 @@ async function toggleSidebar() {
       position: sticky;
       top: 0;
       align-self: start;
-      max-height: 100vh;
+      /* 100cqh = height of .base-layout-contents = 100vh - header height */
+      max-height: 100cqh;
       z-index: var(--sidebar-z-index);
       transition: width 0.1s ease-in-out, padding-left 0.1s ease-in-out, padding-right 0.1s ease-in-out, transform 0.3s ease-out;
       overflow: hidden auto;
@@ -325,7 +330,7 @@ async function toggleSidebar() {
         transition: transform 0.3s ease-out;
         padding-top: calc(1em + env(safe-area-inset-top));
         padding-left: calc(1em + env(safe-area-inset-left));
-        padding-bottom: calc(1em + env(safe-area-inset-bottom));
+        padding-bottom: calc(1em + (100lvh - 100svh) + env(safe-area-inset-bottom));
       }
 
       &:not(.sidebar-collapsed-on-mobile) .sidebar {

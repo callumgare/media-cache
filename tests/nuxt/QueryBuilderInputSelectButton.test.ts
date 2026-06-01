@@ -45,6 +45,15 @@ vi.mock("@@/stores/media-query", () => ({
   }),
 }));
 
+// Mock useMediaResults so the component doesn't need TanStack Query or a real API.
+// These tests exercise option rendering/toggling logic, not media-fetching.
+vi.mock("@@/app/composables/useMediaResults", () => ({
+  useMediaResults: () => ({
+    medias: { value: [] },
+    isPending: { value: false },
+  }),
+}));
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const OPTIONS = [

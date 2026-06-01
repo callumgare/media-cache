@@ -9,6 +9,26 @@ const props = defineProps<{
 }>();
 
 const mediaQuery = useMediaQuery();
+const { medias, isPending } = useMediaResults();
+const zeroResults = computed(
+  () => !isPending.value && medias.value.length === 0,
+);
+const minCountAddedIfRemoved = computed(
+  () =>
+    props.schemaConfig.fieldOptions[props.fieldCondition.field]?.[0]
+      ?.countAddedIfRemoved ?? null,
+);
+const maxCountAddedIfRemoved = computed(
+  () =>
+    props.schemaConfig.fieldOptions[props.fieldCondition.field]?.[1]
+      ?.countAddedIfRemoved ?? null,
+);
+const isMinFiltersToZero = computed(
+  () => zeroResults.value && !!minCountAddedIfRemoved.value,
+);
+const isMaxFiltersToZero = computed(
+  () => zeroResults.value && !!maxCountAddedIfRemoved.value,
+);
 
 type RangeValue = { min: number | null; max: number | null };
 
@@ -53,7 +73,7 @@ function onUpdate(next: RangeValue) {
         showClear
         :min="0"
         :max-fraction-digits="1"
-        :class="['range-input', { 'has-value': minValue !== null }]"
+        :class="['range-input', { 'has-value': minValue !== null, 'filters-to-zero': isMinFiltersToZero }]"
       />
       <InputNumber
         v-model="maxValue"
@@ -61,7 +81,7 @@ function onUpdate(next: RangeValue) {
         showClear
         :min="0"
         :max-fraction-digits="1"
-        :class="['range-input', { 'has-value': maxValue !== null }]"
+        :class="['range-input', { 'has-value': maxValue !== null, 'filters-to-zero': isMaxFiltersToZero }]"
       />
     </InputGroup>
   </QueryBuilderInputBase>
@@ -71,5 +91,10 @@ function onUpdate(next: RangeValue) {
 .range-input.has-value :deep(.p-inputnumber-input) {
   background: var(--p-highlight-background);
   color: var(--p-highlight-color);
+}
+
+.range-input.filters-to-zero :deep(.p-inputnumber-input) {
+  background: var(--p-orange-100);
+  color: var(--p-orange-800);
 }
 </style>

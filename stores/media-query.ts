@@ -16,6 +16,60 @@ import { defineStore } from "pinia";
 
 export type { QueryConditionFlatNode, QueryConditionFlatFieldNode };
 
+const DEFAULT_CONDITION_NODES: QueryConditionFlatNode[] = [
+  { id: 1, type: "group", operator: "AND", parent: null },
+  {
+    id: 2,
+    type: "field",
+    field: "source",
+    operator: "equals",
+    value: "",
+    parent: 1,
+  },
+  {
+    id: 3,
+    type: "field",
+    field: "tags",
+    operator: "includes all",
+    value: "",
+    parent: 1,
+  },
+  {
+    id: 4,
+    type: "field",
+    field: "type",
+    operator: "equals",
+    value: "",
+    parent: 1,
+  },
+  {
+    id: 5,
+    type: "field",
+    field: "groups",
+    operator: "includes all",
+    value: "",
+    parent: 1,
+  },
+  {
+    id: 6,
+    type: "field",
+    field: "duration",
+    operator: "is between",
+    value: "",
+    parent: 1,
+  },
+  {
+    id: 7,
+    type: "field",
+    field: "favourited",
+    operator: "equals",
+    value: "",
+    parent: 1,
+  },
+];
+
+const DEFAULT_SORT: SortConfig = { field: "random" };
+
 // Default value for a newly created field node, keyed by data type.
 function defaultValueForDataType(dataType: QueryFieldDataType): unknown {
   if (dataType === "list-of-ids") return [];
@@ -34,68 +88,23 @@ export const useMediaQuery = defineStore("media-query", {
     widgetOverrides: Record<number, WidgetId>;
   } => {
     return {
-      conditionNodes: [
-        {
-          id: 1,
-          type: "group",
-          operator: "AND",
-          parent: null,
-        },
-        {
-          id: 2,
-          type: "field",
-          field: "source",
-          operator: "equals",
-          value: "",
-          parent: 1,
-        },
-        {
-          id: 3,
-          type: "field",
-          field: "tags",
-          operator: "includes all",
-          value: "",
-          parent: 1,
-        },
-        {
-          id: 4,
-          type: "field",
-          field: "type",
-          operator: "equals",
-          value: "",
-          parent: 1,
-        },
-        {
-          id: 5,
-          type: "field",
-          field: "groups",
-          operator: "includes all",
-          value: "",
-          parent: 1,
-        },
-        {
-          id: 6,
-          type: "field",
-          field: "duration",
-          operator: "is between",
-          value: "",
-          parent: 1,
-        },
-        {
-          id: 7,
-          type: "field",
-          field: "favourited",
-          operator: "equals",
-          value: "",
-          parent: 1,
-        },
-      ],
-      sort: { field: "random" } satisfies SortConfig,
+      conditionNodes: JSON.parse(
+        JSON.stringify(DEFAULT_CONDITION_NODES),
+      ) as QueryConditionFlatNode[],
+      sort: JSON.parse(JSON.stringify(DEFAULT_SORT)) as SortConfig,
       randomSeed: Math.floor(Math.random() * 100000),
       widgetOverrides: {} as Record<number, WidgetId>,
     };
   },
   getters: {
+    isDefault(): boolean {
+      return (
+        JSON.stringify(this.conditionNodes) ===
+          JSON.stringify(DEFAULT_CONDITION_NODES) &&
+        JSON.stringify(this.sort) === JSON.stringify(DEFAULT_SORT) &&
+        JSON.stringify(this.widgetOverrides) === JSON.stringify({})
+      );
+    },
     condition(): QueryGroupCondition {
       const rootFlatNode = this.conditionNodes.find(
         (node) => node.parent === null,
@@ -258,6 +267,16 @@ export const useMediaQuery = defineStore("media-query", {
       if (sort.field === "random") {
         this.randomSeed = Math.floor(Math.random() * 100000);
       }
+    },
+
+    resetToDefault() {
+      this.loadSavedSearch({
+        conditionNodes: JSON.parse(
+          JSON.stringify(DEFAULT_CONDITION_NODES),
+        ) as QueryConditionFlatNode[],
+        sort: JSON.parse(JSON.stringify(DEFAULT_SORT)) as SortConfig,
+        widgetOverrides: {},
+      });
     },
 
     reshuffleRandomSeed() {

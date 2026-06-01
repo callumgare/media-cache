@@ -7,6 +7,7 @@ import { Shuffle } from "lucide-vue-next";
 
 import type {
   APIMediaFacetsResponse,
+  DurationFacetCount,
   FacetCount,
   FacetResult,
   FavouritedFacetCount,
@@ -46,6 +47,20 @@ const hasUnsavedChanges = computed(() => {
       JSON.stringify(snapshot.widgetOverrides)
   );
 });
+
+const showReset = computed(() =>
+  savedSearches.activeSearchId !== null
+    ? hasUnsavedChanges.value
+    : !mediaQuery.isDefault,
+);
+
+function resetQuery() {
+  if (savedSearches.activeSearchId !== null) {
+    savedSearches.switchTo(savedSearches.activeSearchId);
+  } else {
+    mediaQuery.resetToDefault();
+  }
+}
 const mediaQueryCondition = ref(mediaQuery.condition);
 mediaQuery.$subscribe(() => {
   mediaQueryCondition.value = mediaQuery.condition;
@@ -143,19 +158,38 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
         countAddedIfRemoved: option.countAddedIfRemoved,
       }))
       .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
-    duration: [],
+    duration: (() => {
+      const durationFacet = (
+        findFieldCounts(facets.value, "duration") as DurationFacetCount[]
+      )[0];
+      return [
+        {
+          id: "min",
+          name: "Min",
+          countAddedIfRemoved: durationFacet?.minCountAddedIfRemoved ?? null,
+        },
+        {
+          id: "max",
+          name: "Max",
+          countAddedIfRemoved: durationFacet?.maxCountAddedIfRemoved ?? null,
+        },
+      ];
+    })(),
     type: [
       { id: "video", name: "Video" },
       { id: "video-with-audio", name: "Video With Audio" },
       { id: "video-without-audio", name: "Video Without Audio" },
       { id: "image", name: "Image" },
-    ].map((option) => ({
-      ...option,
-      count:
-        (findFieldCounts(facets.value, "type") as TypeFacetCount[]).find(
-          (f) => f.value === option.id,
-        )?.count ?? null,
-    })),
+    ].map((option) => {
+      const facetCount = (
+        findFieldCounts(facets.value, "type") as TypeFacetCount[]
+      ).find((f) => f.value === option.id);
+      return {
+        ...option,
+        count: facetCount?.count ?? null,
+        countAddedIfRemoved: facetCount?.countAddedIfRemoved ?? null,
+      };
+    }),
     favourited: [
       { id: "yes", name: "Yes" },
       { id: "no", name: "No" },
@@ -172,6 +206,11 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
   },
   loading: showLoading.value,
 }));
+
+const { data: mediaData } = useMediaResults();
+const totalCount = computed(
+  () => mediaData.value?.pages[0]?.totalCount ?? null,
+);
 
 // Save-as-new dialog
 const showSaveDialog = ref(false);
@@ -288,10 +327,22 @@ function toggleSortDir() {
         />
         <Button
           v-if="savedSearches.activeSearchId !== null && hasUnsavedChanges"
-          label="Update"
+          icon="pi pi-save"
           size="small"
-          severity="secondary"
+          text
+          aria-label="Save changes"
+          title="Save changes"
           @click="savedSearches.updateActive()"
+        />
+        <Button
+          v-if="showReset"
+          icon="pi pi-undo"
+          size="small"
+          severity="warn"
+          text
+          :aria-label="savedSearches.activeSearchId !== null ? 'Discard changes' : 'Reset to defaults'"
+          :title="savedSearches.activeSearchId !== null ? 'Discard changes' : 'Reset to defaults'"
+          @click="resetQuery()"
         />
         <Button
           v-if="savedSearches.activeSearchId !== null"
@@ -300,6 +351,7 @@ function toggleSortDir() {
           severity="danger"
           text
           aria-label="Delete saved search"
+          title="Delete saved search"
           @click="confirmDeleteActive"
         />
         <ConfirmPopup />
@@ -367,6 +419,10 @@ function toggleSortDir() {
         />
       </ClientOnly>
     </section>
+    <Divider />
+    <div v-if="totalCount !== null" class="stats">
+      {{ totalCount.toLocaleString() }} result{{ totalCount === 1 ? '' : 's' }}
+    </div>
 
     <Dialog
       v-model:visible="showSaveDialog"
@@ -403,6 +459,13 @@ function toggleSortDir() {
 <style scoped>
   .root {
     padding: 1em;
+
+    .stats {
+      font-size: 0.85rem;
+      color: var(--p-text-muted-color);
+      margin-bottom: 0.25rem;
+      text-align: center;
+    }
 
     .sidebar-header {
       display: flex;

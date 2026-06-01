@@ -9,7 +9,15 @@ export type SourceFacetCount = {
   name: string | null;
   count: number;
 };
-export type TypeFacetCount = { value: string; count: number };
+export type TypeFacetCount = {
+  value: string;
+  count: number;
+  countAddedIfRemoved: number | null;
+};
+export type DurationFacetCount = {
+  minCountAddedIfRemoved: number | null;
+  maxCountAddedIfRemoved: number | null;
+};
 export type FavouritedFacetCount = {
   value: "yes" | "no";
   count: number;
@@ -19,7 +27,8 @@ export type FacetCount =
   | TagFacetCount
   | SourceFacetCount
   | TypeFacetCount
-  | FavouritedFacetCount;
+  | FavouritedFacetCount
+  | DurationFacetCount;
 
 export type FacetFieldResult = {
   id: number;

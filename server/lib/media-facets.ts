@@ -1,4 +1,5 @@
 import type {
+  DurationFacetCount,
   FacetCount,
   FavouritedFacetCount,
   SourceFacetCount,
@@ -66,6 +67,11 @@ export function fetchFieldCounts(
   body: QueryGroupCondition,
   userId?: number | null,
 ): Promise<TypeFacetCount[]>;
+export function fetchFieldCounts(
+  condition: QueryFieldCondition & { field: "duration" },
+  body: QueryGroupCondition,
+  userId?: number | null,
+): Promise<DurationFacetCount[]>;
 export function fetchFieldCounts(
   condition: QueryFieldCondition,
   body: QueryGroupCondition,
@@ -213,12 +219,24 @@ export async function fetchFieldCounts(
       })
       .from(dbSchema.cacheMedia)
       .where(whereStandard ?? undefined);
-    return [
+    const counts = [
       { value: "video", count: row?.video ?? 0 },
       { value: "video-with-audio", count: row?.videoWithAudio ?? 0 },
       { value: "video-without-audio", count: row?.videoWithoutAudio ?? 0 },
       { value: "image", count: row?.image ?? 0 },
-    ] satisfies TypeFacetCount[];
+    ];
+    const totalWithout = condition.value
+      ? await countWhere(whereStandard)
+      : null;
+    return counts.map(
+      (c): TypeFacetCount => ({
+        ...c,
+        countAddedIfRemoved:
+          totalWithout !== null && condition.value === c.value
+            ? totalWithout - c.count
+            : null,
+      }),
+    );
   }
 
   if (condition.field === "favourited") {
@@ -250,6 +268,62 @@ export async function fetchFieldCounts(
         countAddedIfRemoved: condition.value === "no" ? yesCount : null,
       },
     ] satisfies FavouritedFacetCount[];
+  }
+
+  if (condition.field === "duration") {
+    const rawValue = condition.value;
+    const hasValue =
+      rawValue !== "" && rawValue !== null && rawValue !== undefined;
+    if (!hasValue) {
+      return [
+        { minCountAddedIfRemoved: null, maxCountAddedIfRemoved: null },
+      ] satisfies DurationFacetCount[];
+    }
+    const value = rawValue as { min?: number | null; max?: number | null };
+    const hasMin = value.min != null;
+    const hasMax = value.max != null;
+    const whereAll =
+      calculateWhereValue(body, {
+        optimisationHint: "select",
+        userId: userId ?? null,
+      }) ?? null;
+    const countWithBoth = await countWhere(whereAll);
+    let countWithoutMin: number | null = null;
+    let countWithoutMax: number | null = null;
+    if (hasMin && hasMax) {
+      const whereWithoutMin =
+        calculateWhereValue(
+          replaceConditionValue(body, condition.id, {
+            min: null,
+            max: value.max,
+          }),
+          { optimisationHint: "select", userId: userId ?? null },
+        ) ?? null;
+      const whereWithoutMax =
+        calculateWhereValue(
+          replaceConditionValue(body, condition.id, {
+            min: value.min,
+            max: null,
+          }),
+          { optimisationHint: "select", userId: userId ?? null },
+        ) ?? null;
+      [countWithoutMin, countWithoutMax] = await Promise.all([
+        countWhere(whereWithoutMin),
+        countWhere(whereWithoutMax),
+      ]);
+    } else if (hasMin) {
+      countWithoutMin = await countWhere(whereStandard);
+    } else if (hasMax) {
+      countWithoutMax = await countWhere(whereStandard);
+    }
+    return [
+      {
+        minCountAddedIfRemoved:
+          countWithoutMin !== null ? countWithoutMin - countWithBoth : null,
+        maxCountAddedIfRemoved:
+          countWithoutMax !== null ? countWithoutMax - countWithBoth : null,
+      },
+    ] satisfies DurationFacetCount[];
   }
 
   return [];

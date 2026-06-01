@@ -14,6 +14,16 @@ const fieldOptions = computed(
 );
 const mediaQuery = useMediaQuery();
 const hasValue = computed(() => !!props.fieldCondition.value);
+const { medias, isPending } = useMediaResults();
+const zeroResults = computed(
+  () => !isPending.value && medias.value.length === 0,
+);
+const selectedOption = computed(() =>
+  fieldOptions.value.find((o) => o.id === props.fieldCondition.value),
+);
+const isFiltersToZero = computed(
+  () => zeroResults.value && !!selectedOption.value?.countAddedIfRemoved,
+);
 </script>
 
 <template>
@@ -25,19 +35,38 @@ const hasValue = computed(() => !!props.fieldCondition.value);
       :model-value="(fieldOptions).find(option => option.id === fieldCondition.value)"
       :options="fieldOptions"
       option-label="name"
-      :class="['control', { 'has-value': hasValue }]"
+      :class="['control', { 'has-value': hasValue, 'filters-to-zero': isFiltersToZero }]"
       :loading="schemaConfig.loading ?? false"
       :virtual-scroller-options="{ itemSize: 38 }"
       :placeholder="`Select ${QUERY_FIELD_DEFINITIONS.find(f => f.id === fieldCondition.field)?.displayName}`"
       :show-clear="true"
+      :pt="{
+        overlay: {
+          style: {
+            'max-height': 'none',
+            '--list-height': 'auto',
+            ...(isFiltersToZero
+              ? {
+                  '--p-select-option-selected-background': 'var(--p-orange-100)',
+                  '--p-select-option-selected-color': 'var(--p-orange-800)',
+                  '--p-select-option-selected-focus-background': 'var(--p-orange-200)',
+                  '--p-select-option-selected-focus-color': 'var(--p-orange-900)',
+                }
+              : {}),
+          },
+        },
+      }"
       @update:model-value="(value: { id: string }) => mediaQuery.setFieldConditionValue(fieldCondition, value?.id ?? '')"
     >
       <template #option="{ option }">
-        <span class="option-name">{{ option.name }}</span>
-        <span
-          v-if="option.count != null"
-          class="option-count"
-        >{{ option.count }}</span>
+        <span class="option-label">
+          <span class="option-name">{{ option.name }}</span>
+          <QueryBuilderOptionCount
+            :count="option.count ?? undefined"
+            :count-added-if-removed="option.countAddedIfRemoved"
+            :filters-to-zero="zeroResults && !!option.countAddedIfRemoved"
+          />
+        </span>
       </template>
     </Select>
   </QueryBuilderInputBase>
@@ -59,16 +88,23 @@ const hasValue = computed(() => !!props.fieldCondition.value);
   .control.has-value {
     background: var(--p-highlight-background);
     color: var(--p-highlight-color);
+
+    &.filters-to-zero {
+      background: var(--p-orange-100);
+      color: var(--p-orange-800);
+      --p-select-color: var(--p-orange-800);
+    }
   }
 
   .option-name {
     flex: 1;
   }
 
-  .option-count {
-    color: var(--p-text-muted-color);
-    font-size: 0.85em;
-    margin-left: 0.5em;
+  .option-label {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    width: 100%;
   }
 
   :deep(.p-select-option) {

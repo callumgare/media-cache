@@ -16,6 +16,10 @@ const fieldOptions = computed(
   () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
 );
 const mediaQuery = useMediaQuery();
+const { medias, isPending } = useMediaResults();
+const zeroResults = computed(
+  () => !isPending.value && medias.value.length === 0,
+);
 
 const listHeight = ref(200);
 const MIN_LIST_HEIGHT = 60;
@@ -148,7 +152,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
           <div
             v-for="option in selectedOptions"
             :key="option.id"
-            class="selected-item"
+            :class="['selected-item', { 'filters-to-zero': zeroResults && option.countAddedIfRemoved }]"
             data-testid="listbox-selected-item"
             @click="removeOption(option.id)"
           >
@@ -157,6 +161,7 @@ function onResizeHandleTouchstart(event: TouchEvent) {
               <QueryBuilderOptionCount
                 :count="option.count ?? 0"
                 :count-added-if-removed="option.countAddedIfRemoved"
+                :filters-to-zero="zeroResults && !!option.countAddedIfRemoved"
               />
             </span>
           </div>
@@ -233,6 +238,15 @@ function onResizeHandleTouchstart(event: TouchEvent) {
 
         &:hover {
           background: var(--p-listbox-option-selected-focus-background, var(--p-highlight-focus-background));
+        }
+
+        &.filters-to-zero {
+          color: var(--p-orange-800);
+          background: var(--p-orange-100);
+
+          &:hover {
+            background: var(--p-orange-200);
+          }
         }
       }
     }
