@@ -30,13 +30,14 @@ export class PhotoSwipeInfoPanelPlugin {
         right: 0;
         z-index: 100;
         max-height: 50%;
+        min-height: 0;
         overflow-y: auto;
         background: rgb(0 0 0 / 85%);
         color: #fff;
         transform: translateY(100%);
-        transition: transform 0.3s ease;
+        transition: transform 0.3s ease, max-height 0.3s ease, min-height 0.3s ease, border-radius 0.3s ease;
         border-radius: 12px 12px 0 0;
-        padding: 16px;
+        padding: 0;
         overscroll-behavior: none;
       }
       .pswp--info-no-transition .pswp__info-panel {
@@ -45,12 +46,43 @@ export class PhotoSwipeInfoPanelPlugin {
       .pswp--info-open .pswp__info-panel {
         transform: translateY(0);
       }
+      .pswp--info-maximized .pswp__info-panel {
+        max-height: 100%;
+        min-height: 100%;
+        border-radius: 0;
+      }
+      .pswp__info-expand-arrow {
+        transition: transform 0.3s ease;
+        transform-box: fill-box;
+        transform-origin: 50% 50%;
+      }
+      .pswp--info-maximized .pswp__button--info-maximize .pswp__info-expand-arrow {
+        transform: scale(-1);
+      }
       .pswp__button--info-button svg {
         display: block;
       }
-      .pswp__info-panel .pswp__button--info-close {
-        position: static;
-        display: block;
+      .pswp__info-panel .pswp__info-panel-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: rgb(0 0 0 / 85%);
+        display: flex;
+        align-items: center;
+        padding: 8px 8px 4px;
+        justify-content: space-between;
+        touch-action: none;
+
+        .pswp__icn {
+          left: initial;
+          top: initial;
+        }
+      }
+      .pswp__info-panel .pswp__button--info-close,
+      .pswp__info-panel .pswp__button--info-maximize {
+        display: flex;
+        justify-content: center;
+        align-items: center;
         width: 44px;
         height: 44px;
       }
@@ -70,6 +102,29 @@ export class PhotoSwipeInfoPanelPlugin {
   private initPswp(pswp: PhotoSwipe) {
     const { isOpen, currentMedia, panelEl, toggle, _registerSetOpen } =
       useInfoPanel();
+
+    let isMaximized = false;
+    let maximizeBtnRef: HTMLButtonElement | null = null;
+    // Reference to the sticky header element created in appendHeavy, used to
+    // detect whether a pointer-down started on the header (for swipe-up-to-maximize).
+    let headerEl: HTMLElement | null = null;
+
+    function setMaximized(maximized: boolean) {
+      isMaximized = maximized;
+      pswp.template?.classList.toggle("pswp--info-maximized", isMaximized);
+      if (isMaximized) {
+        pswp.template?.setAttribute("data-info-maximized", "");
+      } else {
+        pswp.template?.removeAttribute("data-info-maximized");
+      }
+      if (maximizeBtnRef) {
+        maximizeBtnRef.title = isMaximized ? "Collapse" : "Expand";
+        maximizeBtnRef.setAttribute(
+          "aria-label",
+          isMaximized ? "Collapse info panel" : "Expand info panel",
+        );
+      }
+    }
 
     // Bottom padding (px) added to the PhotoSwipe pan area when the panel is open,
     // so the media is repositioned above the panel and shrunk if needed.
@@ -169,6 +224,10 @@ export class PhotoSwipeInfoPanelPlugin {
     // The plugin owns CSS class management on pswp.template, so it registers
     // itself as the setOpen handler so all calls from Vue components go through here.
     function setOpen(open: boolean, immediate = false) {
+      // Reset maximized state when the panel closes.
+      if (!open && isMaximized) {
+        setMaximized(false);
+      }
       isOpen.value = open;
       if (immediate) {
         pswp.template?.classList.add("pswp--info-no-transition");
@@ -205,13 +264,24 @@ export class PhotoSwipeInfoPanelPlugin {
       const key = e.originalEvent.key;
       if (key === "Escape" && isOpen.value) {
         e.preventDefault();
-        setOpen(false);
-      } else if (key === "ArrowUp" && !isOpen.value) {
-        e.preventDefault();
-        setOpen(true);
+        if (isMaximized) {
+          setMaximized(false);
+        } else {
+          setOpen(false);
+        }
+      } else if (key === "ArrowUp") {
+        if (!isOpen.value) {
+          e.preventDefault();
+          setOpen(true);
+        } else if (!isMaximized) {
+          e.preventDefault();
+          setMaximized(true);
+        }
       } else if (key === "ArrowDown") {
         e.preventDefault();
-        if (isOpen.value) {
+        if (isMaximized) {
+          setMaximized(false);
+        } else if (isOpen.value) {
           setOpen(false);
         } else {
           pswp.close();
@@ -317,6 +387,9 @@ export class PhotoSwipeInfoPanelPlugin {
     let ptrDownTime = 0;
     let ptrDownAtMinBound = false;
     let ptrDownAtMaxBound = false;
+    // Whether the pointer-down that started the current gesture landed on the
+    // sticky header. Used to detect swipe-up-on-header → maximize.
+    let ptrDownOnHeader = false;
     pswp.on("pointerDown", (e) => {
       if (e.originalEvent.pointerType === "mouse") return;
       numActivePointers++;
@@ -340,6 +413,9 @@ export class PhotoSwipeInfoPanelPlugin {
       // For a downward swipe to close the panel it must be at bounds.min.y (top visible).
       ptrDownAtMinBound = !cs || cs.pan.y <= cs.bounds.max.y + 1;
       ptrDownAtMaxBound = !cs || cs.pan.y >= cs.bounds.min.y - 1;
+      // Record whether touch started on the header so pointerUp can route
+      // an upward flick to setMaximized() instead of the normal open logic.
+      ptrDownOnHeader = !!headerEl?.contains(e.originalEvent.target as Node);
     });
 
     pswp.on("pointerUp", (e) => {
@@ -371,18 +447,23 @@ export class PhotoSwipeInfoPanelPlugin {
 
         // Open if dragged far enough or fast enough.
         if (mediaUpOffset > 60 || velocityUp > 0.3) {
-          // Capture displaced position before setOpen changes anything.
-          const draggedPanY = currSlide?.pan.y ?? 0;
-          // Replicate setOpen(true) state changes without calling animatePanelResize yet.
-          isOpen.value = true;
-          pswp.template?.classList.add("pswp--info-open");
-          if (el) {
-            el.style.transition = "";
-            el.style.transform = "";
+          // Upward drag starting on the header when panel is open → maximize.
+          if (isOpen.value && !isMaximized && ptrDownOnHeader) {
+            setMaximized(true);
+          } else {
+            // Capture displaced position before setOpen changes anything.
+            const draggedPanY = currSlide?.pan.y ?? 0;
+            // Replicate setOpen(true) state changes without calling animatePanelResize yet.
+            isOpen.value = true;
+            pswp.template?.classList.add("pswp--info-open");
+            if (el) {
+              el.style.transition = "";
+              el.style.transform = "";
+            }
+            pswp.applyBgOpacity(1);
+            // Spring media from its dragged position to the final clamped position.
+            animatePanelResize(openPadding(), draggedPanY);
           }
-          pswp.applyBgOpacity(1);
-          // Spring media from its dragged position to the final clamped position.
-          animatePanelResize(openPadding(), draggedPanY);
         } else {
           // Not enough — restore bgOpacity and spring panel back closed.
           pswp.applyBgOpacity(1);
@@ -446,6 +527,24 @@ export class PhotoSwipeInfoPanelPlugin {
         }
       }
 
+      // Fallback: catch quick upward flicks on the header when panel is already
+      // open (and not maximized). These are too fast for verticalDrag to fire.
+      if (
+        !upwardDragActive &&
+        isOpen.value &&
+        !isMaximized &&
+        ptrDownOnHeader &&
+        numActivePointers === 0 &&
+        e.originalEvent.pointerType !== "mouse"
+      ) {
+        const dy = ptrDownY - e.originalEvent.clientY; // positive = moved upward
+        const dt = performance.now() - ptrDownTime;
+        const flickVelocity = dy / Math.max(1, dt);
+        if (flickVelocity > 0.3 && dy > 5) {
+          setMaximized(true);
+        }
+      }
+
       // Fallback: catch quick upward flicks that were too fast to generate any
       // verticalDrag events (so upwardDragActive was never set). We detect these
       // purely from the start/end pointer positions and elapsed time.
@@ -497,10 +596,21 @@ export class PhotoSwipeInfoPanelPlugin {
     });
 
     pswp.on("appendHeavy", () => {
+      // Tag the PhotoSwipe root element for test selectors.
+      pswp.template?.setAttribute("data-testid", "pswp");
       if (!panelEl.value && pswp.template) {
         const el = document.createElement("div");
         el.className = "pswp__info-panel";
         el.setAttribute("aria-label", "Media information");
+        el.setAttribute("data-testid", "pswp-info-panel");
+
+        // Header row: close button (left) + maximize button (right)
+        const header = document.createElement("div");
+        header.className = "pswp__info-panel-header";
+        header.setAttribute("data-testid", "pswp-info-panel-header");
+        // Expose the header reference so pswp.on("pointerDown") can check
+        // whether a gesture started here (for swipe-up-to-maximize).
+        headerEl = header;
 
         // Close button — pswp__button styling so it matches toolbar icons
         const closeBtn = document.createElement("button");
@@ -514,7 +624,300 @@ export class PhotoSwipeInfoPanelPlugin {
           "pswp__icn-info-close",
         );
         closeBtn.addEventListener("click", () => setOpen(false));
-        el.appendChild(closeBtn);
+        header.appendChild(closeBtn);
+
+        // Maximize / minimize button — expands the panel to fill the viewport
+        const maximizeBtn = document.createElement("button");
+        maximizeBtn.type = "button";
+        maximizeBtn.className = "pswp__button pswp__button--info-maximize";
+        maximizeBtn.title = "Expand";
+        maximizeBtn.setAttribute("aria-label", "Expand info panel");
+        // Four L-bracket corner arrows as separate paths — CSS rotates each 180° in
+        // place (transform-box: fill-box) when .pswp--info-maximized is set, smoothly
+        // transitioning from outward-pointing (expand) to inward-pointing (compress).
+        maximizeBtn.innerHTML =
+          `<svg aria-hidden="true" class="pswp__icn" viewBox="0 0 32 32" width="32" height="32">` +
+          `<path class="pswp__info-expand-arrow" d="M4 4v8h2V6h6V4z"/>` +
+          `<path class="pswp__info-expand-arrow" d="M28 4h-8v2h6v6h2z"/>` +
+          `<path class="pswp__info-expand-arrow" d="M4 28v-8h2v6h6v2z"/>` +
+          `<path class="pswp__info-expand-arrow" d="M28 28v-8h-2v6h-6v2z"/>` +
+          "</svg>";
+        maximizeBtn.addEventListener("click", () => {
+          setMaximized(!isMaximized);
+        });
+        maximizeBtnRef = maximizeBtn;
+        header.appendChild(maximizeBtn);
+
+        el.appendChild(header);
+
+        // ── Header: drag up to maximize, drag down to close/un-maximize ────────
+        // touch-action:none (set in CSS) stops the browser from claiming the touch
+        // for scrolling, so pointermove fires reliably regardless of el.scrollTop.
+        //
+        // Up:   physically resizes the panel via maxHeight/minHeight, commits to
+        //       maximize on release if far/fast enough, otherwise springs back.
+        // Down: physically translates the panel via translateY (same as the panel
+        //       body drag below), commits to close/un-maximize on release, springs
+        //       back otherwise. e.stopPropagation() prevents el's pointermove from
+        //       also running, so this always works even when the panel is scrolled.
+        let headerDragStartY = 0;
+        let headerDragStartHeight = 0;
+        let headerIsDragging = false; // upward drag (expand)
+        let headerDownIsDragging = false; // downward drag (close/un-maximize)
+        // px of downward drag before image starts moving (non-zero when maximized:
+        // image should only start moving once panel has passed its open half-height).
+        let headerDragImageMovingThreshold = 0;
+        let headerVelocityPoints: Array<{ t: number; y: number }> = [];
+
+        header.addEventListener(
+          "pointerdown",
+          (e: PointerEvent) => {
+            if (e.pointerType === "mouse") return;
+            headerDragStartY = e.clientY;
+            headerDragStartHeight = el.getBoundingClientRect().height;
+            headerIsDragging = false;
+            headerDownIsDragging = false;
+            // When maximized the panel fills the viewport. The image should stay
+            // put until the panel has travelled past its non-maximized open
+            // height (panelBottomPadding ≈ 50% viewport), only then moving down.
+            headerDragImageMovingThreshold = isMaximized
+              ? Math.max(0, headerDragStartHeight - panelBottomPadding)
+              : 0;
+            headerVelocityPoints = [{ t: Date.now(), y: e.clientY }];
+          },
+          { passive: true },
+        );
+
+        // Non-passive: we call preventDefault() to block ancestor scroll/pan.
+        header.addEventListener("pointermove", (e: PointerEvent) => {
+          if (e.pointerType === "mouse") return;
+
+          headerVelocityPoints.push({ t: Date.now(), y: e.clientY });
+          if (headerVelocityPoints.length > 10) headerVelocityPoints.shift();
+
+          const dyUp = headerDragStartY - e.clientY; // positive = upward
+          const dyDown = e.clientY - headerDragStartY; // positive = downward
+
+          // ── Upward drag: expand panel ──────────────────────────────────────
+          if (!headerDownIsDragging && dyUp > 0) {
+            if (isMaximized) return; // already full height
+
+            e.preventDefault();
+
+            if (!headerIsDragging) {
+              if (dyUp > 8) {
+                headerIsDragging = true;
+                header.setPointerCapture(e.pointerId);
+              } else {
+                return;
+              }
+            }
+
+            const viewportH = pswp.template?.clientHeight ?? window.innerHeight;
+            const newH = Math.min(headerDragStartHeight + dyUp, viewportH);
+            el.style.transition = "none";
+            el.style.maxHeight = `${newH}px`;
+            el.style.minHeight = `${newH}px`;
+            return;
+          }
+
+          // ── Downward drag: close / un-maximize ────────────────────────────
+          if (!headerIsDragging && dyDown > 0 && isOpen.value) {
+            e.preventDefault();
+            // Prevent el.pointermove from also firing — we own this gesture
+            // regardless of el.scrollTop.
+            e.stopPropagation();
+
+            if (!headerDownIsDragging) {
+              if (dyDown > 8) {
+                headerDownIsDragging = true;
+                header.setPointerCapture(e.pointerId);
+              } else {
+                return;
+              }
+            }
+
+            el.style.transform = `translateY(${Math.max(0, dyDown)}px)`;
+            el.style.transition = "none";
+
+            // Move the media at half the rate, but only once the panel has been
+            // dragged past its non-maximized open position (when maximized the
+            // image should stay put while the panel is still above open height).
+            const imageExcessH = dyDown - headerDragImageMovingThreshold;
+            const currSlide = pswp.currSlide;
+            if (currSlide && imageExcessH > 0) {
+              currSlide.pan.y = panelDragStartSlideY + imageExcessH * 0.5;
+              currSlide.applyCurrentZoomPan();
+            }
+          }
+        });
+
+        header.addEventListener(
+          "pointerup",
+          (e: PointerEvent) => {
+            if (e.pointerType === "mouse") return;
+
+            // ── Upward drag release ──────────────────────────────────────────
+            if (headerIsDragging) {
+              headerIsDragging = false;
+
+              const dyUp = headerDragStartY - e.clientY;
+              const recent = headerVelocityPoints.filter(
+                (p) => Date.now() - p.t < 100,
+              );
+              let velocity = 0;
+              const fp = recent[0];
+              const lp = recent[recent.length - 1];
+              if (fp && lp && recent.length >= 2) {
+                velocity = (fp.y - lp.y) / Math.max(1, lp.t - fp.t); // upward +
+              }
+
+              if (dyUp > 60 || velocity > 0.5) {
+                el.style.transition = "";
+                el.style.maxHeight = "";
+                el.style.minHeight = "";
+                setMaximized(true);
+              } else {
+                el.style.transition =
+                  "max-height 0.3s ease, min-height 0.3s ease";
+                el.style.maxHeight = "";
+                el.style.minHeight = "";
+                setTimeout(() => {
+                  el.style.transition = "";
+                }, 300);
+              }
+              return;
+            }
+
+            // ── Downward drag release ────────────────────────────────────────
+            if (headerDownIsDragging) {
+              headerDownIsDragging = false;
+
+              const dyDown = e.clientY - headerDragStartY;
+              const recent = headerVelocityPoints.filter(
+                (p) => Date.now() - p.t < 100,
+              );
+              let velocity = 0;
+              const fp = recent[0];
+              const lp = recent[recent.length - 1];
+              if (fp && lp && recent.length >= 2) {
+                velocity = (lp.y - fp.y) / Math.max(1, lp.t - fp.t); // downward +
+              }
+
+              if (dyDown > 60 || velocity > 0.5) {
+                if (isMaximized) {
+                  const viewportH =
+                    pswp.template?.clientHeight ?? window.innerHeight;
+                  const fingerInLowerThird = e.clientY > (viewportH * 2) / 3;
+                  if (fingerInLowerThird) {
+                    // Close entirely (slide out from current dragged position).
+                    el.style.transition = "transform 0.25s ease-out";
+                    el.style.transform = "translateY(100%)";
+                    const draggedPanY =
+                      pswp.currSlide?.pan.y ?? panelDragStartSlideY;
+                    isOpen.value = false;
+                    if (resizeAnimRafId !== null)
+                      cancelAnimationFrame(resizeAnimRafId);
+                    pswp.template?.classList.remove("pswp--info-open");
+                    animatePanelResize(0, draggedPanY);
+                    setTimeout(() => {
+                      setMaximized(false);
+                      el.style.transition = "none";
+                      el.style.transform = "";
+                      requestAnimationFrame(() => {
+                        el.style.transition = "";
+                      });
+                    }, 250);
+                  } else {
+                    // Un-maximize back to half-height, smoothly from the current
+                    // dragged position. We can't just clear the transform and call
+                    // setMaximized(false) simultaneously — the CSS transform
+                    // transition (translateY(dyDown)→0, i.e. upward) and the
+                    // max-height transition (100%→50%, top edge moves downward)
+                    // fight each other and produce a visible stutter.
+                    //
+                    // Fix: express the current visual position as a max-height
+                    // value (no translateY), then animate only max-height to the
+                    // CSS target so the panel slides smoothly in one direction.
+                    const viewportH =
+                      pswp.template?.clientHeight ?? window.innerHeight;
+                    const frozenH = Math.max(0, viewportH - dyDown);
+                    el.style.transition = "none";
+                    el.style.transform = "";
+                    el.style.maxHeight = `${frozenH}px`;
+                    el.style.minHeight = `${frozenH}px`;
+                    setMaximized(false);
+                    void el.offsetHeight; // commit before-state for CSS transition
+                    el.style.transition = "";
+                    el.style.maxHeight = "";
+                    el.style.minHeight = "";
+                    const cs = pswp.currSlide;
+                    if (cs) animateSlidePan(cs.pan.y, panelDragStartSlideY);
+                  }
+                } else {
+                  // Close the panel.
+                  el.style.transition = "transform 0.25s ease-out";
+                  el.style.transform = "translateY(100%)";
+                  const draggedPanY =
+                    pswp.currSlide?.pan.y ?? panelDragStartSlideY;
+                  isOpen.value = false;
+                  if (resizeAnimRafId !== null)
+                    cancelAnimationFrame(resizeAnimRafId);
+                  pswp.template?.classList.remove("pswp--info-open");
+                  animatePanelResize(0, draggedPanY);
+                  setTimeout(() => {
+                    el.style.transition = "none";
+                    el.style.transform = "";
+                    requestAnimationFrame(() => {
+                      el.style.transition = "";
+                    });
+                  }, 250);
+                }
+              } else {
+                // Not far/fast enough — spring panel and media back.
+                el.style.transition = "transform 0.3s ease";
+                el.style.transform = "";
+                animateSlidePan(
+                  pswp.currSlide?.pan.y ?? panelDragStartSlideY,
+                  panelDragStartSlideY,
+                );
+                setTimeout(() => {
+                  el.style.transition = "";
+                }, 300);
+              }
+            }
+          },
+          { passive: true },
+        );
+
+        header.addEventListener(
+          "pointercancel",
+          () => {
+            if (headerIsDragging) {
+              headerIsDragging = false;
+              el.style.transition =
+                "max-height 0.3s ease, min-height 0.3s ease";
+              el.style.maxHeight = "";
+              el.style.minHeight = "";
+              setTimeout(() => {
+                el.style.transition = "";
+              }, 300);
+            }
+            if (headerDownIsDragging) {
+              headerDownIsDragging = false;
+              el.style.transition = "transform 0.3s ease";
+              el.style.transform = "";
+              animateSlidePan(
+                pswp.currSlide?.pan.y ?? panelDragStartSlideY,
+                panelDragStartSlideY,
+              );
+              setTimeout(() => {
+                el.style.transition = "";
+              }, 300);
+            }
+          },
+          { passive: true },
+        );
 
         pswp.template.appendChild(el);
         panelEl.value = el;
@@ -524,6 +927,7 @@ export class PhotoSwipeInfoPanelPlugin {
         // downward drag physically moves the panel and, if released past the
         // distance threshold (60 px) or with enough velocity (0.5 px/ms), closes it.
         let panelDragStartY = 0;
+        let panelDragStartHeight = 0; // panel height at drag start
         let panelDragStartSlideY = 0; // currSlide.pan.y when the panel drag started
         // panelIsDragging is declared in initPswp scope so verticalDrag can yield to it.
         let velocityPoints: Array<{ t: number; y: number }> = [];
@@ -533,6 +937,7 @@ export class PhotoSwipeInfoPanelPlugin {
           (e: PointerEvent) => {
             if (e.pointerType === "mouse") return;
             panelDragStartY = e.clientY;
+            panelDragStartHeight = el.getBoundingClientRect().height;
             panelDragStartSlideY = pswp.currSlide?.pan.y ?? 0;
             panelIsDragging = false;
             velocityPoints = [{ t: Date.now(), y: e.clientY }];
@@ -567,11 +972,20 @@ export class PhotoSwipeInfoPanelPlugin {
           el.style.transform = `translateY(${Math.max(0, dy)}px)`;
           el.style.transition = "none";
 
-          // Move the media down at half the panel drag rate.
+          // Move the media down at half the panel drag rate, but only once the
+          // panel has been dragged past its non-maximized open position.
+          // When maximized the panel must first travel (panelDragStartHeight -
+          // panelBottomPadding) before the image starts moving.
+          const bodyImageThreshold = isMaximized
+            ? Math.max(0, panelDragStartHeight - panelBottomPadding)
+            : 0;
           const currSlide = pswp.currSlide;
           if (currSlide) {
-            currSlide.pan.y = panelDragStartSlideY + dy * 0.5;
-            currSlide.applyCurrentZoomPan();
+            const imageExcessB = dy - bodyImageThreshold;
+            if (imageExcessB > 0) {
+              currSlide.pan.y = panelDragStartSlideY + imageExcessB * 0.5;
+              currSlide.applyCurrentZoomPan();
+            }
           }
         });
 
@@ -620,28 +1034,79 @@ export class PhotoSwipeInfoPanelPlugin {
             }
 
             if (dy > 60 || velocity > 0.5) {
-              // Slide the panel out.
-              el.style.transition = "transform 0.25s ease-out";
-              el.style.transform = "translateY(100%)";
-              // Capture the current (dragged) pan position so the spring starts from here.
-              const draggedPanY = pswp.currSlide?.pan.y ?? panelDragStartSlideY;
-              // Update state and spring the media back immediately — in parallel with the
-              // panel CSS animation — so both finish at roughly the same time.
-              isOpen.value = false;
-              if (resizeAnimRafId !== null)
-                cancelAnimationFrame(resizeAnimRafId);
-              pswp.template?.classList.remove("pswp--info-open");
-              animatePanelResize(0, draggedPanY);
-              setTimeout(() => {
-                // Panel slide-out done — clear inline styles without triggering a transition.
-                el.style.transition = "none";
-                el.style.transform = "";
-                requestAnimationFrame(() => {
+              if (isMaximized) {
+                const viewportH =
+                  pswp.template?.clientHeight ?? window.innerHeight;
+                // If the finger released in the lower third of the screen, close the
+                // panel entirely; otherwise just un-maximize back to half-height.
+                const fingerInLowerThird = e.clientY > (viewportH * 2) / 3;
+                if (fingerInLowerThird) {
+                  // Slide the panel off-screen from its current dragged position.
+                  // Do NOT call setMaximized(false) yet — that would immediately snap
+                  // max-height from 100% to 50%, causing a visual jump before the
+                  // animation plays. We reset it in the cleanup after 250 ms.
+                  el.style.transition = "transform 0.25s ease-out";
+                  el.style.transform = "translateY(100%)";
+                  const draggedPanY =
+                    pswp.currSlide?.pan.y ?? panelDragStartSlideY;
+                  isOpen.value = false;
+                  if (resizeAnimRafId !== null)
+                    cancelAnimationFrame(resizeAnimRafId);
+                  pswp.template?.classList.remove("pswp--info-open");
+                  animatePanelResize(0, draggedPanY);
+                  setTimeout(() => {
+                    // Animation done — reset inline styles and maximized state
+                    // without triggering another visible transition.
+                    setMaximized(false);
+                    el.style.transition = "none";
+                    el.style.transform = "";
+                    requestAnimationFrame(() => {
+                      el.style.transition = "";
+                    });
+                  }, 250);
+                } else {
+                  // Un-maximize back to half-height, smoothly from the current
+                  // dragged position (same reasoning as the header drag above).
+                  const viewportH =
+                    pswp.template?.clientHeight ?? window.innerHeight;
+                  const frozenH = Math.max(0, viewportH - dy);
+                  el.style.transition = "none";
+                  el.style.transform = "";
+                  el.style.maxHeight = `${frozenH}px`;
+                  el.style.minHeight = `${frozenH}px`;
+                  setMaximized(false);
+                  void el.offsetHeight; // commit before-state for CSS transition
                   el.style.transition = "";
-                });
-              }, 250);
+                  el.style.maxHeight = "";
+                  el.style.minHeight = "";
+                  const cs = pswp.currSlide;
+                  if (cs) animateSlidePan(cs.pan.y, panelDragStartSlideY);
+                }
+              } else {
+                // Slide the panel out.
+                el.style.transition = "transform 0.25s ease-out";
+                el.style.transform = "translateY(100%)";
+                // Capture the current (dragged) pan position so the spring starts from here.
+                const draggedPanY =
+                  pswp.currSlide?.pan.y ?? panelDragStartSlideY;
+                // Update state and spring the media back immediately — in parallel with the
+                // panel CSS animation — so both finish at roughly the same time.
+                isOpen.value = false;
+                if (resizeAnimRafId !== null)
+                  cancelAnimationFrame(resizeAnimRafId);
+                pswp.template?.classList.remove("pswp--info-open");
+                animatePanelResize(0, draggedPanY);
+                setTimeout(() => {
+                  // Panel slide-out done — clear inline styles without triggering a transition.
+                  el.style.transition = "none";
+                  el.style.transform = "";
+                  requestAnimationFrame(() => {
+                    el.style.transition = "";
+                  });
+                }, 250);
+              }
             } else {
-              // Not far/fast enough — spring panel and media back to panel-open position.
+              // Not far/fast enough — spring panel and media back to current position.
               el.style.transition = "transform 0.3s ease";
               el.style.transform = "";
               animateSlidePan(
@@ -704,6 +1169,9 @@ export class PhotoSwipeInfoPanelPlugin {
       panelEl.value = null;
       currentMedia.value = null;
       isOpen.value = false;
+      isMaximized = false;
+      maximizeBtnRef = null;
+      headerEl = null;
     });
   }
 }

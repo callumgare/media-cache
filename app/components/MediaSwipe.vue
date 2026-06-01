@@ -164,7 +164,7 @@ const { currentMedia, panelEl } = useInfoPanel();
 
 <style scoped>
 .info-panel-contents {
-  padding-bottom: 1rem;
+  padding: 0 16px 1rem;
 }
 </style>
 <style>

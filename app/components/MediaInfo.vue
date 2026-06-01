@@ -101,7 +101,7 @@
         v-if="uiState.debugMode"
         legend="Raw Cache Media"
         :toggleable="true"
-        :collapsed="true"
+        :collapsed="false"
         class="debug-raw-media"
       >
         <pre class="debug-json">{{ JSON.stringify(media, null, 2) }}</pre>
@@ -174,7 +174,7 @@
             :key="i"
             legend="Raw Liase Media"
             :toggleable="true"
-            :collapsed="true"
+            :collapsed="false"
             class="debug-raw-media"
           >
             <pre class="debug-json">{{ JSON.stringify(rawMedia, null, 2) }}</pre>
@@ -316,6 +316,12 @@ function formatDuration(seconds: number): string {
 }
 </script>
 
+<style>
+.pswp__info-panel .p-fieldset {
+  color: inherit;
+}
+</style>
+
 <style scoped>
 .panel-content {
   overflow: auto;
@@ -412,6 +418,10 @@ function formatDuration(seconds: number): string {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #f59e0b;
+
+    button {
+      color: inherit;
+    }
   }
 }
 
@@ -425,5 +435,6 @@ function formatDuration(seconds: number): string {
   white-space: pre;
   margin: 0;
   text-wrap: wrap;
+  -webkit-text-size-adjust: 100%;
 }
 </style>
