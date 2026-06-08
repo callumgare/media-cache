@@ -12,11 +12,24 @@ export async function proxyRequest(
   target: URL,
   opts?: RequestInit & { context?: H3EventContext },
 ): Promise<Response> {
+  const controller = new AbortController();
   let response: Response;
+  let aborted = false;
+
+  event.node.res.once("close", () => {
+    aborted = true;
+    controller.abort();
+    const body = response?.body;
+    if (body && !body.locked && typeof body.cancel === "function") {
+      void body.cancel().catch(() => {});
+    }
+  });
+
   try {
     // Based on h3's fetchWithEvent
     response = await fetch(target.href, {
       ...opts,
+      signal: controller.signal,
       headers: {
         ...safeHeaders(event.headers),
         host: target.host,
@@ -25,6 +38,14 @@ export async function proxyRequest(
       },
     });
   } catch (error) {
+    if (aborted) {
+      throw createError({
+        status: 499,
+        statusMessage: "Client Closed Request",
+        cause: error,
+      });
+    }
+
     console.error(target.href);
     throw createError({
       status: 502,

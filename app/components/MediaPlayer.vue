@@ -143,4 +143,14 @@ defineExpose({
     return (videoRef.value as unknown as Element | null) ?? null;
   },
 });
+
+// ── Cleanup ───────────────────────────────────────────────────────────────
+onBeforeUnmount(() => {
+  if (!videoRef.value) return;
+  // Simply removing the video element from the page doesn't seem to cause the browser to immediately close any open requests that
+  // are fetching the video. The user might flick though many videos quickly so we'd rather close immediately. We can do that by
+  // clearing the src value before we unmount the element which seems to cause the browser to drop the connection and free up
+  // resources faster.
+  videoRef.value.src = "";
+});
 </script>
