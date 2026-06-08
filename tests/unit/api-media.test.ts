@@ -43,13 +43,14 @@ function buildOrderBy(sort: SortConfig, seed = 0) {
     return sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`;
   }
   const dir = sort.direction === "desc" ? desc : asc;
-  if (sort.field === "createdOrUploadedAt")
+  if (sort.field === "earliestCreatedOrUploadedAt")
     return dir(
       sql`COALESCE(${dbSchema.cacheMedia.earliestCreatedAt}, ${dbSchema.cacheMedia.earliestUploadedAt})`,
     );
   if (sort.field === "firstIndexedAt")
     return dir(dbSchema.cacheMedia.firstIndexedAt);
-  if (sort.field === "updatedAt") return dir(dbSchema.cacheMedia.updatedAt);
+  if (sort.field === "lastIndexedAt")
+    return dir(dbSchema.cacheMedia.lastIndexedAt);
   if (sort.field === "duration")
     return dir(sql`COALESCE(${dbSchema.cacheMedia.duration}, -1)`);
   return dir(dbSchema.cacheMedia.title);
@@ -64,7 +65,7 @@ async function querySorted(sort: SortConfig, seed = 0) {
       earliestCreatedAt: dbSchema.cacheMedia.earliestCreatedAt,
       earliestUploadedAt: dbSchema.cacheMedia.earliestUploadedAt,
       firstIndexedAt: dbSchema.cacheMedia.firstIndexedAt,
-      updatedAt: dbSchema.cacheMedia.updatedAt,
+      lastIndexedAt: dbSchema.cacheMedia.lastIndexedAt,
     })
     .from(dbSchema.cacheMedia)
     .orderBy(buildOrderBy(sort, seed));
@@ -76,7 +77,7 @@ async function seedSortMedia() {
     {
       // earliestCreatedAt wins for createdOrUploadedAt; oldest firstIndexedAt
       firstIndexedAt: new Date("2020-01-15"),
-      updatedAt: new Date("2024-01-01"),
+      lastIndexedAt: new Date("2024-01-01"),
       title: "Alpha",
       duration: 10,
       earliestCreatedAt: new Date("2021-01-01"),
@@ -89,7 +90,7 @@ async function seedSortMedia() {
     {
       // no earliestCreatedAt — falls back to earliestUploadedAt
       firstIndexedAt: new Date("2023-03-15"),
-      updatedAt: new Date("2023-08-01"),
+      lastIndexedAt: new Date("2023-08-01"),
       title: "Bravo",
       duration: 5,
       earliestCreatedAt: null,
@@ -102,7 +103,7 @@ async function seedSortMedia() {
     {
       // earliestCreatedAt (2022-06-01) is later than earliestUploadedAt (2022-03-20)
       firstIndexedAt: new Date("2021-07-01"),
-      updatedAt: new Date("2025-05-01"),
+      lastIndexedAt: new Date("2025-05-01"),
       title: "Charlie",
       duration: 30,
       earliestCreatedAt: new Date("2022-06-01"),
@@ -115,7 +116,7 @@ async function seedSortMedia() {
     {
       // no dates at all — sorts last in ASC, first in DESC for createdOrUploadedAt
       firstIndexedAt: new Date("2025-11-01"),
-      updatedAt: new Date("2022-12-01"),
+      lastIndexedAt: new Date("2022-12-01"),
       title: "Delta",
       duration: null,
       earliestCreatedAt: null,
@@ -577,7 +578,7 @@ describe("/api/media — sort by createdOrUploadedAt", () => {
   it("returns oldest createdOrUploadedAt first (asc), nulls last", async () => {
     await seedSortMedia();
     const results = await querySorted({
-      field: "createdOrUploadedAt",
+      field: "earliestCreatedOrUploadedAt",
       direction: "asc",
     });
     // COALESCE(earliestCreatedAt, earliestUploadedAt):
@@ -589,7 +590,7 @@ describe("/api/media — sort by createdOrUploadedAt", () => {
   it("returns most-recent createdOrUploadedAt first (desc), nulls first", async () => {
     await seedSortMedia();
     const results = await querySorted({
-      field: "createdOrUploadedAt",
+      field: "earliestCreatedOrUploadedAt",
       direction: "desc",
     });
     // Delta=null(first), Bravo=2024-06-15, Charlie=2022-06-01, Alpha=2021-01-01
@@ -602,7 +603,7 @@ describe("/api/media — sort by createdOrUploadedAt", () => {
     // Charlie has earliestCreatedAt=2022-06-01 and earliestUploadedAt=2022-03-20.
     // COALESCE picks earliestCreatedAt (2022-06-01), so Charlie sorts after Alpha (2021-01-01).
     const results = await querySorted({
-      field: "createdOrUploadedAt",
+      field: "earliestCreatedOrUploadedAt",
       direction: "asc",
     });
     const titles = results.map((r) => r.title);
@@ -638,7 +639,10 @@ describe("/api/media — sort by firstIndexedAt", () => {
 describe("/api/media — sort by updatedAt", () => {
   it("returns least-recently-updated media first (asc)", async () => {
     await seedSortMedia();
-    const results = await querySorted({ field: "updatedAt", direction: "asc" });
+    const results = await querySorted({
+      field: "lastIndexedAt",
+      direction: "asc",
+    });
     // Delta=2022-12-01, Bravo=2023-08-01, Alpha=2024-01-01, Charlie=2025-05-01
     const titles = results.map((r) => r.title);
     expect(titles).toEqual(["Delta", "Bravo", "Alpha", "Charlie"]);
@@ -647,7 +651,7 @@ describe("/api/media — sort by updatedAt", () => {
   it("returns most-recently-updated media first (desc)", async () => {
     await seedSortMedia();
     const results = await querySorted({
-      field: "updatedAt",
+      field: "lastIndexedAt",
       direction: "desc",
     });
     const titles = results.map((r) => r.title);

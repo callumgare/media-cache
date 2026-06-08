@@ -28,7 +28,7 @@ const MINIMAL_NODES: QueryConditionFlatNode[] = [
 ];
 const RANDOM_SORT: SortConfig = { field: "random" };
 const DATE_SORT: SortConfig = {
-  field: "createdOrUploadedAt",
+  field: "earliestCreatedOrUploadedAt",
   direction: "desc",
 };
 

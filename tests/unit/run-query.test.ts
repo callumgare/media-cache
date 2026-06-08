@@ -438,7 +438,7 @@ describe("runLiaseQuery — aggregation", () => {
         originalGroupPaths: [],
         creators: [],
         uploaders: [],
-        updatedAt: new Date(),
+        lastIndexedAt: new Date(),
       })
       .returning();
     if (!existingRow) throw new Error("Failed to pre-insert cache_media");
@@ -793,12 +793,13 @@ describe("runLiaseQuery — detailed media field mapping", () => {
     expect(row).toEqual({
       id: 1,
       firstIndexedAt: expect.any(Date),
-      updatedAt: expect.any(Date),
+      lastIndexedAt: expect.any(Date),
       title: "Example Media Title",
       description:
         "A detailed example media item used for testing field mapping.",
       earliestUploadedAt: new Date("2020-03-31T15:56:34.000Z"),
       earliestCreatedAt: new Date("2012-08-17"),
+      latestUpdatedAt: null,
       creators: [],
       uploaders: [],
       views: null,

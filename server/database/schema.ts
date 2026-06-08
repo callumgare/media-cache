@@ -155,11 +155,12 @@ export const cacheMedia = pgTable(
     firstIndexedAt: timestamp("first_indexed_at", { precision: 3 })
       .notNull()
       .defaultNow(),
-    updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+    lastIndexedAt: timestamp("last_indexed_at", { precision: 3 }).notNull(),
     title: text("title"),
     description: text("description"),
     earliestUploadedAt: timestamp("earliest_uploaded_at", { precision: 3 }),
     earliestCreatedAt: timestamp("earliest_created_at", { precision: 3 }),
+    latestUpdatedAt: timestamp("latest_updated_at", { precision: 3 }),
     creators: text("creators").array().notNull().default(sql`ARRAY[]::text[]`),
     uploaders: text("uploaders")
       .array()
@@ -281,8 +282,11 @@ export const cacheMedia = pgTable(
     firstIndexedAtIndex: index("cache_media__first_indexed_at_idx").on(
       cacheMedia.firstIndexedAt,
     ),
-    updatedAtIndex: index("cache_media__updated_at_idx").on(
-      cacheMedia.updatedAt,
+    lastIndexedAtIndex: index("cache_media__last_indexed_at_idx").on(
+      cacheMedia.lastIndexedAt,
+    ),
+    latestUpdatedAtIndex: index("cache_media__latest_updated_at_idx").on(
+      cacheMedia.latestUpdatedAt,
     ),
     titleIndex: index("cache_media__title_idx").on(cacheMedia.title),
   }),

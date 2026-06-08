@@ -25,6 +25,10 @@ type DbTransaction = PgTransaction<
   ExtractTablesWithRelations<typeof dbSchema>
 >;
 
+// This value acts as a cache break so when the logic for creating cacheMedia from
+// liase media is updated we can force cache media to be updated.
+const LIASE_TO_CACHE_MEDIA_MAPPING_VERSION = 1;
+
 export async function createLiaseQueryExecution({
   savedLiaseQuery,
 }: {
@@ -95,7 +99,7 @@ export async function batchUpsertLiaseQueryMediaPage({
   const now = new Date();
   const allItems = liaseMediaList.map((liaseMedia) => ({
     liaseId: getIdFromLiaseMedia(liaseMedia),
-    contentHash: objectHash(liaseMedia),
+    contentHash: objectHash([liaseMedia, LIASE_TO_CACHE_MEDIA_MAPPING_VERSION]),
     content: liaseMedia,
   }));
   // Deduplicate by contentHash: if the same media item appears more than once
@@ -263,6 +267,10 @@ function buildCacheMediaValues(
     )
     .filter((d): d is Date => d !== null);
 
+  const updatedDates = liaseMedias
+    .map((fm) => (fm.dateLastUpdated ? new Date(fm.dateLastUpdated) : null))
+    .filter((d): d is Date => d !== null);
+
   const mainFile =
     files.find((f) => f.type === "full") ??
     files.find((f) => f.type === "main") ??
@@ -272,14 +280,9 @@ function buildCacheMediaValues(
     title: liaseMedias.map((fm) => fm.title).find((t) => !!t) ?? null,
     description:
       liaseMedias.map((fm) => fm.description).find((d) => !!d) ?? null,
-    earliestUploadedAt:
-      uploadDates.length > 0
-        ? new Date(Math.min(...uploadDates.map((d) => d.getTime())))
-        : null,
-    earliestCreatedAt:
-      createdDates.length > 0
-        ? new Date(Math.min(...createdDates.map((d) => d.getTime())))
-        : null,
+    earliestUploadedAt: uploadDates.toSorted().at(0) ?? null,
+    earliestCreatedAt: createdDates.toSorted().at(0) ?? null,
+    latestUpdatedAt: updatedDates.toSorted().at(-1) ?? null,
     creators: [
       ...new Set(
         liaseMedias
@@ -325,7 +328,7 @@ function buildCacheMediaValues(
     height: mainFile?.height ?? null,
     files,
     sources,
-    updatedAt: now,
+    lastIndexedAt: now,
   };
 }
 
@@ -496,7 +499,7 @@ export async function createOrUpdateCacheMediaGroups({
     .set({
       groupIds,
       groupPaths,
-      updatedAt: new Date(),
+      lastIndexedAt: new Date(),
     })
     .where(eq(dbSchema.cacheMedia.id, cacheMedia.id));
 }

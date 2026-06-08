@@ -75,7 +75,7 @@ export async function updateFileUrl({
 
   await db
     .update(dbSchema.cacheMedia)
-    .set({ files: updatedFiles, updatedAt: new Date() })
+    .set({ files: updatedFiles })
     .where(eq(dbSchema.cacheMedia.id, mediaId));
 
   return newUrl;

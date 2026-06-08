@@ -30,7 +30,7 @@ async function insertMedia(groupIds: number[]) {
   const [row] = await db
     .insert(dbSchema.cacheMedia)
     .values({
-      updatedAt: new Date(),
+      lastIndexedAt: new Date(),
       groupIds: groupIds,
     })
     .returning();

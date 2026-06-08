@@ -269,12 +269,13 @@ async function onSavedSearchSelect(option: { id: number | "__new__" }) {
   await savedSearches.switchTo(option.id);
 }
 
-type SortOption = { label: string; value: string };
+type SortOption = { label: string; value: SortConfig["field"] };
 const sortOptions: SortOption[] = [
   { label: "Random", value: "random" },
-  { label: "Date Created/Uploaded", value: "createdOrUploadedAt" },
-  { label: "Date First Indexed", value: "firstIndexedAt" },
-  { label: "Date Last Updated", value: "updatedAt" },
+  { label: "First Created/Uploaded", value: "earliestCreatedOrUploadedAt" },
+  { label: "Last Updated", value: "latestUpdatedAt" },
+  { label: "First Indexed", value: "firstIndexedAt" },
+  { label: "Last Indexed", value: "lastIndexedAt" },
   { label: "Duration", value: "duration" },
   { label: "Title", value: "title" },
 ];

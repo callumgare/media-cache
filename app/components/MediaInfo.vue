@@ -69,18 +69,22 @@
           <dt>Uploaders</dt>
           <dd>{{ media.uploaders.join(', ') }}</dd>
         </template>
+        <dt>First indexed</dt>
+        <dd>{{ media.firstIndexedAt.toLocaleString() }} (<RelativeTime :date="media.firstIndexedAt" />)</dd>
+        <dt>Last indexed</dt>
+        <dd>{{ media.lastIndexedAt.toLocaleString() }} (<RelativeTime :date="media.lastIndexedAt" />)</dd>
         <template v-if="media.earliestUploadedAt">
           <dt>Uploaded at</dt>
           <dd>{{ media.earliestUploadedAt.toLocaleString() }} (<RelativeTime :date="media.earliestUploadedAt" />)</dd>
         </template>
         <template v-if="media.earliestCreatedAt">
-          <dt>Created at</dt>
+          <dt>Earliest created at</dt>
           <dd>{{ media.earliestCreatedAt.toLocaleString() }} (<RelativeTime :date="media.earliestCreatedAt" />)</dd>
         </template>
-        <dt>First indexed</dt>
-        <dd>{{ media.firstIndexedAt.toLocaleString() }} (<RelativeTime :date="media.firstIndexedAt" />)</dd>
-        <dt>Updated</dt>
-        <dd>{{ media.updatedAt.toLocaleString() }} (<RelativeTime :date="media.updatedAt" />)</dd>
+        <template v-if="media.latestUpdatedAt">
+          <dt>Latest updated at</dt>
+          <dd>{{ media.latestUpdatedAt.toLocaleString() }} (<RelativeTime :date="media.latestUpdatedAt" />)</dd>
+        </template>
       </dl>
 
       <!-- Tags -->

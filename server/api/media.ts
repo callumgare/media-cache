@@ -71,15 +71,18 @@ export default defineEventHandler(async (event) => {
       return sql`hashint4(${dbSchema.cacheMedia.id} + ${seed})`;
     }
     const dir = sort.direction === "desc" ? desc : asc;
-    if (sort.field === "createdOrUploadedAt")
+    if (sort.field === "earliestCreatedOrUploadedAt")
       return dir(
         sql`COALESCE(${dbSchema.cacheMedia.earliestCreatedAt}, ${dbSchema.cacheMedia.earliestUploadedAt})`,
-      );
+      ).append(sql` NULLS LAST`);
+    if (sort.field === "latestUpdatedAt")
+      return dir(dbSchema.cacheMedia.latestUpdatedAt).append(sql` NULLS LAST`);
     if (sort.field === "firstIndexedAt")
       return dir(dbSchema.cacheMedia.firstIndexedAt);
-    if (sort.field === "updatedAt") return dir(dbSchema.cacheMedia.updatedAt);
+    if (sort.field === "lastIndexedAt")
+      return dir(dbSchema.cacheMedia.lastIndexedAt);
     if (sort.field === "duration")
-      return dir(sql`COALESCE(${dbSchema.cacheMedia.duration}, -1)`);
+      return dir(dbSchema.cacheMedia.duration).append(sql` NULLS LAST`);
     return dir(dbSchema.cacheMedia.title);
   };
 

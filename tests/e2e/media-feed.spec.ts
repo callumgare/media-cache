@@ -83,8 +83,12 @@ test.describe("Feed page – image slide", () => {
     // Fill-screen button: default is cover mode (search-plus icon, fill-screen class, not active)
     const fillScreenBtn = firstSlide.getByTestId("feed-slide-fill-screen-btn");
     await expect(fillScreenBtn).toBeVisible({ timeout: 5_000 });
-    await expect(fillScreenBtn.locator(".pi-search-plus")).toBeAttached();
-    await expect(fillScreenBtn.locator(".pi-search-minus")).not.toBeAttached();
+    await expect(fillScreenBtn.locator(".pi-search-plus")).toBeAttached({
+      timeout: 5_000,
+    });
+    await expect(fillScreenBtn.locator(".pi-search-minus")).not.toBeAttached({
+      timeout: 5_000,
+    });
     await expect(firstSlide).toHaveClass(/fill-screen/);
     await expect(fillScreenBtn).not.toHaveClass(/active/);
 

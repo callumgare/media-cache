@@ -204,6 +204,13 @@
       "when": 1780896950415,
       "tag": "0028_add_user_pref_video_start",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780929244436,
+      "tag": "0029_add_latest_updated_at",
+      "breakpoints": true
     }
   ]
 }

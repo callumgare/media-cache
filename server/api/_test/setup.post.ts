@@ -93,7 +93,7 @@ export default defineEventHandler(async (event) => {
       for (let i = 0; i < count; i++) {
         const mediaId = `seeded-group${groupId}-item${i}`;
         await db.insert(dbSchema.cacheMedia).values({
-          updatedAt: now,
+          lastIndexedAt: now,
           groupIds: [groupId],
           hasImage: true,
           liaseIds: [`test-source\t${mediaId}`],

@@ -4,9 +4,10 @@ export const sortConfigSchema = z.discriminatedUnion("field", [
   z.object({ field: z.literal("random") }),
   z.object({
     field: z.enum([
-      "createdOrUploadedAt",
+      "earliestCreatedOrUploadedAt",
+      "latestUpdatedAt",
       "firstIndexedAt",
-      "updatedAt",
+      "lastIndexedAt",
       "duration",
       "title",
     ]),

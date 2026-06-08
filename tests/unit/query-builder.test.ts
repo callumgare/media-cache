@@ -29,7 +29,7 @@ async function seedMedia() {
   const now = new Date();
   await db.insert(dbSchema.cacheMedia).values([
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "vid-a",
       liaseSourceIds: ["source-a"],
       hasVideo: true,
@@ -37,7 +37,7 @@ async function seedMedia() {
       hasAudio: false,
     },
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "vid-b",
       liaseSourceIds: ["source-b"],
       hasVideo: true,
@@ -45,7 +45,7 @@ async function seedMedia() {
       hasAudio: false,
     },
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "img-a",
       liaseSourceIds: ["source-a"],
       hasVideo: false,
@@ -53,7 +53,7 @@ async function seedMedia() {
       hasAudio: false,
     },
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "img-b",
       liaseSourceIds: ["source-b"],
       hasVideo: false,
@@ -334,7 +334,7 @@ async function seedDurationMedia() {
   const now = new Date();
   await db.insert(dbSchema.cacheMedia).values([
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "short",
       liaseSourceIds: ["source-a"],
       hasVideo: true,
@@ -343,7 +343,7 @@ async function seedDurationMedia() {
       duration: 2,
     },
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "medium",
       liaseSourceIds: ["source-b"],
       hasVideo: true,
@@ -352,7 +352,7 @@ async function seedDurationMedia() {
       duration: 5,
     },
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "long",
       liaseSourceIds: ["source-a"],
       hasVideo: true,
@@ -361,7 +361,7 @@ async function seedDurationMedia() {
       duration: 10,
     },
     {
-      updatedAt: now,
+      lastIndexedAt: now,
       title: "nodur",
       liaseSourceIds: ["source-b"],
       hasVideo: false,
