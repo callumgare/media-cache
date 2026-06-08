@@ -324,6 +324,9 @@ const sortOptions: SortOption[] = [
   { label: "Duration", value: "duration" },
   { label: "Title", value: "title" },
   { label: "File Size", value: "fileSize" },
+  { label: "Width", value: "width" },
+  { label: "Height", value: "height" },
+  { label: "Aspect Ratio", value: "aspectRatio" },
 ];
 
 const sortField = computed({

@@ -86,6 +86,12 @@ export default defineEventHandler(async (event) => {
     if (sort.field === "title") return dir(dbSchema.cacheMedia.title);
     if (sort.field === "fileSize")
       return dir(dbSchema.cacheMedia.fileSize).append(sql` NULLS LAST`);
+    if (sort.field === "width")
+      return dir(dbSchema.cacheMedia.width).append(sql` NULLS LAST`);
+    if (sort.field === "height")
+      return dir(dbSchema.cacheMedia.height).append(sql` NULLS LAST`);
+    if (sort.field === "aspectRatio")
+      return dir(dbSchema.cacheMedia.aspectRatio).append(sql` NULLS LAST`);
     sort.field satisfies never;
     return dir(dbSchema.cacheMedia.id);
   };
