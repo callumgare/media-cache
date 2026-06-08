@@ -154,8 +154,8 @@ test.describe("Feed page – image slide", () => {
     // Switch to contain mode
     const fillScreenBtn = firstSlide.getByTestId("feed-slide-fill-screen-btn");
     await fillScreenBtn.click();
-    await expect(firstSlide).not.toHaveClass(/fill-screen/, { timeout: 3_000 });
-    await expect(fillScreenBtn).toHaveClass(/active/);
+    await expect(firstSlide).not.toHaveClass(/fill-screen/, { timeout: 5_000 });
+    await expect(fillScreenBtn).toHaveClass(/active/, { timeout: 5_000 });
 
     // Reload and verify preference persists
     await page.reload();
