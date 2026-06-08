@@ -59,6 +59,13 @@ export type Status = (typeof statusEnum)["enumValues"][number];
 const videoFitEnum = pgEnum("video_fit", ["contain", "cover", "natural"]);
 export type VideoFit = (typeof videoFitEnum)["enumValues"][number];
 
+const videoStartPositionEnum = pgEnum("video_start_position", [
+  "start",
+  "random",
+]);
+export type VideoStartPosition =
+  (typeof videoStartPositionEnum)["enumValues"][number];
+
 const logLevelEnum = pgEnum("log_level", [
   "debug",
   "info",
@@ -98,6 +105,9 @@ export const userPreferences = pgTable("user_preferences", {
   loopVideo: boolean("loop_video").notNull().default(false),
   muteVideo: boolean("mute_video").notNull().default(true),
   videoFit: videoFitEnum("video_fit").notNull().default("cover"),
+  videoStartPosition: videoStartPositionEnum("video_start_position")
+    .notNull()
+    .default("start"),
 });
 
 export const userRelations = relations(user, ({ one }) => ({

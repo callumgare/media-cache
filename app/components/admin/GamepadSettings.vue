@@ -30,41 +30,41 @@
       </div>
     </div>
     <p class="selected-description">{{ selectedDescription }}</p>
-  </section>
 
-  <section v-if="uiState.debugMode && !uiState.loading.gamepadMapping" class="settings-section tester-section">
-    <h2 class="section-title">Input tester</h2>
-    <p class="section-description">
-      Press buttons or move sticks on your controller to see which indices they
-      report. Use this to verify the selected mapping matches your device.
-    </p>
-    <div v-if="connectedGamepads.length === 0" class="no-gamepad">
-      No gamepad detected — press any button to connect.
-    </div>
-    <div v-for="gp in connectedGamepads" :key="gp.index" class="gamepad-state">
-      <div class="gamepad-id">{{ gp.id }}</div>
-      <div class="state-row">
-        <span class="state-label">Browser mapping:</span>
-        <span class="state-value">{{ gp.browserMapping }}</span>
+    <section v-if="uiState.debugMode && !uiState.loading.gamepadMapping" class="settings-section tester-section">
+      <h3 class="section-title">Input tester</h3>
+      <p class="section-description">
+        Press buttons or move sticks on your controller to see which indices they
+        report. Use this to verify the selected mapping matches your device.
+      </p>
+      <div v-if="connectedGamepads.length === 0" class="no-gamepad">
+        No gamepad detected — press any button to connect.
       </div>
-      <div class="state-row">
-        <span class="state-label">Buttons pressed:</span>
-        <span class="state-value">{{ gp.pressedButtons.length ? gp.pressedButtons.join(', ') : '—' }}</span>
+      <div v-for="gp in connectedGamepads" :key="gp.index" class="gamepad-state">
+        <div class="gamepad-id">{{ gp.id }}</div>
+        <div class="state-row">
+          <span class="state-label">Browser mapping:</span>
+          <span class="state-value">{{ gp.browserMapping }}</span>
+        </div>
+        <div class="state-row">
+          <span class="state-label">Buttons pressed:</span>
+          <span class="state-value">{{ gp.pressedButtons.length ? gp.pressedButtons.join(', ') : '—' }}</span>
+        </div>
+        <div class="state-row">
+          <span class="state-label">Active axes:</span>
+          <span class="state-value">{{ gp.activeAxes || '—' }}</span>
+        </div>
+        <div class="state-row">
+          <span class="state-label">Would dispatch:</span>
+          <span class="state-value" :class="{ 'no-match': gp.isInput && !gp.mappedKeys.length }">
+            <template v-if="!gp.isInput">—</template>
+            <template v-else-if="!gp.browserMapping">No mapping (gamepad use disabled)</template>
+            <template v-else-if="!gp.mappedKeys.length">No mapping for these buttons</template>
+            <template v-else>{{ gp.mappedKeys.join(', ') }}</template>
+          </span>
+        </div>
       </div>
-      <div class="state-row">
-        <span class="state-label">Active axes:</span>
-        <span class="state-value">{{ gp.activeAxes || '—' }}</span>
-      </div>
-      <div class="state-row">
-        <span class="state-label">Would dispatch:</span>
-        <span class="state-value" :class="{ 'no-match': gp.isInput && !gp.mappedKeys.length }">
-          <template v-if="!gp.isInput">—</template>
-          <template v-else-if="!gp.browserMapping">No mapping (gamepad use disabled)</template>
-          <template v-else-if="!gp.mappedKeys.length">No mapping for these buttons</template>
-          <template v-else>{{ gp.mappedKeys.join(', ') }}</template>
-        </span>
-      </div>
-    </div>
+    </section>
   </section>
 </template>
 
@@ -161,16 +161,21 @@ onUnmounted(() => {
 <style scoped>
 .settings-section {
   max-width: 680px;
+
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 0.4rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .settings-section .section-title {
+    font-size: 1rem;
+    font-weight: 500;
+  }
 }
 
-.section-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0 0 0.4rem;
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-}
 
 .connection-status {
   font-size: 0.9rem;

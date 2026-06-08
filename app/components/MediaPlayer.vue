@@ -22,8 +22,11 @@
 
 <script setup lang="ts">
 import type { APIMedia } from "@@/types/api-media";
+import { watchOnce } from "@vueuse/core";
 import type { z } from "zod";
 import type VideoMinimalSkin from "~/components/VideoMinimalSkin.vue";
+import { useUiState } from "~~/stores/ui";
+import { useUserPreferences } from "~~/stores/user-preferences";
 
 defineOptions({ inheritAttrs: false });
 
@@ -58,6 +61,9 @@ const emit = defineEmits<{
   (e: "resize"): void;
   (e: "ended"): void;
 }>();
+
+const userPrefs = useUserPreferences();
+const ui = useUiState();
 
 // ── Source resolution ────────────────────────────────────────────────────────
 
@@ -143,6 +149,72 @@ defineExpose({
     return (videoRef.value as unknown as Element | null) ?? null;
   },
 });
+
+// ── Seeking ───────────────────────────────────────────────────────────────
+type SeekPosition =
+  | number
+  | (({ videoElm }: { videoElm: HTMLVideoElement }) => number | null);
+const queuedSeekPosition = ref<SeekPosition | null>(null);
+function seekWhenReady(position: SeekPosition) {
+  queuedSeekPosition.value = position;
+
+  function seek() {
+    if (!videoRef.value) {
+      return;
+    }
+    const position =
+      typeof queuedSeekPosition.value === "function"
+        ? queuedSeekPosition.value({ videoElm: videoRef.value })
+        : queuedSeekPosition.value;
+    if (position !== null) {
+      videoRef.value.currentTime = position;
+      queuedSeekPosition.value = null;
+    }
+  }
+
+  function whenDomRendered() {
+    if (!videoRef.value) {
+      console.warn("Video ref not available when trying to seek");
+      return;
+    }
+    if (videoRef.value.readyState >= 1) {
+      seek();
+    } else {
+      videoRef.value.addEventListener("loadedmetadata", seek, { once: true });
+    }
+  }
+
+  if (videoRef.value) {
+    whenDomRendered();
+  } else {
+    watchOnce(videoRef, whenDomRendered);
+  }
+}
+
+// ── Start Position ───────────────────────────────────────────────────────────────
+watch(
+  () => (userPrefs._initialized ? userPrefs.videoStartPosition : null),
+  (newPos) => {
+    if (!newPos) return;
+    if (newPos === "random") {
+      seekWhenReady(({ videoElm }) => {
+        // Avoid start and end 5% of scene
+        const min = videoElm.duration * 0.05;
+        const max = videoElm.duration * 0.95;
+        const randomPoint = Math.floor(Math.random() * (max - min) + min);
+        if (ui.debugMode) {
+          console.log(
+            `Seeking to random position ${randomPoint}s (duration: ${videoElm.duration}s)`,
+          );
+        }
+        return randomPoint;
+      });
+    } else {
+      newPos satisfies "start";
+    }
+  },
+  { immediate: true },
+);
 
 // ── Cleanup ───────────────────────────────────────────────────────────────
 onBeforeUnmount(() => {

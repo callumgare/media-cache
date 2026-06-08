@@ -1,5 +1,6 @@
 <template>
   <div class="browsing-page">
+    <AdminMediaPlayerSettings />
     <AdminGamepadSettings />
   </div>
 </template>

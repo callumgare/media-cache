@@ -2,7 +2,17 @@ import BrowsingPage from "@@/app/pages/admin/browsing.vue";
 import { useUiState } from "@@/stores/ui";
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { nextTick } from "vue";
+import { nextTick, reactive } from "vue";
+
+const mockUserPreferences = reactive({
+  loopVideo: false,
+  muteVideo: true,
+  videoFit: "cover",
+});
+
+vi.mock("@@/stores/user-preferences", () => ({
+  useUserPreferences: () => mockUserPreferences,
+}));
 
 // Happy DOM doesn't implement the Gamepad API — provide a stub so the
 // GamepadSettings component doesn't throw on mount.
@@ -38,6 +48,20 @@ if (typeof window !== "undefined") {
     // Non-configurable in this environment; ignore.
   }
 }
+
+const fetchStub = vi.fn((url: string, opts?: { method?: string }) => {
+  if (url === "/api/user/preferences")
+    return Promise.resolve({
+      loopVideo: false,
+      muteVideo: true,
+      videoFit: "cover",
+    });
+  return Promise.reject(new Error(`Unexpected $fetch call: ${url}`));
+}) as unknown as typeof fetch & {
+  create: (options: unknown) => typeof fetchStub;
+};
+fetchStub.create = () => fetchStub;
+vi.stubGlobal("$fetch", fetchStub);
 
 afterAll(() => vi.unstubAllGlobals());
 
