@@ -195,11 +195,19 @@ export async function runLiaseQueryExecution({
   const queryId = savedLiaseQuery?.id ?? null;
 
   // --- Resume state ---
-  const resumeStage = liaseQueryExecution.resumeStage as ResumeStage | null;
-  const resumeVariationIndex = liaseQueryExecution.resumeVariationIndex;
-  const resumePageNumber = liaseQueryExecution.resumePageNumber ?? null;
+  const resumeStage = liaseQueryExecution.finishedAt
+    ? null
+    : (liaseQueryExecution.resumeStage as ResumeStage | null);
+  const resumeVariationIndex = liaseQueryExecution.finishedAt
+    ? 0
+    : liaseQueryExecution.resumeVariationIndex;
+  const resumePageNumber = liaseQueryExecution.finishedAt
+    ? 0
+    : (liaseQueryExecution.resumePageNumber ?? null);
   const resumeCursor =
-    (liaseQueryExecution.resumeCursor as string | number | null) ?? null;
+    (liaseQueryExecution.finishedAt
+      ? null
+      : (liaseQueryExecution.resumeCursor as string | number | null)) ?? null;
 
   // When fetching, pageCount tracks total pages fetched. On resume, seed it from
   // the DB so the global fetch-count limit check stays accurate.
@@ -281,6 +289,7 @@ export async function runLiaseQueryExecution({
             resumeCursor: checkpoint.cursor,
             resumePagesFetched: pageCount,
             resumeVariationPagesFetched: checkpoint.variationPagesFetched,
+            pageCount,
             liaseMediaFound,
             liaseMediaNew,
             liaseMediaUpdated,
@@ -302,7 +311,6 @@ export async function runLiaseQueryExecution({
       try {
         await queryExecutionTaskSystem.updateTask(executionId, {
           stage: "fetching-liase-results",
-          pageCount,
         });
 
         for (let varIdx = 0; varIdx < liaseRequests.length; varIdx++) {
@@ -758,6 +766,8 @@ export async function runLiaseQueryExecution({
       cacheMediaUpdated,
       cacheMediaUnchanged,
       cacheMediaDeleted,
+
+      resumeStage: null,
     };
     await db
       .update(dbSchema.liaseQueryExecution)
