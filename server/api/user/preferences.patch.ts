@@ -1,10 +1,8 @@
-import { z } from "zod";
+import { createInsertSchema } from "drizzle-zod";
 
-const PatchSchema = z.object({
-  loopVideo: z.boolean().optional(),
-  muteVideo: z.boolean().optional(),
-  videoFit: z.enum(["contain", "cover", "natural"]).optional(),
-});
+const PatchSchema = createInsertSchema(dbSchema.userPreferences)
+  .partial()
+  .omit({ userId: true, createdAt: true, updatedAt: true });
 
 export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, PatchSchema.parse);
@@ -19,7 +17,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: "User not found" });
   }
 
-  const prefs = await db
+  const prefsRecord = await db
     .insert(dbSchema.userPreferences)
     .values({ updatedAt: new Date(), userId: user.id, ...body })
     .onConflictDoUpdate({
@@ -28,6 +26,15 @@ export default defineEventHandler(async (event) => {
     })
     .returning()
     .then((rows) => rows[0] ?? null);
+
+  if (!prefsRecord) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Failed to patch user preferences",
+    });
+  }
+
+  const { id, createdAt, updatedAt, userId, ...prefs } = prefsRecord;
 
   return prefs;
 });

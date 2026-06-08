@@ -15,9 +15,9 @@ export default defineEventHandler(async () => {
     throw createError({ statusCode: 404, statusMessage: "User not found" });
   }
 
-  let prefs = row.user_preferences;
+  let prefsRecord = row.user_preferences;
 
-  if (!prefs) {
+  if (!prefsRecord) {
     const results = await db
       .insert(dbSchema.userPreferences)
       .values({ updatedAt: new Date(), userId: row.user.id })
@@ -28,8 +28,10 @@ export default defineEventHandler(async () => {
         statusMessage: "Failed to create user preferences",
       });
     }
-    prefs = results[0];
+    prefsRecord = results[0];
   }
+
+  const { id, createdAt, updatedAt, userId, ...prefs } = prefsRecord;
 
   return prefs;
 });

@@ -1,10 +1,52 @@
-import FeedSlide from "@@/app/components/FeedSlide.vue";
 import { useFavourites } from "@@/stores/favourites";
 import type { APIMedia } from "@@/types/api-media";
 import { mountSuspended } from "@nuxt/test-utils/runtime";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { nextTick } from "vue";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { nextTick, reactive } from "vue";
 import type { z } from "zod";
+
+const mockUserPreferences = reactive({
+  loopVideo: false,
+  muteVideo: true,
+  videoFit: "cover",
+});
+
+vi.mock("@@/stores/user-preferences", () => ({
+  useUserPreferences: () => mockUserPreferences,
+}));
+
+let FeedSlide: typeof import("@@/app/components/FeedSlide.vue").default;
+const fetchStub = vi.fn((url: string, opts?: { method?: string }) => {
+  if (
+    opts?.method === "POST" &&
+    typeof url === "string" &&
+    url.startsWith("/api/user/favourites/")
+  ) {
+    const id = Number(url.split("/").at(-1));
+    const favourites = useFavourites();
+    return Promise.resolve({ favourited: favourites.ids.includes(id) });
+  }
+  return Promise.reject(new Error(`Unexpected $fetch call: ${url}`));
+}) as ReturnType<typeof vi.fn> & {
+  create: (options: unknown) => ReturnType<typeof vi.fn>;
+};
+fetchStub.create = () => fetchStub;
+
+vi.stubGlobal("$fetch", fetchStub);
+
+beforeAll(async () => {
+  const module = await import("@@/app/components/FeedSlide.vue");
+  FeedSlide = module.default;
+});
 
 // ── Storage mock (prevent pinia-persist-extended from touching real storage) ──
 
@@ -87,26 +129,10 @@ function makeMedia(id: number): z.infer<typeof APIMedia> {
 
 describe("FeedSlide – favourite button", () => {
   beforeEach(() => {
-    vi.stubGlobal("$fetch", (url: string, opts?: { method?: string }) => {
-      if (url === "/api/user/preferences")
-        return Promise.resolve({
-          loopVideo: false,
-          muteVideo: true,
-          videoFit: "cover",
-        });
-      // Toggle favourite: POST /api/user/favourites/:id
-      // By the time this mock is called, the optimistic update has already run,
-      // so echo back the current state to keep it (no-op sync branch).
-      if (opts?.method === "POST" && url.startsWith("/api/user/favourites/")) {
-        const id = Number(url.split("/").at(-1));
-        const favourites = useFavourites();
-        return Promise.resolve({ favourited: favourites.ids.includes(id) });
-      }
-      return Promise.reject(new Error(`Unexpected $fetch call: ${url}`));
-    });
+    fetchStub.mockClear();
   });
 
-  afterEach(() => {
+  afterAll(() => {
     vi.unstubAllGlobals();
   });
 

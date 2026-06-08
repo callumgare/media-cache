@@ -70,7 +70,7 @@
         :class="{ active: prefs.loopVideo }"
         aria-label="Toggle loop"
         data-testid="feed-slide-loop-btn"
-        @click="prefs.set({ loopVideo: !prefs.loopVideo })"
+        @click="prefs.loopVideo = !prefs.loopVideo"
       />
       <Button
         :icon="prefs.videoFit === 'cover' ? 'pi pi-search-plus' : 'pi pi-search-minus'"
@@ -90,7 +90,7 @@
         :class="{ active: !prefs.muteVideo }"
         aria-label="Toggle mute"
         data-testid="feed-slide-mute-btn"
-        @click="prefs.set({ muteVideo: !prefs.muteVideo })"
+        @click="prefs.muteVideo = !prefs.muteVideo"
       />
       <Button
         icon="pi pi-info-circle"
@@ -143,7 +143,6 @@ const emit = defineEmits<(e: "ended") => void>();
 // ─── User preferences ──────────────────────────────────────────────────────
 
 const prefs = useUserPreferences();
-prefs.init();
 
 const uiState = useUiState();
 const favourites = useFavourites();
@@ -196,7 +195,9 @@ const { isPinching, syncZoom, availableLevels } = useFeedZoom(
   {
     getZoomLevel: () =>
       prefs.videoFit as import("~/composables/useFeedZoom").ZoomLevel,
-    onSnap: (level) => prefs.set({ videoFit: level }),
+    onSnap: (level) => {
+      prefs.videoFit = level;
+    },
   },
 );
 
@@ -211,7 +212,8 @@ function onZoomButtonClick() {
     prefs.videoFit as import("~/composables/useFeedZoom").ZoomLevel,
   );
   const nextIdx = (Math.max(0, currentIdx) + 1) % levels.length;
-  prefs.set({ videoFit: levels[nextIdx] });
+  if (!levels[nextIdx]) return;
+  prefs.videoFit = levels[nextIdx];
 }
 
 // Animate the zoom when the user toggles via the button (not from a pinch).

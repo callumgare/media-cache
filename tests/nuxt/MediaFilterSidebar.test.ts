@@ -80,10 +80,14 @@ describe("MediaFilterSidebar – loading state", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubGlobal("$fetch", (url: string) => {
+    const fetchStub = vi.fn((url: string) => {
       if (url === "/api/user/saved-searches") return Promise.resolve([]);
       return Promise.reject(new Error(`Unexpected $fetch call: ${url}`));
-    });
+    }) as unknown as typeof fetch & {
+      create: (options: unknown) => typeof fetchStub;
+    };
+    fetchStub.create = () => fetchStub;
+    vi.stubGlobal("$fetch", fetchStub);
     mockData = ref<FacetResult | undefined>(MOCK_FACETS);
     mockIsFetching = ref(false);
     useQuerySpy.mockImplementation(() => ({
