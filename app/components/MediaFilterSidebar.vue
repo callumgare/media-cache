@@ -278,6 +278,7 @@ const sortOptions: SortOption[] = [
   { label: "Last Indexed", value: "lastIndexedAt" },
   { label: "Duration", value: "duration" },
   { label: "Title", value: "title" },
+  { label: "File Size", value: "fileSize" },
 ];
 
 const sortField = computed({

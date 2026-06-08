@@ -83,7 +83,11 @@ export default defineEventHandler(async (event) => {
       return dir(dbSchema.cacheMedia.lastIndexedAt);
     if (sort.field === "duration")
       return dir(dbSchema.cacheMedia.duration).append(sql` NULLS LAST`);
-    return dir(dbSchema.cacheMedia.title);
+    if (sort.field === "title") return dir(dbSchema.cacheMedia.title);
+    if (sort.field === "fileSize")
+      return dir(dbSchema.cacheMedia.fileSize).append(sql` NULLS LAST`);
+    sort.field satisfies never;
+    return dir(dbSchema.cacheMedia.id);
   };
 
   // Run the data fetch and total count in parallel.

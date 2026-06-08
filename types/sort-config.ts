@@ -10,6 +10,7 @@ export const sortConfigSchema = z.discriminatedUnion("field", [
       "lastIndexedAt",
       "duration",
       "title",
+      "fileSize",
     ]),
     direction: z.enum(["asc", "desc"]),
   }),
