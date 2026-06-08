@@ -1,4 +1,5 @@
 import type {
+  AspectRatioFacetCount,
   DurationFacetCount,
   FacetCount,
   FavouritedFacetCount,
@@ -268,6 +269,86 @@ export async function fetchFieldCounts(
         countAddedIfRemoved: condition.value === "no" ? yesCount : null,
       },
     ] satisfies FavouritedFacetCount[];
+  }
+
+  if (condition.field === "aspectRatio") {
+    if (!userId) return [];
+
+    const sharedConditionOptions = {
+      id: 1,
+      type: "field",
+      field: "aspectRatio",
+      operator: "equals",
+    } as const;
+
+    const squareSubquery = calculateWhereValue({
+      ...sharedConditionOptions,
+      value: "square",
+    });
+    const landscapeSubquery = calculateWhereValue({
+      ...sharedConditionOptions,
+      value: "landscape",
+    });
+    const portraitSubquery = calculateWhereValue({
+      ...sharedConditionOptions,
+      value: "portrait",
+    });
+
+    const squareWhere = whereStandard
+      ? and(whereStandard, squareSubquery)
+      : squareSubquery;
+    const landscapeWhere = whereStandard
+      ? and(whereStandard, landscapeSubquery)
+      : landscapeSubquery;
+    const portraitWhere = whereStandard
+      ? and(whereStandard, portraitSubquery)
+      : portraitSubquery;
+    const noneWhere = whereStandard ?? sql`1 = 1`;
+    const [squareResult, landscapeResult, portraitResult, noneResult] =
+      await Promise.all([
+        db
+          .select({ count: count() })
+          .from(dbSchema.cacheMedia)
+          .where(squareWhere),
+        db
+          .select({ count: count() })
+          .from(dbSchema.cacheMedia)
+          .where(landscapeWhere),
+        db
+          .select({ count: count() })
+          .from(dbSchema.cacheMedia)
+          .where(portraitWhere),
+        db
+          .select({ count: count() })
+          .from(dbSchema.cacheMedia)
+          .where(noneWhere),
+      ]);
+    return [
+      {
+        value: "square" as const,
+        count: squareResult[0]?.count ?? 0,
+        countAddedIfRemoved:
+          condition.value === "square"
+            ? (noneResult[0]?.count ?? 0) - (squareResult[0]?.count ?? 0)
+            : null,
+      },
+      {
+        value: "landscape" as const,
+        count: landscapeResult[0]?.count ?? 0,
+        countAddedIfRemoved:
+          condition.value === "landscape"
+            ? (noneResult[0]?.count ?? 0) - (landscapeResult[0]?.count ?? 0)
+            : null,
+      },
+      {
+        value: "portrait" as const,
+        count: portraitResult[0]?.count ?? 0,
+        countAddedIfRemoved:
+          condition.value === "portrait"
+            ? (noneResult[0]?.count ?? 0) - (portraitResult[0]?.count ?? 0)
+            : null,
+      },
+    ] satisfies AspectRatioFacetCount[];
   }
 
   if (condition.field === "duration") {

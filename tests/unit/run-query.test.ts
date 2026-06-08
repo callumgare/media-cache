@@ -816,8 +816,9 @@ describe("runLiaseQuery — detailed media field mapping", () => {
       hasImage: false,
       duration: 1486.52,
       fileSize: null,
-      width: 1920,
-      height: 1080,
+      width: 2000,
+      height: 1000,
+      aspectRatio: 2,
       files: [
         {
           createdAt: expect.any(String),
@@ -833,8 +834,8 @@ describe("runLiaseQuery — detailed media field mapping", () => {
           hasImage: false,
           duration: 1486.52,
           fileSize: null,
-          width: 1920,
-          height: 1080,
+          width: 2000,
+          height: 1000,
           urlExpires: null,
           urlRefreshDetails: null,
           urlUpdatedAt: expect.any(String),

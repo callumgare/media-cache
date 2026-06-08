@@ -13,15 +13,17 @@ const { medias, isPending } = useMediaResults();
 const zeroResults = computed(
   () => !isPending.value && medias.value.length === 0,
 );
+const minOption = computed(
+  () => props.schemaConfig.fieldOptions[props.fieldCondition.field]?.[0],
+);
+const maxOption = computed(
+  () => props.schemaConfig.fieldOptions[props.fieldCondition.field]?.[1],
+);
 const minCountAddedIfRemoved = computed(
-  () =>
-    props.schemaConfig.fieldOptions[props.fieldCondition.field]?.[0]
-      ?.countAddedIfRemoved ?? null,
+  () => minOption.value?.countAddedIfRemoved ?? null,
 );
 const maxCountAddedIfRemoved = computed(
-  () =>
-    props.schemaConfig.fieldOptions[props.fieldCondition.field]?.[1]
-      ?.countAddedIfRemoved ?? null,
+  () => maxOption.value?.countAddedIfRemoved ?? null,
 );
 const isMinFiltersToZero = computed(
   () => zeroResults.value && !!minCountAddedIfRemoved.value,
@@ -69,7 +71,7 @@ function onUpdate(next: RangeValue) {
     <InputGroup class="range-inputs">
       <InputNumber
         v-model="minValue"
-        placeholder="Min (s)"
+        :placeholder="minOption?.name || 'Min'"
         showClear
         :min="0"
         :max-fraction-digits="1"
@@ -77,7 +79,7 @@ function onUpdate(next: RangeValue) {
       />
       <InputNumber
         v-model="maxValue"
-        placeholder="Max (s)"
+        :placeholder="maxOption?.name || 'Max'"
         showClear
         :min="0"
         :max-fraction-digits="1"

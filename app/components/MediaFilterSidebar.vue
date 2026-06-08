@@ -3,10 +3,16 @@ import { useMediaQuery } from "@@/stores/media-query";
 import { useSavedSearches } from "@@/stores/saved-searches";
 import type { SortConfig } from "@@/types/sort-config";
 import { keepPreviousData } from "@tanstack/vue-query";
-import { Shuffle } from "lucide-vue-next";
+import {
+  RectangleHorizontalIcon,
+  RectangleVerticalIcon,
+  Shuffle,
+  SquareIcon,
+} from "lucide-vue-next";
 
 import type {
   APIMediaFacetsResponse,
+  AspectRatioFacetCount,
   DurationFacetCount,
   FacetCount,
   FacetResult,
@@ -16,6 +22,7 @@ import type {
   TypeFacetCount,
 } from "@@/types/api-media-facets";
 import type { QuerySchemaConfig } from "@@/types/query-schema-config.js";
+import type { QUERY_FIELD_DEFINITIONS } from "~~/types/query-field-definitions";
 
 function findFieldCounts(
   facets: FacetResult | null | undefined,
@@ -165,12 +172,12 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
       return [
         {
           id: "min",
-          name: "Min",
+          name: "Min (s)",
           countAddedIfRemoved: durationFacet?.minCountAddedIfRemoved ?? null,
         },
         {
           id: "max",
-          name: "Max",
+          name: "Max (s)",
           countAddedIfRemoved: durationFacet?.maxCountAddedIfRemoved ?? null,
         },
       ];
@@ -203,7 +210,45 @@ const querySchemaConfig = computed<QuerySchemaConfig>(() => ({
         countAddedIfRemoved: facetCount?.countAddedIfRemoved ?? null,
       };
     }),
-  },
+    aspectRatio: [
+      { id: "landscape", name: "Landscape", icon: RectangleHorizontalIcon },
+      { id: "square", name: "Square", icon: SquareIcon },
+      { id: "portrait", name: "Portrait", icon: RectangleVerticalIcon },
+    ].map((option) => {
+      const facetCount = (
+        findFieldCounts(facets.value, "aspectRatio") as AspectRatioFacetCount[]
+      ).find((f) => f.value === option.id);
+      return {
+        ...option,
+        count: facetCount?.count ?? null,
+        countAddedIfRemoved: facetCount?.countAddedIfRemoved ?? null,
+      };
+    }),
+    width: (() => {
+      return [
+        {
+          id: "min",
+          name: "Min",
+        },
+        {
+          id: "max",
+          name: "Max",
+        },
+      ];
+    })(),
+    height: (() => {
+      return [
+        {
+          id: "min",
+          name: "Min",
+        },
+        {
+          id: "max",
+          name: "Max",
+        },
+      ];
+    })(),
+  } satisfies Record<(typeof QUERY_FIELD_DEFINITIONS)[number]["id"], unknown[]>,
   loading: showLoading.value,
 }));
 

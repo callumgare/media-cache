@@ -77,8 +77,8 @@ export function makeDetailedMedia(
         image: false,
         video: true,
         audio: true,
-        width: 1920,
-        height: 1080,
+        width: 2000,
+        height: 1000,
         duration: 1486.52,
       },
       {

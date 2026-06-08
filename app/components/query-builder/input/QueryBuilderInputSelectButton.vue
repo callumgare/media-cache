@@ -11,6 +11,7 @@ const props = defineProps<{
 const fieldOptions = computed(
   () => props.schemaConfig.fieldOptions[props.fieldCondition.field] ?? [],
 );
+console.log("prop f", props.fieldCondition.field, fieldOptions.value);
 const mediaQuery = useMediaQuery();
 const { medias, isPending } = useMediaResults();
 const zeroResults = computed(
@@ -56,7 +57,10 @@ function clearValue() {
       >
         <template #option="{ option }">
           <span class="option-label">
-            <span class="option-name">{{ option.name }}</span>
+            <span class="option-name">
+              <component v-if="option.icon" :is="option.icon" />
+              <template v-else>{{ option.name }}</template>
+            </span>
             <QueryBuilderOptionCount
               :count="option.count"
               :count-added-if-removed="option.countAddedIfRemoved"

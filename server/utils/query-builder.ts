@@ -155,6 +155,77 @@ function _buildStandardWhere(
     throw Error(`Unknown operator for duration field: ${operator}`);
   }
 
+  if (field === "width") {
+    if (operator === "is between") {
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return null;
+      const { min, max } = value as {
+        min?: number | null;
+        max?: number | null;
+      };
+      if (min == null && max == null) return null;
+      const clauses: SQL[] = [];
+      if (min != null)
+        clauses.push(sql`${dbSchema.cacheMedia.width} >= ${min}`);
+      if (max != null)
+        clauses.push(sql`${dbSchema.cacheMedia.width} <= ${max}`);
+      return and(...clauses) ?? null;
+    }
+    throw Error(`Unknown operator for duration field: ${operator}`);
+  }
+
+  if (field === "height") {
+    if (operator === "is between") {
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return null;
+      const { min, max } = value as {
+        min?: number | null;
+        max?: number | null;
+      };
+      if (min == null && max == null) return null;
+      const clauses: SQL[] = [];
+      if (min != null)
+        clauses.push(sql`${dbSchema.cacheMedia.height} >= ${min}`);
+      if (max != null)
+        clauses.push(sql`${dbSchema.cacheMedia.height} <= ${max}`);
+      return and(...clauses) ?? null;
+    }
+    throw Error(`Unknown operator for duration field: ${operator}`);
+  }
+
+  if (field === "aspectRatio") {
+    if (operator === "is between") {
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return null;
+      const { min, max } = value as {
+        min?: number | null;
+        max?: number | null;
+      };
+      if (min == null && max == null) return null;
+      const clauses: SQL[] = [];
+      if (min != null)
+        clauses.push(sql`${dbSchema.cacheMedia.height} >= ${min}`);
+      if (max != null)
+        clauses.push(sql`${dbSchema.cacheMedia.height} <= ${max}`);
+      return and(...clauses) ?? null;
+    }
+    if (operator === "equals") {
+      if (!value) return null;
+
+      if (value === "square")
+        return sql`${dbSchema.cacheMedia.aspectRatio} = 1`;
+      if (value === "landscape")
+        return sql`${dbSchema.cacheMedia.aspectRatio} > 1`;
+      if (value === "portrait")
+        return sql`${dbSchema.cacheMedia.aspectRatio} < 1`;
+      if (typeof value === "number")
+        return sql`${dbSchema.cacheMedia.aspectRatio} = ${value}`;
+
+      throw Error(`Invalid value for aspectRatio field: ${value}`);
+    }
+    throw Error(`Unknown operator for duration field: ${operator}`);
+  }
+
   if (field === "favourited") {
     if (!value || value === "") return null;
     if (!ctx.userId) return null;
@@ -261,5 +332,10 @@ function _buildBM25FieldParts(
     return { bm25Sql: null, regularSql: _buildStandardWhere(condition, ctx) };
   }
 
-  return { bm25Sql: null, regularSql: null };
+  if (field === "aspectRatio") {
+    // Server-side subquery — use regular SQL
+    return { bm25Sql: null, regularSql: _buildStandardWhere(condition, ctx) };
+  }
+
+  throw new Error(`Unrecognised field: ${field}`);
 }

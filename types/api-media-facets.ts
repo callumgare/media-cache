@@ -23,6 +23,11 @@ export type FavouritedFacetCount = {
   count: number;
   countAddedIfRemoved: number | null;
 };
+export type AspectRatioFacetCount = {
+  value: "square" | "landscape" | "portrait";
+  count: number;
+  countAddedIfRemoved: number | null;
+};
 export type FacetCount =
   | TagFacetCount
   | SourceFacetCount

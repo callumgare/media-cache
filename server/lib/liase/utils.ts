@@ -27,7 +27,7 @@ type DbTransaction = PgTransaction<
 
 // This value acts as a cache break so when the logic for creating cacheMedia from
 // liase media is updated we can force cache media to be updated.
-const LIASE_TO_CACHE_MEDIA_MAPPING_VERSION = 1;
+const LIASE_TO_CACHE_MEDIA_MAPPING_VERSION = 2;
 
 export async function createLiaseQueryExecution({
   savedLiaseQuery,
@@ -326,6 +326,10 @@ function buildCacheMediaValues(
     fileSize: mainFile?.fileSize ?? null,
     width: mainFile?.width ?? null,
     height: mainFile?.height ?? null,
+    aspectRatio:
+      mainFile?.width && mainFile?.height
+        ? mainFile.width / mainFile.height
+        : null,
     files,
     sources,
     lastIndexedAt: now,

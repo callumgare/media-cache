@@ -205,6 +205,7 @@ export const cacheMedia = pgTable(
     fileSize: integer("file_size"),
     width: integer("width"),
     height: integer("height"),
+    aspectRatio: doublePrecision("aspect_ratio"),
     files:
       jsonb("files").$type<
         {
@@ -279,11 +280,20 @@ export const cacheMedia = pgTable(
     fileSizeIndex: index("cache_media__file_size_idx").on(cacheMedia.fileSize),
     heightIndex: index("cache_media__height_idx").on(cacheMedia.height),
     widthIndex: index("cache_media__width_idx").on(cacheMedia.width),
+    aspectRatioIndex: index("cache_media__aspect_ratio_idx").on(
+      cacheMedia.aspectRatio,
+    ),
     firstIndexedAtIndex: index("cache_media__first_indexed_at_idx").on(
       cacheMedia.firstIndexedAt,
     ),
     lastIndexedAtIndex: index("cache_media__last_indexed_at_idx").on(
       cacheMedia.lastIndexedAt,
+    ),
+    earliestCreatedAtIndex: index("cache_media__earliest_created_at_idx").on(
+      cacheMedia.earliestCreatedAt,
+    ),
+    earliestUploadedAtIndex: index("cache_media__earliest_uploaded_at_idx").on(
+      cacheMedia.earliestUploadedAt,
     ),
     latestUpdatedAtIndex: index("cache_media__latest_updated_at_idx").on(
       cacheMedia.latestUpdatedAt,

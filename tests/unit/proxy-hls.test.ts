@@ -111,7 +111,7 @@ beforeAll(async () => {
   ensureHlsFixtures();
   fixtureServer = await startFileServer(hlsDir);
   hlsServerUrl = fixtureServer.url;
-});
+}, 30_000);
 
 afterAll(() => {
   fixtureServer?.close();

@@ -211,6 +211,13 @@
       "when": 1780929244436,
       "tag": "0029_add_latest_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1780935724523,
+      "tag": "0030_add_aspect_ratio",
+      "breakpoints": true
     }
   ]
 }
