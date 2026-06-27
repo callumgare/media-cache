@@ -9,7 +9,9 @@ export default defineEventHandler(async (event) => {
     .update(dbSchema.liaseQuery)
     .set({
       ...other,
-      requestOptions: await parseLiaseRequest(requestOptions),
+      requestOptions: await parseLiaseRequest(requestOptions, {
+        queryVariations,
+      }),
       queryVariations: queryVariations ?? null,
       updatedAt: new Date(),
     })

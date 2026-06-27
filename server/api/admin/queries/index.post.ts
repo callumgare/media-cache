@@ -7,7 +7,9 @@ export default defineEventHandler(async (event) => {
     .insert(dbSchema.liaseQuery)
     .values({
       ...other,
-      requestOptions: await parseLiaseRequest(requestOptions),
+      requestOptions: await parseLiaseRequest(requestOptions, {
+        queryVariations,
+      }),
       queryVariations: queryVariations ?? null,
       updatedAt: new Date(),
     })

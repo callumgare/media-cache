@@ -71,7 +71,7 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
   );
 }
 
-function expandVariation(
+export function expandVariation(
   baseRequest: GenericRequest,
   variation: QueryVariation,
 ): GenericRequest[] {
