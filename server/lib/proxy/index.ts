@@ -1,39 +1,44 @@
 import {
   type H3Event,
-  type H3EventContext,
   createError,
   sanitizeStatusCode,
   sanitizeStatusMessage,
 } from "h3";
+import {
+  type RequestInit,
+  type Response as WregResponse,
+  fetch,
+} from "wreq-js";
 
 // Based of h3's sendProxy but allows the response to be modified before sent
 export async function proxyRequest(
   event: H3Event,
   target: URL,
-  opts?: RequestInit & { context?: H3EventContext },
+  opts?: RequestInit,
 ): Promise<Response> {
   const controller = new AbortController();
-  let response: Response;
+  let response: WregResponse;
   let aborted = false;
+  let cancelUpstreamBody = () => {};
 
+  // Abort handles request/connection lifecycle; explicit body cancel handles
+  // already-started response streaming after fetch has resolved.
   event.node.res.once("close", () => {
     aborted = true;
     controller.abort();
-    const body = response?.body;
-    if (body && !body.locked && typeof body.cancel === "function") {
-      void body.cancel().catch(() => {});
-    }
+    cancelUpstreamBody();
   });
 
   try {
     // Based on h3's fetchWithEvent
     response = await fetch(target.href, {
       ...opts,
+      browser: "chrome_147",
       signal: controller.signal,
       headers: {
         ...safeHeaders(event.headers),
         host: target.host,
-        referer: target.href,
+        ...(event.headers.has("referer") ? { referer: target.href } : {}),
         ...opts?.headers,
       },
     });
@@ -54,7 +59,7 @@ export async function proxyRequest(
     });
   }
 
-  const resHeaders = new Headers(response.headers);
+  const resHeaders = new Headers(response.headers.toObject());
   // I can guess but not 100% sure why h3's sendProxy drops these headers in particular
   for (const header of ["content-encoding", "content-length", "set-cookie"]) {
     resHeaders.delete(header);
@@ -63,7 +68,41 @@ export async function proxyRequest(
   // If it is desirable to process cookies set in the upstream's response then see
   // the source code for h3's sendProxy for a guide
 
-  return new Response(response.body, {
+  let proxiedBody: ReadableStream<Uint8Array<ArrayBuffer>> | null = null;
+  const upstreamBody = response.body as
+    | ReadableStream<Uint8Array<ArrayBuffer>>
+    | null
+    | undefined;
+
+  if (upstreamBody) {
+    const reader = upstreamBody.getReader();
+    cancelUpstreamBody = () => {
+      void reader.cancel().catch(() => {});
+    };
+
+    // Bridge upstream reader -> response body so we own cancellation behavior
+    // and can stop reads immediately when downstream disconnects.
+    proxiedBody = new ReadableStream<Uint8Array<ArrayBuffer>>({
+      async pull(streamController) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            streamController.close();
+            return;
+          }
+
+          streamController.enqueue(value);
+        } catch (error) {
+          streamController.error(error);
+        }
+      },
+      cancel() {
+        return reader.cancel();
+      },
+    });
+  }
+
+  return new Response(proxiedBody, {
     status: sanitizeStatusCode(response.status, event.node.res.statusCode),
     statusText: sanitizeStatusMessage(response.statusText),
     headers: resHeaders,

@@ -108,7 +108,7 @@ describe("file route handler", () => {
       });
       await expect(handler(event)).rejects.toMatchObject({
         statusCode: 400,
-        statusMessage: "Invalid path format",
+        statusMessage: "Invalid path format (expected /media-1-main.null or /)",
       });
     });
   });

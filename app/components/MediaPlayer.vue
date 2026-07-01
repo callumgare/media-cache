@@ -68,10 +68,22 @@ const ui = useUiState();
 // ── Source resolution ────────────────────────────────────────────────────────
 
 const videoFile = computed(() =>
-  props.media.files.find((f) => f.hasVideo && f.ext !== "gif"),
+  props.media.files
+    .toSorted(
+      (a, b) =>
+        (a.type.startsWith("thumb") ? 1 : -1) -
+        (b.type.startsWith("thumb") ? 1 : -1),
+    )
+    .find((f) => f.hasVideo && f.ext !== "gif"),
 );
 const imageFile = computed(() =>
-  props.media.files.find((f) => f.hasImage || f.ext === "gif"),
+  props.media.files
+    .toSorted(
+      (a, b) =>
+        (a.type.startsWith("thumb") ? 1 : -1) -
+        (b.type.startsWith("thumb") ? 1 : -1),
+    )
+    .find((f) => f.hasImage || f.ext === "gif"),
 );
 
 function fileSrc(type: string, filename: string) {

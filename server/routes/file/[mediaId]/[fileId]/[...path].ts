@@ -31,13 +31,21 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const file = (cacheMedia.files ?? []).find((f) => f.type === fileType);
+  const fileExt = event.context.params?.path?.split(".").pop();
+  const file = (cacheMedia.files ?? [])
+    .sort((a, b) => (a.ext === fileExt ? -1 : 1) - (b.ext === fileExt ? -1 : 1))
+    .find((f) => f.type === fileType);
   if (!file) {
     throw createError({
       statusCode: 404,
       statusMessage: "File not found",
     });
   }
+  const source = cacheMedia.sources?.find(
+    (s) =>
+      s.liaseMediaId === file.liaseMediaId &&
+      s.liaseSourceId === file.liaseSourceId,
+  );
 
   let fileUrl: URL;
   if (file.urlExpires && new Date() > new Date(file.urlExpires)) {
@@ -80,7 +88,7 @@ export default defineEventHandler(async (event) => {
   ) {
     throw createError({
       statusCode: 400,
-      statusMessage: "Invalid path format",
+      statusMessage: `Invalid path format (expected /${virtualFilename} or /)`,
     });
   }
 
@@ -89,7 +97,11 @@ export default defineEventHandler(async (event) => {
       ? fileUrl
       : new URL(pathParam || "/", fileUrl.origin);
 
-  let res = await proxyRequest(event, upstreamUrl);
+  let res = await proxyRequest(event, upstreamUrl, {
+    headers: {
+      ...(source?.url ? { referer: source.url } : {}),
+    },
+  });
 
   if (res.headers.get("content-type") === "application/vnd.apple.mpegurl") {
     const body = await res.text();
